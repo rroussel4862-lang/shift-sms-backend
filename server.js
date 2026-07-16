@@ -105,6 +105,9 @@ app.use(
   })
 );
 
+// Manager admin page — visiting the site root shows public/index.html
+app.use(express.static(path.join(__dirname, "public")));
+
 // ---------- staff endpoints ----------
 
 app.get("/api/staff", (req, res) => {
@@ -112,14 +115,14 @@ app.get("/api/staff", (req, res) => {
 });
 
 app.post("/api/staff", (req, res) => {
-  const { name, phone, role } = req.body || {};
+  const { name, phone, roles } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: "name is required" });
-  if (!role || !role.trim()) return res.status(400).json({ error: "role is required" });
+  const roleList = Array.isArray(roles) ? roles.map((r) => String(r).trim()).filter(Boolean) : [];
   const normalized = normalizePhone(phone || "");
   if (!normalized) {
     return res.status(400).json({ error: "phone is missing or not recognizable — include country code if outside the US, e.g. +44..." });
   }
-  const staffer = { id: id(), name: name.trim(), phone: normalized, role: role.trim() };
+  const staffer = { id: id(), name: name.trim(), phone: normalized, roles: roleList };
   db.staff.push(staffer);
   saveData(db);
   res.status(201).json(staffer);
@@ -164,13 +167,31 @@ app.post("/api/shifts", async (req, res) => {
     .join(" ");
 
   const recipients = db.staff.filter(
-    (s) => s.role && s.role.trim().toLowerCase() === shift.role.trim().toLowerCase()
+    (s) =>
+      Array.isArray(s.roles) &&
+      s.roles.some((r) => r.trim().toLowerCase() === shift.role.trim().toLowerCase())
   );
 
   const results = await Promise.all(recipients.map((s) => sendSms(s.phone, text)));
   const sent = results.filter((r) => r.ok).length;
 
   res.status(201).json({ shift, sms: { sent, total: recipients.length, failures: results.filter((r) => !r.ok) } });
+});
+
+app.post("/api/shifts/:id/respond", (req, res) => {
+  const { staffId } = req.body || {};
+  const shift = db.shifts.find((s) => s.id === req.params.id);
+  if (!shift) return res.status(404).json({ error: "shift not found" });
+  const staffer = db.staff.find((s) => s.id === staffId);
+  if (!staffer) return res.status(404).json({ error: "staff not found" });
+  if (shift.status !== "open") return res.status(400).json({ error: "shift is not open" });
+
+  const already = shift.responders.some((r) => r.staffId === staffId);
+  if (!already) {
+    shift.responders.push({ staffId, name: staffer.name, ts: Date.now() });
+    saveData(db);
+  }
+  res.json(shift);
 });
 
 app.post("/api/shifts/:id/assign", async (req, res) => {
@@ -248,7 +269,7 @@ app.post("/api/sms/inbound", (req, res) => {
 
 // ---------- health check ----------
 
-app.get("/", (req, res) => {
+app.get("/api/health", (req, res) => {
   res.json({ ok: true, staff: db.staff.length, shifts: db.shifts.length });
 });
 
