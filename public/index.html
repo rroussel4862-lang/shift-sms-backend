@@ -201,6 +201,20 @@
     padding-top: 8px;
   }
   .responder-row:first-of-type { border-top: 1px dashed rgba(35,38,31,0.25); }
+  .remove-btn {
+    background: none;
+    border: none;
+    color: var(--ink);
+    opacity: 0.45;
+    font-size: 11px;
+    font-family: inherit;
+    text-decoration: underline;
+    padding: 0;
+    margin-top: 12px;
+    cursor: pointer;
+    display: block;
+  }
+  .remove-btn:active { opacity: 0.7; }
   .assign-btn {
     background: var(--green);
     color: #fff;
@@ -419,6 +433,7 @@ function render() {
                   <button class="assign-btn" onclick="assign('${s.id}','${r.staffId}')">Assign</button>
                 </div>
               `).join("")}
+          <button class="remove-btn" onclick="removeShift('${s.id}')">Remove ticket</button>
         </div>
       `).join("");
 
@@ -501,6 +516,17 @@ async function assign(shiftId, staffId) {
   });
   if (result.ok) {
     showBanner("Assigned — confirmation text sent", "success");
+    loadAll();
+  } else {
+    showBanner(result.error, "warn");
+  }
+}
+
+async function removeShift(shiftId) {
+  if (!confirm("Remove this ticket? Staff who already responded won't be notified.")) return;
+  const result = await api(`/api/shifts/${shiftId}`, { method: "DELETE" });
+  if (result.ok) {
+    showBanner("Ticket removed", "success");
     loadAll();
   } else {
     showBanner(result.error, "warn");
