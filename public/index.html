@@ -221,6 +221,34 @@
   }
   .banner.success { background: var(--green); color: #fff; }
   .banner.warn { background: var(--amber); color: var(--ink); }
+  .tabs {
+    display: flex;
+    gap: 6px;
+    max-width: 480px;
+    margin: 14px auto 0;
+    padding: 0 20px;
+  }
+  .tab-btn {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--rail);
+    color: var(--text-dim);
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 10px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .tab-btn.active {
+    background: var(--amber);
+    color: var(--ink);
+    border-color: var(--amber);
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
 </style>
 </head>
 <body>
@@ -232,42 +260,59 @@
 
 <div id="banner"></div>
 
+<div class="tabs">
+  <button class="tab-btn active" id="tabBtnShifts" onclick="switchTab('shifts')">Shifts</button>
+  <button class="tab-btn" id="tabBtnStaff" onclick="switchTab('staff')">Staff</button>
+</div>
+
 <main>
-  <div class="card">
-    <h2>Post an open shift</h2>
-    <label>Position</label>
-    <select id="shiftRole"></select>
-    <label>When</label>
-    <input type="text" id="shiftTime" placeholder="e.g. Today, 5pm–close" />
-    <label>Note (optional)</label>
-    <input type="text" id="shiftNote" placeholder="e.g. Jordan called out sick" />
-    <button class="primary amber" onclick="postShift()">Send to staff now</button>
+  <div class="tab-panel active" id="panelShifts">
+    <div class="card">
+      <h2>Post an open shift</h2>
+      <label>Position</label>
+      <select id="shiftRole"></select>
+      <label>When</label>
+      <input type="text" id="shiftTime" placeholder="e.g. Today, 5pm–close" />
+      <label>Note (optional)</label>
+      <input type="text" id="shiftNote" placeholder="e.g. Jordan called out sick" />
+      <button class="primary amber" onclick="postShift()">Send to staff now</button>
+    </div>
+
+    <div class="card">
+      <h2>Open shifts</h2>
+      <div id="openShifts"><p class="empty">No open shifts.</p></div>
+    </div>
+
+    <div class="card">
+      <h2>Recently filled</h2>
+      <div id="filledShifts"><p class="empty">Nothing filled yet.</p></div>
+    </div>
   </div>
 
-  <div class="card">
-    <h2>Open shifts</h2>
-    <div id="openShifts"><p class="empty">No open shifts.</p></div>
-  </div>
+  <div class="tab-panel" id="panelStaff">
+    <div class="card">
+      <h2>Staff</h2>
+      <div id="staffList"><p class="empty">No staff yet.</p></div>
 
-  <div class="card">
-    <h2>Recently filled</h2>
-    <div id="filledShifts"><p class="empty">Nothing filled yet.</p></div>
-  </div>
-
-  <div class="card">
-    <h2>Staff</h2>
-    <div id="staffList"><p class="empty">No staff yet.</p></div>
-
-    <label style="margin-top:16px">Name</label>
-    <input type="text" id="staffName" placeholder="Full name" />
-    <label>Phone</label>
-    <input type="tel" id="staffPhone" placeholder="+15551234567" />
-    <label>Role(s) — tap all that apply</label>
-    <div class="roles" id="staffRoles"></div>
-    <button class="primary" onclick="addStaff()">Add staff</button>
+      <label style="margin-top:16px">Name</label>
+      <input type="text" id="staffName" placeholder="Full name" />
+      <label>Phone</label>
+      <input type="tel" id="staffPhone" placeholder="+15551234567" />
+      <label>Role(s) — tap all that apply</label>
+      <div class="roles" id="staffRoles"></div>
+      <button class="primary" onclick="addStaff()">Add staff</button>
+    </div>
   </div>
 </main>
 
+<script>
+function switchTab(name) {
+  document.getElementById("panelShifts").classList.toggle("active", name === "shifts");
+  document.getElementById("panelStaff").classList.toggle("active", name === "staff");
+  document.getElementById("tabBtnShifts").classList.toggle("active", name === "shifts");
+  document.getElementById("tabBtnStaff").classList.toggle("active", name === "staff");
+}
+</script>
 <script>
 const ROLES = ["Line Cook", "Server", "Host", "Bartender", "Busser", "Dishwasher", "Prep Cook", "Expo"];
 let selectedRoles = [];
