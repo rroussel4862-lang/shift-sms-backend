@@ -158,6 +158,36 @@
     cursor: pointer;
     padding: 2px 6px;
   }
+  .edit-btn {
+    background: none;
+    border: 1px solid var(--rail);
+    color: var(--text-dim);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-right: 6px;
+  }
+  .row-actions { display: flex; align-items: flex-start; gap: 2px; }
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+  .btn-row .primary { margin-top: 0; }
+  .secondary-btn {
+    flex: 1;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--rail);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 13px;
+    cursor: pointer;
+  }
   .empty { color: var(--text-dim); font-size: 13px; }
   .ticket {
     background: var(--paper);
@@ -263,10 +293,74 @@
   }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
+  #landing {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+  }
+  .landing-mark {
+    width: 56px;
+    height: 56px;
+    border: 2px solid var(--amber);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: rotate(-4deg);
+    margin-bottom: 22px;
+  }
+  .landing-mark span {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 700;
+    color: var(--amber);
+    font-size: 22px;
+  }
+  #landing h1 {
+    font-family: 'Oswald', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin: 0;
+  }
+  #landing p {
+    color: var(--text-dim);
+    font-size: 13px;
+    max-width: 280px;
+    margin: 12px 0 30px;
+    line-height: 1.5;
+  }
+  .enter-btn {
+    background: var(--amber);
+    color: var(--ink);
+    border: none;
+    border-radius: 6px;
+    padding: 14px 40px;
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .enter-btn:active { transform: scale(0.98); }
+  #appShell { display: none; }
 </style>
 </head>
 <body>
 
+<div id="landing">
+  <div class="landing-mark"><span>OSR</span></div>
+  <h1>Open Shift Rail</h1>
+  <p>Post a no-show. Text your staff. Fill the shift — all from here.</p>
+  <button class="enter-btn" onclick="enterApp()">Enter</button>
+</div>
+
+<div id="appShell">
 <header>
   <h1>Open Shift Rail — Manager</h1>
   <p id="subtitle">loading…</p>
@@ -319,6 +413,8 @@
   </div>
 </main>
 
+</div>
+
 <script>
 function switchTab(name) {
   document.getElementById("panelShifts").classList.toggle("active", name === "shifts");
@@ -332,6 +428,8 @@ const ROLES = ["Line Cook", "Server", "Host", "Bartender", "Busser", "Dishwasher
 let selectedRoles = [];
 let staff = [];
 let shifts = [];
+let editingStaffId = null;
+let editDraftRoles = [];
 
 const roleSelect = document.getElementById("shiftRole");
 ROLES.forEach(r => {
@@ -402,17 +500,44 @@ function render() {
   const staffDiv = document.getElementById("staffList");
   staffDiv.innerHTML = staff.length === 0
     ? '<p class="empty">No staff yet.</p>'
-    : staff.map(p => `
-        <div class="staff-row">
-          <div>
-            <div class="staff-name">${escapeHtml(p.name)}</div>
-            <div class="staff-roles">
-              ${(p.roles && p.roles.length) ? p.roles.map(r => `<span>${escapeHtml(r)}</span>`).join("") : '<span style="opacity:0.5">no role</span>'}
+    : staff.map(p => {
+        if (p.id === editingStaffId) {
+          const existingInput = document.getElementById(`editPhone-${p.id}`);
+          const phoneValue = existingInput ? existingInput.value : (p.phone || "");
+          return `
+            <div class="staff-row" style="flex-direction:column;align-items:stretch">
+              <div class="staff-name">${escapeHtml(p.name)}</div>
+              <label style="margin-top:8px">Phone</label>
+              <input type="tel" id="editPhone-${p.id}" value="${escapeHtml(phoneValue)}" />
+              <label>Role(s) — tap all that apply</label>
+              <div class="roles">
+                ${ROLES.map(r => `
+                  <button type="button" class="role-pill${editDraftRoles.includes(r) ? " active" : ""}"
+                    onclick="toggleEditRole(this,'${r}')">${escapeHtml(r)}</button>
+                `).join("")}
+              </div>
+              <div class="btn-row">
+                <button class="primary" onclick="saveEdit('${p.id}')">Save</button>
+                <button class="secondary-btn" onclick="cancelEdit()">Cancel</button>
+              </div>
+            </div>
+          `;
+        }
+        return `
+          <div class="staff-row">
+            <div>
+              <div class="staff-name">${escapeHtml(p.name)}</div>
+              <div class="staff-roles">
+                ${(p.roles && p.roles.length) ? p.roles.map(r => `<span>${escapeHtml(r)}</span>`).join("") : '<span style="opacity:0.5">no role</span>'}
+              </div>
+            </div>
+            <div class="row-actions">
+              <button class="edit-btn" onclick="startEdit('${p.id}')">Edit</button>
+              <button class="del-btn" onclick="removeStaff('${p.id}')">✕</button>
             </div>
           </div>
-          <button class="del-btn" onclick="removeStaff('${p.id}')">✕</button>
-        </div>
-      `).join("");
+        `;
+      }).join("");
 
   // open shifts
   const open = shifts.filter(s => s.status === "open");
@@ -450,6 +575,7 @@ function render() {
             <div class="role">${escapeHtml(s.role)}</div>
             <div class="meta">${escapeHtml(s.time || "ASAP")}</div>
             <div class="note">Covered by ${assignee ? escapeHtml(assignee.name) : "someone"}</div>
+            <button class="remove-btn" onclick="removeShift('${s.id}')">Remove ticket</button>
           </div>
         `;
       }).join("");
@@ -485,6 +611,46 @@ async function addStaff() {
 async function removeStaff(id) {
   await api(`/api/staff/${id}`, { method: "DELETE" });
   loadAll();
+}
+
+function startEdit(id) {
+  const p = staff.find(x => x.id === id);
+  if (!p) return;
+  editingStaffId = id;
+  editDraftRoles = (p.roles || []).slice();
+  render();
+}
+
+function cancelEdit() {
+  editingStaffId = null;
+  render();
+}
+
+function toggleEditRole(btn, r) {
+  if (editDraftRoles.includes(r)) {
+    editDraftRoles = editDraftRoles.filter(x => x !== r);
+    btn.classList.remove("active");
+  } else {
+    editDraftRoles.push(r);
+    btn.classList.add("active");
+  }
+}
+
+async function saveEdit(id) {
+  const phoneInput = document.getElementById(`editPhone-${id}`);
+  const phone = phoneInput ? phoneInput.value.trim() : "";
+  if (!phone) return showBanner("Phone number can't be empty", "warn");
+  const result = await api(`/api/staff/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ phone, roles: editDraftRoles }),
+  });
+  if (result.ok) {
+    showBanner("Staff updated", "success");
+    editingStaffId = null;
+    loadAll();
+  } else {
+    showBanner(result.error, "warn");
+  }
 }
 
 async function postShift() {
@@ -533,8 +699,16 @@ async function removeShift(shiftId) {
   }
 }
 
-loadAll();
-setInterval(loadAll, 5000);
+let started = false;
+function enterApp() {
+  document.getElementById("landing").style.display = "none";
+  document.getElementById("appShell").style.display = "block";
+  if (!started) {
+    started = true;
+    loadAll();
+    setInterval(loadAll, 5000);
+  }
+}
 </script>
 </body>
 </html>
