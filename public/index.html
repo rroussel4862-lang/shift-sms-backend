@@ -190,6 +190,38 @@
     cursor: pointer;
   }
   .empty { color: var(--text-dim); font-size: 13px; }
+  .rank-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--rail);
+    padding: 8px 0;
+  }
+  .rank-row:last-child { border-bottom: none; }
+  .rank-left { display: flex; align-items: center; gap: 10px; }
+  .rank-num {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text-dim);
+    width: 18px;
+    text-align: center;
+  }
+  .rank-num.top { color: var(--amber); }
+  .rank-meta { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
+  .rank-score {
+    background: var(--amber);
+    color: var(--ink);
+    font-weight: 700;
+    font-size: 12px;
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
   .ticket {
     background: var(--paper);
     color: var(--ink);
@@ -442,6 +474,12 @@
       <input type="text" id="staffNameSearch" placeholder="Search by name…" style="display:none;margin-bottom:10px" oninput="staffNameQuery = this.value; render();" />
       <div id="staffList"><p class="empty">No staff yet.</p></div>
     </div>
+
+    <div class="card">
+      <h2>Most available</h2>
+      <div style="color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px">3 pts / covered · 1 pt / responded</div>
+      <div id="leaderboardList"><p class="empty">No staff yet.</p></div>
+    </div>
   </div>
 </main>
 
@@ -617,6 +655,24 @@ function render() {
         `;
       }).join("");
 
+  // leaderboard
+  const leaderboardDiv = document.getElementById("leaderboardList");
+  const ranked = computeStats(staff, shifts);
+  leaderboardDiv.innerHTML = ranked.length === 0
+    ? '<p class="empty">No staff yet.</p>'
+    : ranked.map((p, i) => `
+        <div class="rank-row">
+          <div class="rank-left">
+            <span class="rank-num${i < 3 && p.score > 0 ? " top" : ""}">${i + 1}</span>
+            <div>
+              <div class="staff-name">${escapeHtml(p.name)}</div>
+              <div class="rank-meta">${p.covered} covered · ${p.responses} responded</div>
+            </div>
+          </div>
+          <div class="rank-score">${p.score}</div>
+        </div>
+      `).join("");
+
   // open shifts
   const open = shifts.filter(s => s.status === "open");
   const openDiv = document.getElementById("openShifts");
@@ -663,6 +719,22 @@ function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str == null ? "" : String(str);
   return div.innerHTML;
+}
+
+function computeStats(staffList, shiftList) {
+  const stats = {};
+  staffList.forEach(p => { stats[p.id] = { id: p.id, name: p.name, responses: 0, covered: 0 }; });
+  shiftList.forEach(s => {
+    (s.responders || []).forEach(r => {
+      if (stats[r.staffId]) stats[r.staffId].responses += 1;
+    });
+    if (s.status === "filled" && s.assignedTo && stats[s.assignedTo]) {
+      stats[s.assignedTo].covered += 1;
+    }
+  });
+  return Object.values(stats)
+    .map(p => ({ ...p, score: p.responses * 1 + p.covered * 3 }))
+    .sort((a, b) => b.score - a.score || b.covered - a.covered || a.name.localeCompare(b.name));
 }
 
 async function addStaff() {
