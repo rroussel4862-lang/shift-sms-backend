@@ -358,13 +358,34 @@
   <div class="landing-mark"><span>OSR</span></div>
   <h1>Open Shift Rail</h1>
   <p>Post a no-show. Text your staff. Fill the shift — all from here.</p>
-  <button class="enter-btn" onclick="enterApp()">Enter</button>
+
+  <div id="authForms" style="width:100%;max-width:300px;text-align:left">
+    <div class="tabs" style="max-width:none;margin:0 0 16px;padding:0">
+      <button type="button" class="tab-btn active" id="authTabLogin" onclick="setAuthMode('login')">Log in</button>
+      <button type="button" class="tab-btn" id="authTabSignup" onclick="setAuthMode('signup')">Sign up</button>
+    </div>
+
+    <div id="signupFields" style="display:none">
+      <label>Restaurant name</label>
+      <input type="text" id="authRestaurantName" placeholder="e.g. Ferro" />
+    </div>
+    <label>Email</label>
+    <input type="text" id="authEmail" placeholder="you@restaurant.com" />
+    <label>Password</label>
+    <input type="password" id="authPassword" placeholder="••••••••" />
+
+    <button class="enter-btn" style="width:100%;margin-top:16px" onclick="submitAuth()" id="authSubmitBtn">Log in</button>
+    <div id="authError" style="color:var(--amber);font-size:12px;margin-top:10px;min-height:16px"></div>
+  </div>
 </div>
 
 <div id="appShell">
-<header>
-  <h1>Open Shift Rail — Manager</h1>
-  <p id="subtitle">loading…</p>
+<header style="display:flex;justify-content:space-between;align-items:flex-start">
+  <div>
+    <h1>Open Shift Rail — Manager</h1>
+    <p id="subtitle">loading…</p>
+  </div>
+  <button onclick="logout()" style="background:none;border:1px solid var(--rail);color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-family:inherit;padding:6px 10px;border-radius:4px;cursor:pointer">Log out</button>
 </header>
 
 <div id="banner"></div>
@@ -480,6 +501,7 @@ async function api(path, options) {
   try {
     const res = await fetch(path, {
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       ...options,
     });
     let body = null;
@@ -771,16 +793,72 @@ async function removeShift(shiftId) {
   }
 }
 
+let authMode = "login";
+let restaurantName = "";
+
+function setAuthMode(mode) {
+  authMode = mode;
+  document.getElementById("authTabLogin").classList.toggle("active", mode === "login");
+  document.getElementById("authTabSignup").classList.toggle("active", mode === "signup");
+  document.getElementById("signupFields").style.display = mode === "signup" ? "block" : "none";
+  document.getElementById("authSubmitBtn").textContent = mode === "signup" ? "Create account" : "Log in";
+  document.getElementById("authError").textContent = "";
+}
+
+async function submitAuth() {
+  const email = document.getElementById("authEmail").value.trim();
+  const password = document.getElementById("authPassword").value;
+  const errorDiv = document.getElementById("authError");
+  errorDiv.textContent = "";
+
+  if (authMode === "signup") {
+    const name = document.getElementById("authRestaurantName").value.trim();
+    if (!name) return (errorDiv.textContent = "Enter your restaurant's name");
+    if (!email) return (errorDiv.textContent = "Enter an email");
+    if (!password || password.length < 8) return (errorDiv.textContent = "Password must be at least 8 characters");
+    const result = await api("/api/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({ restaurantName: name, email, password }),
+    });
+    if (!result.ok) return (errorDiv.textContent = result.error);
+    restaurantName = result.data.restaurant.name;
+    enterApp();
+  } else {
+    if (!email || !password) return (errorDiv.textContent = "Enter your email and password");
+    const result = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+    if (!result.ok) return (errorDiv.textContent = result.error);
+    restaurantName = result.data.restaurant.name;
+    enterApp();
+  }
+}
+
+async function logout() {
+  await api("/api/auth/logout", { method: "POST" });
+  location.reload();
+}
+
 let started = false;
 function enterApp() {
   document.getElementById("landing").style.display = "none";
   document.getElementById("appShell").style.display = "block";
+  document.querySelector("#appShell header h1").textContent = restaurantName
+    ? `${restaurantName} — Manager`
+    : "Open Shift Rail — Manager";
   if (!started) {
     started = true;
     loadAll();
     setInterval(loadAll, 5000);
   }
 }
+
+// If there's already a valid session cookie, skip straight past the login screen
+(async function checkSession() {
+  const result = await api("/api/auth/me");
+  if (result.ok) {
+    restaurantName = result.data.restaurant.name;
+    enterApp();
+  }
+})();
 </script>
 </body>
 </html>
