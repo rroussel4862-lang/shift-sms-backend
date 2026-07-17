@@ -93,6 +93,7 @@
     gap: 6px;
     margin-top: 6px;
   }
+  #staffRoleFilters { margin-bottom: 10px; }
   .role-pill {
     border: 1px solid var(--rail);
     color: var(--text-dim);
@@ -399,16 +400,26 @@
 
   <div class="tab-panel" id="panelStaff">
     <div class="card">
-      <h2>Staff</h2>
-      <div id="staffList"><p class="empty">No staff yet.</p></div>
-
-      <label style="margin-top:16px">Name</label>
+      <h2>Add new staff</h2>
+      <label>Name</label>
       <input type="text" id="staffName" placeholder="Full name" />
       <label>Phone</label>
       <input type="tel" id="staffPhone" placeholder="+15551234567" />
       <label>Role(s) — tap all that apply</label>
       <div class="roles" id="staffRoles"></div>
       <button class="primary" onclick="addStaff()">Add staff</button>
+    </div>
+
+    <div class="card">
+      <h2>Current staff</h2>
+      <div class="tabs" style="max-width:none;margin:0 0 10px;padding:0">
+        <button type="button" class="tab-btn active" id="modeBtnAll" onclick="setStaffFilterMode('all')">All</button>
+        <button type="button" class="tab-btn" id="modeBtnPosition" onclick="setStaffFilterMode('position')">By position</button>
+        <button type="button" class="tab-btn" id="modeBtnName" onclick="setStaffFilterMode('name')">By name</button>
+      </div>
+      <div class="roles" id="staffRoleFilters"></div>
+      <input type="text" id="staffNameSearch" placeholder="Search by name…" style="display:none;margin-bottom:10px" oninput="staffNameQuery = this.value; render();" />
+      <div id="staffList"><p class="empty">No staff yet.</p></div>
     </div>
   </div>
 </main>
@@ -430,6 +441,9 @@ let staff = [];
 let shifts = [];
 let editingStaffId = null;
 let editDraftRoles = [];
+let staffRoleFilter = null;
+let staffFilterMode = "all";
+let staffNameQuery = "";
 
 const roleSelect = document.getElementById("shiftRole");
 ROLES.forEach(r => {
@@ -496,11 +510,53 @@ function render() {
   document.getElementById("subtitle").textContent =
     `${shifts.filter(s => s.status === "open").length} open · ${staff.length} staff`;
 
+  // staff filter controls
+  document.getElementById("modeBtnAll").classList.toggle("active", staffFilterMode === "all");
+  document.getElementById("modeBtnPosition").classList.toggle("active", staffFilterMode === "position");
+  document.getElementById("modeBtnName").classList.toggle("active", staffFilterMode === "name");
+
+  const filtersDiv = document.getElementById("staffRoleFilters");
+  const nameSearch = document.getElementById("staffNameSearch");
+
+  if (staffFilterMode === "position") {
+    filtersDiv.style.display = "flex";
+    nameSearch.style.display = "none";
+    const roleCounts = ROLES.map(r => ({
+      role: r,
+      count: staff.filter(p => p.roles && p.roles.includes(r)).length,
+    }));
+    filtersDiv.innerHTML = roleCounts.map(({ role, count }) => `
+      <button type="button" class="role-pill${staffRoleFilter === role ? " active" : ""}"
+        onclick="toggleRoleFilter('${role}')">${escapeHtml(role)} (${count})</button>
+    `).join("");
+  } else if (staffFilterMode === "name") {
+    filtersDiv.style.display = "none";
+    nameSearch.style.display = "block";
+  } else {
+    filtersDiv.style.display = "none";
+    nameSearch.style.display = "none";
+  }
+
   // staff list
   const staffDiv = document.getElementById("staffList");
+  let visibleStaff = staff;
+  if (staffFilterMode === "position" && staffRoleFilter) {
+    visibleStaff = staff.filter(p => p.id === editingStaffId || (p.roles && p.roles.includes(staffRoleFilter)));
+  } else if (staffFilterMode === "name" && staffNameQuery.trim()) {
+    const q = staffNameQuery.trim().toLowerCase();
+    visibleStaff = staff.filter(p => p.id === editingStaffId || p.name.toLowerCase().includes(q));
+  }
+  const emptyFilterMessage =
+    staffFilterMode === "position" && staffRoleFilter
+      ? `No staff with the "${escapeHtml(staffRoleFilter)}" role.`
+      : staffFilterMode === "name" && staffNameQuery.trim()
+      ? `No staff matching "${escapeHtml(staffNameQuery.trim())}".`
+      : "No staff yet.";
   staffDiv.innerHTML = staff.length === 0
     ? '<p class="empty">No staff yet.</p>'
-    : staff.map(p => {
+    : visibleStaff.length === 0
+    ? `<p class="empty">${emptyFilterMessage}</p>`
+    : visibleStaff.map(p => {
         if (p.id === editingStaffId) {
           const existingInput = document.getElementById(`editPhone-${p.id}`);
           const phoneValue = existingInput ? existingInput.value : (p.phone || "");
@@ -611,6 +667,22 @@ async function addStaff() {
 async function removeStaff(id) {
   await api(`/api/staff/${id}`, { method: "DELETE" });
   loadAll();
+}
+
+function setStaffFilterMode(mode) {
+  staffFilterMode = mode;
+  if (mode !== "position") staffRoleFilter = null;
+  if (mode !== "name") staffNameQuery = "";
+  render();
+  if (mode === "name") {
+    const input = document.getElementById("staffNameSearch");
+    if (input) { input.value = ""; input.focus(); }
+  }
+}
+
+function toggleRoleFilter(role) {
+  staffRoleFilter = staffRoleFilter === role ? null : role;
+  render();
 }
 
 function startEdit(id) {
