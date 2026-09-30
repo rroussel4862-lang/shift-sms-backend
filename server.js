@@ -101,6 +101,36 @@ async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS shifts_restaurant_idx ON shifts (restaurant_id);`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS job_postings (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      role TEXT,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at BIGINT NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS postings_restaurant_idx ON job_postings (restaurant_id);`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS applications (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      posting_id TEXT NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      note TEXT,
+      stage TEXT NOT NULL DEFAULT 'applied',
+      interview_time TEXT,
+      created_at BIGINT NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS applications_restaurant_idx ON applications (restaurant_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS applications_posting_idx ON applications (posting_id);`);
 }
 
 // ---------- helpers ----------
@@ -144,6 +174,29 @@ function shiftRowToJson(row) {
     filledAt: row.filled_at ? Number(row.filled_at) : undefined,
     assignedTo: row.assigned_to || null,
     responders: row.responders || [],
+  };
+}
+function postingRowToJson(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    role: row.role || "",
+    description: row.description || "",
+    status: row.status,
+    createdAt: Number(row.created_at),
+  };
+}
+function applicationRowToJson(row) {
+  return {
+    id: row.id,
+    postingId: row.posting_id,
+    name: row.name,
+    email: row.email || "",
+    phone: row.phone || "",
+    note: row.note || "",
+    stage: row.stage,
+    interviewTime: row.interview_time || "",
+    createdAt: Number(row.created_at),
   };
 }
 function signToken(payload) {
@@ -439,6 +492,128 @@ app.post("/api/sms/inbound", async (req, res) => {
 
   twiml.message(`Got it, ${staffer.name.split(" ")[0]} — you're down for ${shift.role}. Your manager will confirm shortly.`);
   res.type("text/xml").send(twiml.toString());
+});
+
+// ---------- hiring: postings (manager, authenticated) ----------
+
+app.get("/api/hiring/postings", requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT p.*, (SELECT COUNT(*) FROM applications a WHERE a.posting_id = p.id) AS applicant_count
+     FROM job_postings p WHERE p.restaurant_id = $1 ORDER BY p.created_at DESC`,
+    [req.restaurantId]
+  );
+  res.json(rows.map((r) => ({ ...postingRowToJson(r), applicantCount: Number(r.applicant_count) })));
+});
+
+app.post("/api/hiring/postings", requireAuth, async (req, res) => {
+  const { title, role, description } = req.body || {};
+  if (!title || !title.trim()) return res.status(400).json({ error: "title is required" });
+  const newId = id();
+  const { rows } = await pool.query(
+    "INSERT INTO job_postings (id, restaurant_id, title, role, description, status, created_at) VALUES ($1,$2,$3,$4,$5,'open',$6) RETURNING *",
+    [newId, req.restaurantId, title.trim(), (role || "").trim(), (description || "").trim(), Date.now()]
+  );
+  res.status(201).json(postingRowToJson(rows[0]));
+});
+
+app.patch("/api/hiring/postings/:id", requireAuth, async (req, res) => {
+  const { status } = req.body || {};
+  if (!["open", "closed"].includes(status)) return res.status(400).json({ error: "status must be 'open' or 'closed'" });
+  const { rows } = await pool.query(
+    "UPDATE job_postings SET status=$1 WHERE id=$2 AND restaurant_id=$3 RETURNING *",
+    [status, req.params.id, req.restaurantId]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: "posting not found" });
+  res.json(postingRowToJson(rows[0]));
+});
+
+app.delete("/api/hiring/postings/:id", requireAuth, async (req, res) => {
+  await pool.query("DELETE FROM job_postings WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  res.status(204).end();
+});
+
+// ---------- hiring: applications (manager, authenticated) ----------
+
+app.get("/api/hiring/applications", requireAuth, async (req, res) => {
+  const { postingId } = req.query;
+  const params = [req.restaurantId];
+  let query = "SELECT * FROM applications WHERE restaurant_id = $1";
+  if (postingId) {
+    params.push(postingId);
+    query += " AND posting_id = $2";
+  }
+  query += " ORDER BY created_at DESC";
+  const { rows } = await pool.query(query, params);
+  res.json(rows.map(applicationRowToJson));
+});
+
+app.patch("/api/hiring/applications/:id", requireAuth, async (req, res) => {
+  const { rows: existing } = await pool.query(
+    "SELECT * FROM applications WHERE id = $1 AND restaurant_id = $2",
+    [req.params.id, req.restaurantId]
+  );
+  if (existing.length === 0) return res.status(404).json({ error: "application not found" });
+
+  const { stage, interviewTime, note } = req.body || {};
+  const validStages = ["applied", "screening", "interview", "offer", "rejected"];
+  const updates = {
+    stage: existing[0].stage,
+    interview_time: existing[0].interview_time,
+    note: existing[0].note,
+  };
+  if (stage !== undefined) {
+    if (!validStages.includes(stage)) return res.status(400).json({ error: "invalid stage" });
+    updates.stage = stage;
+  }
+  if (interviewTime !== undefined) updates.interview_time = interviewTime;
+  if (note !== undefined) updates.note = note;
+
+  const { rows } = await pool.query(
+    "UPDATE applications SET stage=$1, interview_time=$2, note=$3 WHERE id=$4 AND restaurant_id=$5 RETURNING *",
+    [updates.stage, updates.interview_time, updates.note, req.params.id, req.restaurantId]
+  );
+  res.json(applicationRowToJson(rows[0]));
+});
+
+app.delete("/api/hiring/applications/:id", requireAuth, async (req, res) => {
+  await pool.query("DELETE FROM applications WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  res.status(204).end();
+});
+
+// ---------- hiring: public candidate-facing endpoints (no auth) ----------
+
+app.get("/api/public/postings/:id", async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT p.*, r.name AS restaurant_name FROM job_postings p
+     JOIN restaurants r ON r.id = p.restaurant_id
+     WHERE p.id = $1 AND p.status = 'open'`,
+    [req.params.id]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: "This posting isn't available." });
+  const p = rows[0];
+  res.json({ id: p.id, title: p.title, role: p.role || "", description: p.description || "", restaurantName: p.restaurant_name });
+});
+
+app.post("/api/public/applications", async (req, res) => {
+  const { postingId, name, email, phone, note } = req.body || {};
+  if (!postingId) return res.status(400).json({ error: "postingId is required" });
+  if (!name || !name.trim()) return res.status(400).json({ error: "name is required" });
+  if (!email && !phone) return res.status(400).json({ error: "an email or phone number is required" });
+
+  const { rows: postingRows } = await pool.query(
+    "SELECT * FROM job_postings WHERE id = $1 AND status = 'open'",
+    [postingId]
+  );
+  if (postingRows.length === 0) return res.status(404).json({ error: "This posting isn't accepting applications right now." });
+  const posting = postingRows[0];
+
+  const newId = id();
+  const { rows } = await pool.query(
+    `INSERT INTO applications (id, restaurant_id, posting_id, name, email, phone, note, stage, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'applied',$8) RETURNING *`,
+    [newId, posting.restaurant_id, postingId, name.trim(), (email || "").trim(), (phone || "").trim(), (note || "").trim(), Date.now()]
+  );
+  res.status(201).json(applicationRowToJson(rows[0]));
 });
 
 // ---------- health check ----------

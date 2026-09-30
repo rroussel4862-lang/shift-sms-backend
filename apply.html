@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Apply — Open Shift Rail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #1C201D; --panel: #262B27; --paper: #F0EAD8; --ink: #23261F;
+    --amber: #E2A33B; --green: #5C8C6B; --rail: #454C46;
+    --text-bright: #F2EFE6; --text-dim: #9BA39C;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--bg); color: var(--text-bright);
+    font-family: 'IBM Plex Mono', monospace;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    width: 100%; max-width: 420px;
+    background: var(--panel); border: 1px solid var(--rail);
+    border-radius: 8px; padding: 24px;
+  }
+  h1 { font-family: 'Oswald', sans-serif; font-size: 20px; text-transform: uppercase; margin: 0 0 4px; }
+  .sub { color: var(--text-dim); font-size: 12.5px; margin-bottom: 18px; }
+  .desc { font-size: 13.5px; line-height: 1.5; margin-bottom: 20px; color: var(--text-bright); opacity: 0.9; }
+  label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 12px 0 5px; }
+  input, textarea {
+    width: 100%; background: var(--bg); border: 1px solid var(--rail); color: var(--text-bright);
+    border-radius: 5px; padding: 10px 12px; font-family: inherit; font-size: 14px;
+  }
+  button {
+    width: 100%; margin-top: 18px; padding: 13px;
+    background: var(--amber); color: var(--ink); border: none; border-radius: 6px;
+    font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.03em; font-size: 13px; cursor: pointer;
+  }
+  #status { font-size: 12.5px; margin-top: 12px; min-height: 16px; }
+  #status.error { color: var(--amber); }
+  #status.success { color: var(--green); }
+  #successPanel { display: none; text-align: center; }
+  #successPanel .check { font-size: 36px; margin-bottom: 10px; }
+  #loading, #notFound { text-align: center; color: var(--text-dim); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="card" id="loading">Loading…</div>
+
+<div class="card" id="notFound" style="display:none">
+  <h1>Not available</h1>
+  <div class="desc">This job posting isn't accepting applications right now.</div>
+</div>
+
+<div class="card" id="formCard" style="display:none">
+  <h1 id="postingTitle"></h1>
+  <div class="sub" id="postingMeta"></div>
+  <div class="desc" id="postingDesc"></div>
+
+  <div id="applyForm">
+    <label>Full name</label>
+    <input type="text" id="name" placeholder="Jane Doe" />
+    <label>Email</label>
+    <input type="text" id="email" placeholder="jane@example.com" />
+    <label>Phone</label>
+    <input type="tel" id="phone" placeholder="+15551234567" />
+    <label>Anything else you'd like to share (optional)</label>
+    <textarea rows="3" id="note" placeholder="Availability, experience, etc."></textarea>
+    <button onclick="submitApplication()">Submit application</button>
+    <div id="status"></div>
+  </div>
+
+  <div id="successPanel">
+    <div class="check">✓</div>
+    <h1>Application sent</h1>
+    <div class="desc">Thanks for applying — the hiring manager will be in touch if it's a fit.</div>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const postingId = params.get("id");
+let posting = null;
+
+async function loadPosting() {
+  if (!postingId) return showNotFound();
+  try {
+    const res = await fetch(`/api/public/postings/${postingId}`);
+    if (!res.ok) return showNotFound();
+    posting = await res.json();
+    document.getElementById("postingTitle").textContent = posting.title;
+    document.getElementById("postingMeta").textContent = posting.restaurantName + (posting.role ? " · " + posting.role : "");
+    document.getElementById("postingDesc").textContent = posting.description || "";
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("formCard").style.display = "block";
+  } catch (e) {
+    showNotFound();
+  }
+}
+
+function showNotFound() {
+  document.getElementById("loading").style.display = "none";
+  document.getElementById("notFound").style.display = "block";
+}
+
+async function submitApplication() {
+  const name = document.getElementById("name").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const note = document.getElementById("note").value.trim();
+  const status = document.getElementById("status");
+  status.className = ""; status.textContent = "";
+
+  if (!name) { status.className = "error"; status.textContent = "Enter your name."; return; }
+  if (!email && !phone) { status.className = "error"; status.textContent = "Enter an email or phone number."; return; }
+
+  try {
+    const res = await fetch("/api/public/applications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postingId, name, email, phone, note }),
+    });
+    const data = await res.json();
+    if (!res.ok) { status.className = "error"; status.textContent = data.error || "Something went wrong."; return; }
+    document.getElementById("applyForm").style.display = "none";
+    document.getElementById("successPanel").style.display = "block";
+  } catch (e) {
+    status.className = "error"; status.textContent = "Network error — please try again.";
+  }
+}
+
+loadPosting();
+</script>
+</body>
+</html>
