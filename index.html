@@ -1007,7 +1007,11 @@ async function deletePosting(id) {
 async function setApplicationField(id, field, value) {
   const result = await api(`/api/hiring/applications/${id}`, { method: "PATCH", body: JSON.stringify({ [field]: value }) });
   if (result.ok) {
-    showBanner(field === "stage" ? `Moved to ${STAGE_LABELS[value] || value}` : "Updated", "success");
+    if (field === "interviewTime" && result.data.notified) {
+      const n = result.data.notified;
+      if (n.ok) showBanner(`Texted ${result.data.name.split(" ")[0]} the interview time`, "success");
+      else showBanner(`Saved, but couldn't text ${result.data.name.split(" ")[0]}: ${n.error}`, "warn");
+    }
     loadAll();
   } else {
     showBanner(result.error, "warn");

@@ -572,7 +572,27 @@ app.patch("/api/hiring/applications/:id", requireAuth, async (req, res) => {
     "UPDATE applications SET stage=$1, interview_time=$2, note=$3 WHERE id=$4 AND restaurant_id=$5 RETURNING *",
     [updates.stage, updates.interview_time, updates.note, req.params.id, req.restaurantId]
   );
-  res.json(applicationRowToJson(rows[0]));
+  const updated = applicationRowToJson(rows[0]);
+
+  let notified = null;
+  const interviewTimeChanged = interviewTime !== undefined && interviewTime.trim() && interviewTime.trim() !== (existing[0].interview_time || "").trim();
+  if (interviewTimeChanged) {
+    if (updated.phone) {
+      const [postingRows, restaurantRows] = await Promise.all([
+        pool.query("SELECT title FROM job_postings WHERE id = $1", [updated.postingId]),
+        pool.query("SELECT name FROM restaurants WHERE id = $1", [req.restaurantId]),
+      ]);
+      const postingTitle = postingRows.rows[0] ? postingRows.rows[0].title : "the position";
+      const restaurantName = restaurantRows.rows[0] ? restaurantRows.rows[0].name : "the restaurant";
+      const text = `Hi ${updated.name.split(" ")[0]}, your interview for ${postingTitle} at ${restaurantName} is scheduled: ${updated.interviewTime}. Reply if you have any questions.`;
+      const result = await sendSms(updated.phone, text);
+      notified = { ok: result.ok, method: "sms", error: result.error };
+    } else {
+      notified = { ok: false, method: "none", error: "No phone number on file for this applicant" };
+    }
+  }
+
+  res.json({ ...updated, notified });
 });
 
 app.delete("/api/hiring/applications/:id", requireAuth, async (req, res) => {
