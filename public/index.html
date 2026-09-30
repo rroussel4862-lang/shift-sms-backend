@@ -425,6 +425,7 @@
 <div class="tabs">
   <button class="tab-btn active" id="tabBtnShifts" onclick="switchTab('shifts')">Shifts</button>
   <button class="tab-btn" id="tabBtnStaff" onclick="switchTab('staff')">Staff</button>
+  <button class="tab-btn" id="tabBtnHiring" onclick="switchTab('hiring')">Hiring</button>
 </div>
 
 <main>
@@ -481,6 +482,30 @@
       <div id="leaderboardList"><p class="empty">No staff yet.</p></div>
     </div>
   </div>
+
+  <div class="tab-panel" id="panelHiring">
+    <div class="card">
+      <h2>Post a job opening</h2>
+      <label>Title</label>
+      <input type="text" id="postingTitle" placeholder="e.g. Line Cook — evenings" />
+      <label>Role</label>
+      <select id="postingRole"></select>
+      <label>Description</label>
+      <textarea rows="3" id="postingDescription" placeholder="Hours, pay range, what the job involves…"></textarea>
+      <button class="primary" onclick="createPosting()">Post opening</button>
+    </div>
+
+    <div class="card">
+      <h2>Open postings</h2>
+      <div id="postingsList"><p class="empty">No postings yet.</p></div>
+    </div>
+
+    <div class="card">
+      <h2>Applicants</h2>
+      <div id="applicantFilter" style="margin-bottom:10px"></div>
+      <div id="applicantsList"><p class="empty">No applications yet.</p></div>
+    </div>
+  </div>
 </main>
 
 </div>
@@ -489,9 +514,12 @@
 function switchTab(name) {
   document.getElementById("panelShifts").classList.toggle("active", name === "shifts");
   document.getElementById("panelStaff").classList.toggle("active", name === "staff");
+  document.getElementById("panelHiring").classList.toggle("active", name === "hiring");
   document.getElementById("tabBtnShifts").classList.toggle("active", name === "shifts");
   document.getElementById("tabBtnStaff").classList.toggle("active", name === "staff");
+  document.getElementById("tabBtnHiring").classList.toggle("active", name === "hiring");
 }
+
 </script>
 <script>
 const ROLES = ["Line Cook", "Server", "Host", "Bartender", "Busser", "Dishwasher", "Prep Cook", "Expo"];
@@ -509,6 +537,13 @@ ROLES.forEach(r => {
   const opt = document.createElement("option");
   opt.value = r; opt.textContent = r;
   roleSelect.appendChild(opt);
+});
+
+const postingRoleSelect = document.getElementById("postingRole");
+ROLES.forEach(r => {
+  const opt = document.createElement("option");
+  opt.value = r; opt.textContent = r;
+  postingRoleSelect.appendChild(opt);
 });
 
 const rolesDiv = document.getElementById("staffRoles");
@@ -551,10 +586,16 @@ async function api(path, options) {
   }
 }
 
+let postings = [];
+let applications = [];
+let applicantFilterPostingId = null;
+
 async function loadAll() {
-  const [s, sh] = await Promise.all([api("/api/staff"), api("/api/shifts")]);
+  const [s, sh, po, ap] = await Promise.all([api("/api/staff"), api("/api/shifts"), api("/api/hiring/postings"), api("/api/hiring/applications")]);
   if (s.ok) staff = s.data;
   if (sh.ok) shifts = sh.data;
+  if (po.ok) postings = po.data;
+  if (ap.ok) applications = ap.data;
   render();
 }
 
@@ -713,6 +754,10 @@ function render() {
           </div>
         `;
       }).join("");
+
+  // hiring
+  renderPostings();
+  renderApplicants();
 }
 
 function escapeHtml(str) {
@@ -863,6 +908,117 @@ async function removeShift(shiftId) {
   } else {
     showBanner(result.error, "warn");
   }
+}
+
+const STAGE_LABELS = { applied: "Applied", screening: "Screening", interview: "Interview", offer: "Offer sent", rejected: "Rejected" };
+const STAGE_ORDER = ["applied", "screening", "interview", "offer"];
+
+function renderPostings() {
+  const div = document.getElementById("postingsList");
+  div.innerHTML = postings.length === 0
+    ? '<p class="empty">No postings yet.</p>'
+    : postings.map(p => {
+        const applyUrl = `${location.origin}/apply.html?id=${p.id}`;
+        return `
+          <div class="ticket">
+            <div class="stamp${p.status === 'open' ? '' : ' filled'}">${p.status === 'open' ? 'Open' : 'Closed'}</div>
+            <div class="role">${escapeHtml(p.title)}</div>
+            <div class="meta">${p.role ? escapeHtml(p.role) + " · " : ""}${p.applicantCount} applicant${p.applicantCount === 1 ? "" : "s"}</div>
+            ${p.description ? `<div class="note">${escapeHtml(p.description)}</div>` : ""}
+            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <input type="text" readonly value="${escapeHtml(applyUrl)}" style="flex:1;min-width:160px;background:rgba(35,38,31,0.08);border:1px solid rgba(35,38,31,0.2);border-radius:4px;padding:6px 8px;font-size:11px;color:var(--ink)" onclick="this.select()" />
+              <button class="remove-btn" style="margin-top:0" onclick="copyApplyLink('${applyUrl}')">Copy link</button>
+              ${p.status === 'open'
+                ? `<button class="remove-btn" style="margin-top:0" onclick="setPostingStatus('${p.id}','closed')">Close posting</button>`
+                : `<button class="remove-btn" style="margin-top:0" onclick="setPostingStatus('${p.id}','open')">Reopen</button>`}
+              <button class="remove-btn" style="margin-top:0" onclick="deletePosting('${p.id}')">Delete</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+}
+
+function renderApplicants() {
+  const filterDiv = document.getElementById("applicantFilter");
+  filterDiv.innerHTML = `
+    <select id="applicantPostingFilter" onchange="applicantFilterPostingId = this.value || null; renderApplicants();" style="background:var(--bg);color:var(--text-bright);border:1px solid var(--rail);border-radius:5px;padding:8px 10px;font-size:13px;width:100%">
+      <option value="">All postings</option>
+      ${postings.map(p => `<option value="${p.id}" ${applicantFilterPostingId === p.id ? "selected" : ""}>${escapeHtml(p.title)}</option>`).join("")}
+    </select>
+  `;
+
+  const list = applicantFilterPostingId ? applications.filter(a => a.postingId === applicantFilterPostingId) : applications;
+  const div = document.getElementById("applicantsList");
+  div.innerHTML = list.length === 0
+    ? '<p class="empty">No applications yet.</p>'
+    : list.map(a => {
+        const posting = postings.find(p => p.id === a.postingId);
+        return `
+          <div class="ticket">
+            <div class="stamp${a.stage === 'rejected' ? ' filled' : ''}">${STAGE_LABELS[a.stage] || a.stage}</div>
+            <div class="role">${escapeHtml(a.name)}</div>
+            <div class="meta">${posting ? escapeHtml(posting.title) : ""} · ${escapeHtml(a.email || a.phone || "")}</div>
+            ${a.email && a.phone ? `<div class="meta" style="margin-top:-6px">${escapeHtml(a.phone)}</div>` : ""}
+            ${a.note ? `<div class="note">${escapeHtml(a.note)}</div>` : ""}
+            <div style="margin-top:10px">
+              <label style="font-size:10px;text-transform:uppercase;letter-spacing:0.04em;opacity:0.6;display:block;margin-bottom:4px">Interview time</label>
+              <input type="text" value="${escapeHtml(a.interviewTime || "")}" placeholder="e.g. Thu 2pm" style="width:100%;background:rgba(35,38,31,0.08);border:1px solid rgba(35,38,31,0.2);border-radius:4px;padding:6px 8px;font-size:12px;color:var(--ink)"
+                onblur="setApplicationField('${a.id}','interviewTime', this.value)" />
+            </div>
+            <div class="stub-actions" style="border-top:1px dashed var(--rail);margin-top:10px;padding-top:10px">
+              ${STAGE_ORDER.map(s => `
+                <button class="assign-btn" style="background:${a.stage === s ? 'var(--green)' : 'transparent'};border:1px solid var(--rail);color:${a.stage === s ? '#fff' : 'var(--ink)'}" onclick="setApplicationField('${a.id}','stage','${s}')">${STAGE_LABELS[s]}</button>
+              `).join("")}
+              <button class="assign-btn" style="background:transparent;border:1px solid var(--rail);color:var(--ink)" onclick="setApplicationField('${a.id}','stage','rejected')">Reject</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+}
+
+async function createPosting() {
+  const title = document.getElementById("postingTitle").value.trim();
+  const role = document.getElementById("postingRole").value;
+  const description = document.getElementById("postingDescription").value.trim();
+  if (!title) return showBanner("Enter a title for the posting", "warn");
+  const result = await api("/api/hiring/postings", { method: "POST", body: JSON.stringify({ title, role, description }) });
+  if (result.ok) {
+    showBanner("Posting created", "success");
+    document.getElementById("postingTitle").value = "";
+    document.getElementById("postingDescription").value = "";
+    loadAll();
+  } else {
+    showBanner(result.error, "warn");
+  }
+}
+
+async function setPostingStatus(id, status) {
+  const result = await api(`/api/hiring/postings/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+  if (result.ok) loadAll();
+  else showBanner(result.error, "warn");
+}
+
+async function deletePosting(id) {
+  if (!confirm("Delete this posting? Its applications will be removed too.")) return;
+  await api(`/api/hiring/postings/${id}`, { method: "DELETE" });
+  loadAll();
+}
+
+async function setApplicationField(id, field, value) {
+  const result = await api(`/api/hiring/applications/${id}`, { method: "PATCH", body: JSON.stringify({ [field]: value }) });
+  if (result.ok) {
+    showBanner(field === "stage" ? `Moved to ${STAGE_LABELS[value] || value}` : "Updated", "success");
+    loadAll();
+  } else {
+    showBanner(result.error, "warn");
+  }
+}
+
+function copyApplyLink(url) {
+  navigator.clipboard.writeText(url).then(
+    () => showBanner("Link copied", "success"),
+    () => showBanner("Couldn't copy — select and copy manually", "warn")
+  );
 }
 
 let authMode = "login";
