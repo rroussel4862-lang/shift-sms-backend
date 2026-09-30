@@ -387,44 +387,36 @@
   .enter-btn:active { transform: scale(0.98); }
   #appShell { display: none; }
   /* ---------- sidebar shell (matches mockup) ---------- */
-  #shell { display: flex; min-height: 100vh; }
+  #shell { display: block; }
   #sidebar {
-    width: 200px;
-    flex-shrink: 0;
-    background: var(--panel);
-    border-right: 1px solid var(--rail);
-    padding: 20px 14px;
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    gap: 6px;
+    padding: 14px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--rail);
   }
-  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 6px 20px; }
-  .brand-mark {
-    width: 30px; height: 30px;
-    border: 2px solid var(--amber);
-    border-radius: 6px;
-    transform: rotate(-4deg);
-    display: flex; align-items: center; justify-content: center;
-    color: var(--amber); font-weight: 700; font-size: 12px; flex-shrink: 0;
-    font-family: 'Oswald', sans-serif;
-  }
-  .brand-name { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .brand { display: none; }
   .nav-stub {
-    position: relative;
-    display: flex; align-items: center; gap: 10px;
-    padding: 11px 12px 11px 14px;
-    border-radius: 5px; cursor: pointer;
-    color: var(--text-dim); font-size: 13px; font-weight: 500;
-    border: 1px solid transparent; background: none; width: 100%; text-align: left;
-    font-family: inherit;
+    flex: 1;
+    background: var(--panel-light);
+    border: 1px solid var(--rail);
+    color: var(--text-dim);
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 10px 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
   }
-  .nav-stub .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--dot-color, var(--text-dim)); }
-  .nav-stub:hover { background-color: var(--panel-light); color: var(--text-bright); }
-  .nav-stub.active { background-color: var(--panel-light); color: var(--text-bright); border-color: var(--rail); }
-  .nav-stub.active::after {
-    content: ""; position: absolute; left: -1px; top: 8px; bottom: 8px; width: 3px; border-radius: 2px;
-    background: var(--dot-color, var(--amber));
-  }
+  .nav-stub .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--dot-color, var(--text-dim)); }
+  .nav-stub.active { background: var(--amber); color: var(--ink); border-color: var(--amber); }
+  .nav-stub.active .dot { background: var(--ink); }
   #main { flex: 1; min-width: 0; }
   #topbarNew {
     border-bottom: 1px solid var(--rail);
@@ -455,11 +447,8 @@
   .overview-card .big-num { font-family: 'IBM Plex Mono', monospace; font-size: 26px; font-weight: 600; line-height: 1; }
   .overview-card .sub { font-size: 12px; opacity: 0.7; margin-top: 6px; }
   @media (max-width: 760px) {
-    #shell { flex-direction: column; }
-    #sidebar { width: 100%; flex-direction: row; overflow-x: auto; padding: 8px 10px; gap: 4px; border-right: none; border-bottom: 1px solid var(--rail); }
-    .brand { display: none; }
-    .nav-stub { flex-shrink: 0; white-space: nowrap; padding: 8px 10px; font-size: 12px; }
-    .nav-stub .dot { width: 6px; height: 6px; }
+    #sidebar { padding: 10px 12px; gap: 5px; }
+    .nav-stub { font-size: 10.5px; padding: 9px 3px; }
     #contentWrap { padding: 16px 16px 50px; }
   }
 </style>
