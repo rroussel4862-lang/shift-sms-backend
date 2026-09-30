@@ -175,11 +175,12 @@
       <table>
         <thead>
           <tr>
-            <th style="width:16%">Name</th>
-            <th style="width:16%">Phone</th>
-            <th style="width:22%">Roles (comma-separated)</th>
-            <th style="width:12%">Rate ($/hr)</th>
-            <th style="width:14%">Hire date</th>
+            <th style="width:13%">Name</th>
+            <th style="width:13%">Phone</th>
+            <th style="width:17%">Roles (comma-separated)</th>
+            <th style="width:10%">Rate ($/hr)</th>
+            <th style="width:12%">Hire date</th>
+            <th style="width:20%">Address</th>
             <th style="width:5%"></th>
           </tr>
         </thead>
@@ -191,6 +192,7 @@
             <td data-label="Roles"><input type="text" id="newRoles" placeholder="Server, Host" /></td>
             <td data-label="Rate"><input type="text" class="rate-input" id="newRate" placeholder="19.50" /></td>
             <td data-label="Hire date"><input type="date" id="newHireDate" /></td>
+            <td data-label="Address"><input type="text" id="newAddress" placeholder="123 Main St, City" /></td>
             <td><button class="action" style="padding:7px 10px" onclick="addStaffRow()">Add</button></td>
           </tr>
         </tbody>
@@ -235,7 +237,7 @@ function escapeHtml(str) {
 function renderStaffTable() {
   const tbody = document.getElementById("staffTableBody");
   if (staff.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty-note">No staff yet — add your first one below.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-note">No staff yet — add your first one below.</td></tr>`;
     return;
   }
   tbody.innerHTML = staff.map(p => `
@@ -245,6 +247,7 @@ function renderStaffTable() {
       <td data-label="Roles"><input type="text" value="${escapeHtml((p.roles || []).join(', '))}" onblur="updateRoles('${p.id}',this.value)" /></td>
       <td data-label="Rate"><input type="text" class="rate-input num" value="${p.hourlyRate !== null ? p.hourlyRate : ''}" placeholder="—" onblur="updateField('${p.id}','hourlyRate',this.value)" /></td>
       <td data-label="Hire date"><input type="date" value="${escapeHtml(p.hireDate || '')}" onblur="updateField('${p.id}','hireDate',this.value)" /></td>
+      <td data-label="Address"><input type="text" value="${escapeHtml(p.address || '')}" placeholder="—" onblur="updateField('${p.id}','address',this.value)" /></td>
       <td><button class="del-cell-btn" onclick="deleteStaff('${p.id}')" title="Delete">✕</button></td>
     </tr>
   `).join("");
@@ -293,13 +296,14 @@ async function addStaffRow() {
   const rolesRaw = document.getElementById("newRoles").value.trim();
   const rate = document.getElementById("newRate").value.trim();
   const hireDate = document.getElementById("newHireDate").value;
+  const address = document.getElementById("newAddress").value.trim();
   if (!name) return showBanner("Enter a name first", "warn");
   if (!phone) return showBanner("Enter a phone number first", "warn");
   const roles = rolesRaw ? rolesRaw.split(",").map(r => r.trim()).filter(Boolean) : [];
 
   const result = await api("/api/staff", {
     method: "POST",
-    body: JSON.stringify({ name, phone, roles, hourlyRate: rate || null, hireDate: hireDate || null }),
+    body: JSON.stringify({ name, phone, roles, hourlyRate: rate || null, hireDate: hireDate || null, address: address || null }),
   });
   if (result.ok) {
     showBanner(`Added ${name}`, "success");
@@ -308,6 +312,7 @@ async function addStaffRow() {
     document.getElementById("newRoles").value = "";
     document.getElementById("newRate").value = "";
     document.getElementById("newHireDate").value = "";
+    document.getElementById("newAddress").value = "";
     loadStaff();
   } else {
     showBanner(result.error, "warn");
