@@ -92,6 +92,7 @@ async function loadPosting() {
     const res = await fetch(`/api/public/postings/${postingId}`);
     if (!res.ok) return showNotFound();
     posting = await res.json();
+    document.title = `${posting.title} at ${posting.restaurantName} — Apply`;
     document.getElementById("postingTitle").textContent = posting.title;
     document.getElementById("postingMeta").textContent = posting.restaurantName + (posting.role ? " · " + posting.role : "");
     document.getElementById("postingDesc").textContent = posting.description || "";

@@ -65,6 +65,7 @@ async function initDb() {
       created_at BIGINT NOT NULL
     );
   `);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS address TEXT;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -266,7 +267,7 @@ app.post("/api/auth/login", async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: "email and password are required" });
 
   const { rows } = await pool.query(
-    `SELECT users.*, restaurants.name AS restaurant_name FROM users
+    `SELECT users.*, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address FROM users
      JOIN restaurants ON restaurants.id = users.restaurant_id
      WHERE users.email = $1`,
     [email.toLowerCase()]
@@ -279,7 +280,7 @@ app.post("/api/auth/login", async (req, res) => {
 
   const token = signToken({ userId: user.id, restaurantId: user.restaurant_id });
   res.cookie("token", token, COOKIE_OPTS);
-  res.json({ restaurant: { id: user.restaurant_id, name: user.restaurant_name }, email: user.email });
+  res.json({ restaurant: { id: user.restaurant_id, name: user.restaurant_name, address: user.restaurant_address || "" }, email: user.email });
 });
 
 app.post("/api/auth/logout", (req, res) => {
@@ -289,13 +290,41 @@ app.post("/api/auth/logout", (req, res) => {
 
 app.get("/api/auth/me", requireAuth, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT users.email, restaurants.id AS restaurant_id, restaurants.name AS restaurant_name
+    `SELECT users.email, restaurants.id AS restaurant_id, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address
      FROM users JOIN restaurants ON restaurants.id = users.restaurant_id
      WHERE users.id = $1`,
     [req.userId]
   );
   if (rows.length === 0) return res.status(401).json({ error: "not logged in" });
-  res.json({ restaurant: { id: rows[0].restaurant_id, name: rows[0].restaurant_name }, email: rows[0].email });
+  res.json({
+    restaurant: { id: rows[0].restaurant_id, name: rows[0].restaurant_name, address: rows[0].restaurant_address || "" },
+    email: rows[0].email,
+  });
+});
+
+// ---------- restaurant settings ----------
+
+app.get("/api/restaurant", requireAuth, async (req, res) => {
+  const { rows } = await pool.query("SELECT id, name, address FROM restaurants WHERE id = $1", [req.restaurantId]);
+  if (rows.length === 0) return res.status(404).json({ error: "restaurant not found" });
+  res.json({ id: rows[0].id, name: rows[0].name, address: rows[0].address || "" });
+});
+
+app.patch("/api/restaurant", requireAuth, async (req, res) => {
+  const { name, address } = req.body || {};
+  const { rows: existing } = await pool.query("SELECT * FROM restaurants WHERE id = $1", [req.restaurantId]);
+  if (existing.length === 0) return res.status(404).json({ error: "restaurant not found" });
+  const updates = { name: existing[0].name, address: existing[0].address };
+  if (name !== undefined) {
+    if (!name.trim()) return res.status(400).json({ error: "name can't be empty" });
+    updates.name = name.trim();
+  }
+  if (address !== undefined) updates.address = address.trim();
+  const { rows } = await pool.query(
+    "UPDATE restaurants SET name=$1, address=$2 WHERE id=$3 RETURNING id, name, address",
+    [updates.name, updates.address, req.restaurantId]
+  );
+  res.json({ id: rows[0].id, name: rows[0].name, address: rows[0].address || "" });
 });
 
 // ---------- staff endpoints (scoped to the logged-in restaurant) ----------
@@ -604,14 +633,22 @@ app.delete("/api/hiring/applications/:id", requireAuth, async (req, res) => {
 
 app.get("/api/public/postings/:id", async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT p.*, r.name AS restaurant_name FROM job_postings p
+    `SELECT p.*, r.name AS restaurant_name, r.address AS restaurant_address FROM job_postings p
      JOIN restaurants r ON r.id = p.restaurant_id
      WHERE p.id = $1 AND p.status = 'open'`,
     [req.params.id]
   );
   if (rows.length === 0) return res.status(404).json({ error: "This posting isn't available." });
   const p = rows[0];
-  res.json({ id: p.id, title: p.title, role: p.role || "", description: p.description || "", restaurantName: p.restaurant_name });
+  res.json({
+    id: p.id,
+    title: p.title,
+    role: p.role || "",
+    description: p.description || "",
+    restaurantName: p.restaurant_name,
+    restaurantAddress: p.restaurant_address || "",
+    createdAt: Number(p.created_at),
+  });
 });
 
 app.post("/api/public/applications", async (req, res) => {
