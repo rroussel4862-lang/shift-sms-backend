@@ -962,8 +962,11 @@ function renderApplicants() {
             ${a.note ? `<div class="note">${escapeHtml(a.note)}</div>` : ""}
             <div style="margin-top:10px">
               <label style="font-size:10px;text-transform:uppercase;letter-spacing:0.04em;opacity:0.6;display:block;margin-bottom:4px">Interview time</label>
-              <input type="text" value="${escapeHtml(a.interviewTime || "")}" placeholder="e.g. Thu 2pm" style="width:100%;background:rgba(35,38,31,0.08);border:1px solid rgba(35,38,31,0.2);border-radius:4px;padding:6px 8px;font-size:12px;color:var(--ink)"
-                onblur="setApplicationField('${a.id}','interviewTime', this.value)" />
+              ${a.interviewTime ? `<div class="meta" style="margin-bottom:6px">Currently: ${escapeHtml(a.interviewTime)}</div>` : ""}
+              <div style="display:flex;gap:6px">
+                <input type="datetime-local" id="interviewInput-${a.id}" style="flex:1;background:rgba(35,38,31,0.08);border:1px solid rgba(35,38,31,0.2);border-radius:4px;padding:6px 8px;font-size:12px;color:var(--ink)" />
+                <button class="assign-btn" style="background:var(--green);color:#fff;white-space:nowrap" onclick="submitInterviewTime('${a.id}')">Save & text</button>
+              </div>
             </div>
             <div class="stub-actions" style="border-top:1px dashed var(--rail);margin-top:10px;padding-top:10px">
               ${STAGE_ORDER.map(s => `
@@ -1004,10 +1007,26 @@ async function deletePosting(id) {
   loadAll();
 }
 
+function formatInterviewTime(isoLocal) {
+  const d = new Date(isoLocal);
+  if (isNaN(d.getTime())) return isoLocal;
+  return d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+async function submitInterviewTime(id) {
+  const input = document.getElementById(`interviewInput-${id}`);
+  if (!input.value) return showBanner("Pick a date and time first", "warn");
+  await setApplicationField(id, "interviewTime", formatInterviewTime(input.value));
+}
+
 async function setApplicationField(id, field, value) {
   const result = await api(`/api/hiring/applications/${id}`, { method: "PATCH", body: JSON.stringify({ [field]: value }) });
   if (result.ok) {
-    showBanner(field === "stage" ? `Moved to ${STAGE_LABELS[value] || value}` : "Updated", "success");
+    if (field === "interviewTime" && result.data.notified) {
+      const n = result.data.notified;
+      if (n.ok) showBanner(`Texted ${result.data.name.split(" ")[0]} the interview time`, "success");
+      else showBanner(`Saved, but couldn't text ${result.data.name.split(" ")[0]}: ${n.error}`, "warn");
+    }
     loadAll();
   } else {
     showBanner(result.error, "warn");
