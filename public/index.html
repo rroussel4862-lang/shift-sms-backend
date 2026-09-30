@@ -921,6 +921,13 @@ async function removeShift(shiftId) {
 const STAGE_LABELS = { applied: "Applied", screening: "Screening", interview: "Interview", offer: "Offer sent", rejected: "Rejected" };
 const STAGE_ORDER = ["applied", "screening", "interview", "offer"];
 
+let expandedShareIds = new Set();
+function toggleShare(id) {
+  if (expandedShareIds.has(id)) expandedShareIds.delete(id);
+  else expandedShareIds.add(id);
+  renderPostings();
+}
+
 function renderPostings() {
   const div = document.getElementById("postingsList");
   div.innerHTML = postings.length === 0
@@ -940,9 +947,9 @@ function renderPostings() {
                 ? `<button class="remove-btn" style="margin-top:0" onclick="setPostingStatus('${p.id}','closed')">Close posting</button>`
                 : `<button class="remove-btn" style="margin-top:0" onclick="setPostingStatus('${p.id}','open')">Reopen</button>`}
               <button class="remove-btn" style="margin-top:0" onclick="deletePosting('${p.id}')">Delete</button>
-              <button class="remove-btn" style="margin-top:0" onclick="const el=document.getElementById('share-${p.id}'); el.style.display = el.style.display==='none' ? 'block' : 'none';">Share externally</button>
+              <button class="remove-btn" style="margin-top:0" onclick="toggleShare('${p.id}')">Share externally</button>
             </div>
-            <div id="share-${p.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(35,38,31,0.2)">
+            <div id="share-${p.id}" style="display:${expandedShareIds.has(p.id) ? 'block' : 'none'};margin-top:10px;padding-top:10px;border-top:1px dashed rgba(35,38,31,0.2)">
               <textarea readonly rows="6" id="shareText-${p.id}" style="width:100%;background:rgba(35,38,31,0.08);border:1px solid rgba(35,38,31,0.2);border-radius:4px;padding:8px;font-size:11.5px;color:var(--ink)">${escapeHtml(buildShareText(p, applyUrl))}</textarea>
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
                 <button class="remove-btn" style="margin-top:0" onclick="copyShareText('${p.id}')">Copy job text</button>
