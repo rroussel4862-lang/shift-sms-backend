@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Open Shift Rail — Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   :root {
     --bg: #1C201D;
@@ -18,15 +18,19 @@
     --rail: #454C46;
     --text-dim: #9BA39C;
     --text-bright: #F2EFE6;
+    --hiring: #6E8FAE;
+    --staffcolor: #4A9B95;
+    --scheduling: #E2A33B;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--text-bright);
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: 'IBM Plex Sans', sans-serif;
     padding-bottom: 60px;
   }
+  .num { font-family: 'IBM Plex Mono', monospace; }
   header {
     background: var(--panel);
     border-bottom: 1px solid var(--rail);
@@ -382,6 +386,81 @@
   }
   .enter-btn:active { transform: scale(0.98); }
   #appShell { display: none; }
+  /* ---------- sidebar shell (matches mockup) ---------- */
+  #shell { display: flex; min-height: 100vh; }
+  #sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--rail);
+    padding: 20px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 6px 20px; }
+  .brand-mark {
+    width: 30px; height: 30px;
+    border: 2px solid var(--amber);
+    border-radius: 6px;
+    transform: rotate(-4deg);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--amber); font-weight: 700; font-size: 12px; flex-shrink: 0;
+    font-family: 'Oswald', sans-serif;
+  }
+  .brand-name { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .nav-stub {
+    position: relative;
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 12px 11px 14px;
+    border-radius: 5px; cursor: pointer;
+    color: var(--text-dim); font-size: 13px; font-weight: 500;
+    border: 1px solid transparent; background: none; width: 100%; text-align: left;
+    font-family: inherit;
+  }
+  .nav-stub .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--dot-color, var(--text-dim)); }
+  .nav-stub:hover { background-color: var(--panel-light); color: var(--text-bright); }
+  .nav-stub.active { background-color: var(--panel-light); color: var(--text-bright); border-color: var(--rail); }
+  .nav-stub.active::after {
+    content: ""; position: absolute; left: -1px; top: 8px; bottom: 8px; width: 3px; border-radius: 2px;
+    background: var(--dot-color, var(--amber));
+  }
+  #main { flex: 1; min-width: 0; }
+  #topbarNew {
+    border-bottom: 1px solid var(--rail);
+    padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+  #topbarNew h1 { font-size: 19px; margin: 0; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 600; }
+  #topbarNew p { color: var(--text-dim); font-size: 11.5px; margin: 3px 0 0; }
+  #logoutBtn {
+    background: none; border: 1px solid var(--rail); color: var(--text-dim);
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-family: inherit;
+    padding: 6px 10px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+  }
+  #contentWrap { padding: 20px 28px 60px; max-width: 640px; }
+  .module-header { margin-bottom: 18px; }
+  .module-header .eyebrow { color: var(--accent, var(--text-dim)); font-size: 12px; font-weight: 600; margin-bottom: 4px; font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.04em; }
+  .module-header p { color: var(--text-dim); font-size: 13px; margin: 0; line-height: 1.5; }
+  .overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+  .overview-card {
+    background: var(--paper); color: var(--ink); border-radius: 4px; padding: 18px 16px; cursor: pointer; position: relative;
+    background-image: repeating-linear-gradient(to right, transparent 0 6px, rgba(0,0,0,0.07) 6px 7px);
+    background-size: 13px 100%; background-position: top; background-repeat: repeat-x;
+    transition: transform 0.12s ease;
+  }
+  .overview-card:hover { transform: translateY(-2px); }
+  .overview-card .corner { position: absolute; top: 12px; right: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  .overview-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; margin-bottom: 8px; }
+  .overview-card .big-num { font-family: 'IBM Plex Mono', monospace; font-size: 26px; font-weight: 600; line-height: 1; }
+  .overview-card .sub { font-size: 12px; opacity: 0.7; margin-top: 6px; }
+  @media (max-width: 760px) {
+    #shell { flex-direction: column; }
+    #sidebar { width: 100%; flex-direction: row; overflow-x: auto; padding: 12px; gap: 8px; border-right: none; border-bottom: 1px solid var(--rail); }
+    .brand { display: none; }
+    .nav-stub { flex-shrink: 0; white-space: nowrap; }
+    #contentWrap { padding: 16px 16px 50px; }
+  }
 </style>
 </head>
 <body>
@@ -412,24 +491,48 @@
 </div>
 
 <div id="appShell">
-<header style="display:flex;justify-content:space-between;align-items:flex-start">
-  <div>
-    <h1>Open Shift Rail — Manager</h1>
-    <p id="subtitle">loading…</p>
-  </div>
-  <button onclick="logout()" style="background:none;border:1px solid var(--rail);color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-family:inherit;padding:6px 10px;border-radius:4px;cursor:pointer">Log out</button>
-</header>
+<div id="shell">
+  <nav id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">OSR</div>
+      <div class="brand-name" id="sidebarRestaurantName">Open Shift Rail</div>
+    </div>
+    <button class="nav-stub active" id="tabBtnOverview" onclick="switchTab('overview')">
+      <span>Overview</span>
+    </button>
+    <button class="nav-stub" id="tabBtnShifts" style="--dot-color:var(--scheduling)" onclick="switchTab('shifts')">
+      <span class="dot"></span><span>Scheduling</span>
+    </button>
+    <button class="nav-stub" id="tabBtnStaff" style="--dot-color:var(--staffcolor)" onclick="switchTab('staff')">
+      <span class="dot"></span><span>Staff</span>
+    </button>
+    <button class="nav-stub" id="tabBtnHiring" style="--dot-color:var(--hiring)" onclick="switchTab('hiring')">
+      <span class="dot"></span><span>Hiring</span>
+    </button>
+  </nav>
 
-<div id="banner"></div>
+  <div id="main">
+    <div id="topbarNew">
+      <div>
+        <h1 id="topbarNewTitle">Overview</h1>
+        <p id="subtitle">loading…</p>
+      </div>
+      <button id="logoutBtn" onclick="logout()">Log out</button>
+    </div>
 
-<div class="tabs">
-  <button class="tab-btn active" id="tabBtnShifts" onclick="switchTab('shifts')">Shifts</button>
-  <button class="tab-btn" id="tabBtnStaff" onclick="switchTab('staff')">Staff</button>
-  <button class="tab-btn" id="tabBtnHiring" onclick="switchTab('hiring')">Hiring</button>
-</div>
+    <div id="banner"></div>
 
-<main>
-  <div class="tab-panel active" id="panelShifts">
+    <div id="contentWrap">
+    <main>
+      <div class="tab-panel active" id="panelOverview">
+        <div class="module-header">
+          <div class="eyebrow">Overview</div>
+          <p>Every section feeds this dashboard — tap a card to jump in.</p>
+        </div>
+        <div class="overview-grid" id="overviewGrid"></div>
+      </div>
+
+  <div class="tab-panel" id="panelShifts">
     <div class="card">
       <h2>Post an open shift</h2>
       <label>Position</label>
@@ -515,17 +618,25 @@
     </div>
   </div>
 </main>
+    </div>
+  </div>
+</div>
 
 </div>
 
 <script>
+const TAB_TITLES = { overview: "Overview", shifts: "Scheduling", staff: "Staff", hiring: "Hiring" };
+
 function switchTab(name) {
+  document.getElementById("panelOverview").classList.toggle("active", name === "overview");
   document.getElementById("panelShifts").classList.toggle("active", name === "shifts");
   document.getElementById("panelStaff").classList.toggle("active", name === "staff");
   document.getElementById("panelHiring").classList.toggle("active", name === "hiring");
+  document.getElementById("tabBtnOverview").classList.toggle("active", name === "overview");
   document.getElementById("tabBtnShifts").classList.toggle("active", name === "shifts");
   document.getElementById("tabBtnStaff").classList.toggle("active", name === "staff");
   document.getElementById("tabBtnHiring").classList.toggle("active", name === "hiring");
+  document.getElementById("topbarNewTitle").textContent = TAB_TITLES[name] || "Overview";
 }
 
 </script>
@@ -766,6 +877,29 @@ function render() {
   // hiring
   renderPostings();
   renderApplicants();
+
+  // overview
+  renderOverview();
+}
+
+function renderOverview() {
+  const grid = document.getElementById("overviewGrid");
+  if (!grid) return;
+  const openShiftCount = shifts.filter(s => s.status === "open").length;
+  const openPostings = postings.filter(p => p.status === "open").length;
+  const stats = [
+    { id: "shifts", accent: "var(--scheduling)", label: "Open shifts", value: openShiftCount, sub: shifts.length ? `${shifts.length} posted` : "None posted yet" },
+    { id: "staff", accent: "var(--staffcolor)", label: "Staff", value: staff.length, sub: "Tap to manage roster" },
+    { id: "hiring", accent: "var(--hiring)", label: "Open postings", value: openPostings, sub: `${applications.length} applicant${applications.length === 1 ? "" : "s"} total` },
+  ];
+  grid.innerHTML = stats.map(s => `
+    <div class="overview-card" style="--accent:${s.accent}" onclick="switchTab('${s.id}')">
+      <div class="corner"></div>
+      <div class="label">${s.label}</div>
+      <div class="big-num">${s.value}</div>
+      <div class="sub">${s.sub}</div>
+    </div>
+  `).join("");
 }
 
 function escapeHtml(str) {
@@ -1151,9 +1285,7 @@ let started = false;
 function enterApp() {
   document.getElementById("landing").style.display = "none";
   document.getElementById("appShell").style.display = "block";
-  document.querySelector("#appShell header h1").textContent = restaurantName
-    ? `${restaurantName} — Manager`
-    : "Open Shift Rail — Manager";
+  document.getElementById("sidebarRestaurantName").textContent = restaurantName || "Open Shift Rail";
   document.getElementById("restaurantAddress").value = restaurantAddress || "";
   if (!started) {
     started = true;
