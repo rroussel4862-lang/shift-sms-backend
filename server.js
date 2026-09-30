@@ -85,6 +85,8 @@ async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS staff_restaurant_idx ON staff (restaurant_id);`);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS hourly_rate NUMERIC;`);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS hire_date TEXT;`);
   await pool.query(`CREATE INDEX IF NOT EXISTS staff_phone_idx ON staff (phone);`);
 
   await pool.query(`
@@ -162,7 +164,14 @@ async function sendSms(to, body) {
   }
 }
 function staffRowToJson(row) {
-  return { id: row.id, name: row.name, phone: row.phone, roles: row.roles };
+  return {
+    id: row.id,
+    name: row.name,
+    phone: row.phone,
+    roles: row.roles,
+    hourlyRate: row.hourly_rate !== null && row.hourly_rate !== undefined ? Number(row.hourly_rate) : null,
+    hireDate: row.hire_date || "",
+  };
 }
 function shiftRowToJson(row) {
   return {
@@ -335,17 +344,22 @@ app.get("/api/staff", requireAuth, async (req, res) => {
 });
 
 app.post("/api/staff", requireAuth, async (req, res) => {
-  const { name, phone, roles } = req.body || {};
+  const { name, phone, roles, hourlyRate, hireDate } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: "name is required" });
   const roleList = Array.isArray(roles) ? roles.map((r) => String(r).trim()).filter(Boolean) : [];
   const normalized = normalizePhone(phone || "");
   if (!normalized) {
     return res.status(400).json({ error: "phone is missing or not recognizable — include country code if outside the US, e.g. +44..." });
   }
+  let rate = null;
+  if (hourlyRate !== undefined && hourlyRate !== "" && hourlyRate !== null) {
+    rate = Number(hourlyRate);
+    if (isNaN(rate) || rate < 0) return res.status(400).json({ error: "hourly rate must be a positive number" });
+  }
   const newId = id();
   const { rows } = await pool.query(
-    "INSERT INTO staff (id, restaurant_id, name, phone, roles) VALUES ($1,$2,$3,$4,$5) RETURNING *",
-    [newId, req.restaurantId, name.trim(), normalized, JSON.stringify(roleList)]
+    "INSERT INTO staff (id, restaurant_id, name, phone, roles, hourly_rate, hire_date) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *",
+    [newId, req.restaurantId, name.trim(), normalized, JSON.stringify(roleList), rate, (hireDate || "").trim() || null]
   );
   res.status(201).json(staffRowToJson(rows[0]));
 });
@@ -354,8 +368,14 @@ app.patch("/api/staff/:id", requireAuth, async (req, res) => {
   const { rows: existingRows } = await pool.query("SELECT * FROM staff WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
   if (existingRows.length === 0) return res.status(404).json({ error: "staff not found" });
 
-  const { name, phone, roles } = req.body || {};
-  const updates = { name: existingRows[0].name, phone: existingRows[0].phone, roles: existingRows[0].roles };
+  const { name, phone, roles, hourlyRate, hireDate } = req.body || {};
+  const updates = {
+    name: existingRows[0].name,
+    phone: existingRows[0].phone,
+    roles: existingRows[0].roles,
+    hourly_rate: existingRows[0].hourly_rate,
+    hire_date: existingRows[0].hire_date,
+  };
 
   if (name !== undefined) {
     if (!name.trim()) return res.status(400).json({ error: "name can't be empty" });
@@ -369,10 +389,20 @@ app.patch("/api/staff/:id", requireAuth, async (req, res) => {
   if (roles !== undefined) {
     updates.roles = Array.isArray(roles) ? roles.map((r) => String(r).trim()).filter(Boolean) : [];
   }
+  if (hourlyRate !== undefined) {
+    if (hourlyRate === "" || hourlyRate === null) {
+      updates.hourly_rate = null;
+    } else {
+      const rate = Number(hourlyRate);
+      if (isNaN(rate) || rate < 0) return res.status(400).json({ error: "hourly rate must be a positive number" });
+      updates.hourly_rate = rate;
+    }
+  }
+  if (hireDate !== undefined) updates.hire_date = hireDate.trim() || null;
 
   const { rows } = await pool.query(
-    "UPDATE staff SET name=$1, phone=$2, roles=$3 WHERE id=$4 AND restaurant_id=$5 RETURNING *",
-    [updates.name, updates.phone, JSON.stringify(updates.roles), req.params.id, req.restaurantId]
+    "UPDATE staff SET name=$1, phone=$2, roles=$3, hourly_rate=$4, hire_date=$5 WHERE id=$6 AND restaurant_id=$7 RETURNING *",
+    [updates.name, updates.phone, JSON.stringify(updates.roles), updates.hourly_rate, updates.hire_date, req.params.id, req.restaurantId]
   );
   res.json(staffRowToJson(rows[0]));
 });

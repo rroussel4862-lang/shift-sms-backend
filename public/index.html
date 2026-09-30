@@ -560,6 +560,10 @@
       <input type="text" id="staffName" placeholder="Full name" />
       <label>Phone</label>
       <input type="tel" id="staffPhone" placeholder="+15551234567" />
+      <label>Hourly rate (optional)</label>
+      <input type="text" inputmode="decimal" id="staffRate" placeholder="e.g. 19.50" />
+      <label>Hire date (optional)</label>
+      <input type="date" id="staffHireDate" />
       <label>Role(s) — tap all that apply</label>
       <div class="roles" id="staffRoles"></div>
       <button class="primary" onclick="addStaff()">Add staff</button>
@@ -782,11 +786,19 @@ function render() {
         if (p.id === editingStaffId) {
           const existingInput = document.getElementById(`editPhone-${p.id}`);
           const phoneValue = existingInput ? existingInput.value : (p.phone || "");
+          const existingRateInput = document.getElementById(`editRate-${p.id}`);
+          const rateValue = existingRateInput ? existingRateInput.value : (p.hourlyRate !== null ? String(p.hourlyRate) : "");
+          const existingHireInput = document.getElementById(`editHireDate-${p.id}`);
+          const hireDateValue = existingHireInput ? existingHireInput.value : (p.hireDate || "");
           return `
             <div class="staff-row" style="flex-direction:column;align-items:stretch">
               <div class="staff-name">${escapeHtml(p.name)}</div>
               <label style="margin-top:8px">Phone</label>
               <input type="tel" id="editPhone-${p.id}" value="${escapeHtml(phoneValue)}" />
+              <label>Hourly rate</label>
+              <input type="text" inputmode="decimal" id="editRate-${p.id}" value="${escapeHtml(rateValue)}" placeholder="e.g. 19.50" />
+              <label>Hire date</label>
+              <input type="date" id="editHireDate-${p.id}" value="${escapeHtml(hireDateValue)}" />
               <label>Role(s) — tap all that apply</label>
               <div class="roles">
                 ${ROLES.map(r => `
@@ -807,6 +819,9 @@ function render() {
               <div class="staff-name">${escapeHtml(p.name)}</div>
               <div class="staff-roles">
                 ${(p.roles && p.roles.length) ? p.roles.map(r => `<span>${escapeHtml(r)}</span>`).join("") : '<span style="opacity:0.5">no role</span>'}
+              </div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:4px" class="num">
+                ${p.hourlyRate !== null ? `$${p.hourlyRate.toFixed(2)}/hr` : "no rate set"}${p.hireDate ? ` · hired ${formatHireDate(p.hireDate)}` : ""}
               </div>
             </div>
             <div class="row-actions">
@@ -904,6 +919,12 @@ function renderOverview() {
   `).join("");
 }
 
+function formatHireDate(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
 function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str == null ? "" : String(str);
@@ -929,16 +950,20 @@ function computeStats(staffList, shiftList) {
 async function addStaff() {
   const name = document.getElementById("staffName").value.trim();
   const phone = document.getElementById("staffPhone").value.trim();
+  const hourlyRate = document.getElementById("staffRate").value.trim();
+  const hireDate = document.getElementById("staffHireDate").value;
   if (!name) return showBanner("Enter a name first", "warn");
   if (!phone) return showBanner("Enter a phone number first", "warn");
   const result = await api("/api/staff", {
     method: "POST",
-    body: JSON.stringify({ name, phone, roles: selectedRoles }),
+    body: JSON.stringify({ name, phone, roles: selectedRoles, hourlyRate: hourlyRate || null, hireDate: hireDate || null }),
   });
   if (result.ok) {
     showBanner(`Added ${name}`, "success");
     document.getElementById("staffName").value = "";
     document.getElementById("staffPhone").value = "";
+    document.getElementById("staffRate").value = "";
+    document.getElementById("staffHireDate").value = "";
     selectedRoles = [];
     document.querySelectorAll(".role-pill").forEach(b => b.classList.remove("active"));
     loadAll();
@@ -995,9 +1020,13 @@ async function saveEdit(id) {
   const phoneInput = document.getElementById(`editPhone-${id}`);
   const phone = phoneInput ? phoneInput.value.trim() : "";
   if (!phone) return showBanner("Phone number can't be empty", "warn");
+  const rateInput = document.getElementById(`editRate-${id}`);
+  const hourlyRate = rateInput ? rateInput.value.trim() : "";
+  const hireDateInput = document.getElementById(`editHireDate-${id}`);
+  const hireDate = hireDateInput ? hireDateInput.value : "";
   const result = await api(`/api/staff/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ phone, roles: editDraftRoles }),
+    body: JSON.stringify({ phone, roles: editDraftRoles, hourlyRate: hourlyRate || null, hireDate: hireDate || null }),
   });
   if (result.ok) {
     showBanner("Staff updated", "success");
