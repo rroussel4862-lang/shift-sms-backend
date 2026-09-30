@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Back Office — Open Shift Rail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #1C201D;
+    --panel: #262B27;
+    --panel-light: #2E332E;
+    --row-alt: #232823;
+    --ink: #23261F;
+    --amber: #E2A33B;
+    --green: #5C8C6B;
+    --red: #C1623A;
+    --rail: #454C46;
+    --text-dim: #9BA39C;
+    --text-bright: #F2EFE6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-bright);
+    font-family: 'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-family: 'IBM Plex Mono', monospace; }
+  h1, h2 { font-family: 'Oswald', sans-serif; }
+
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--rail);
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 { font-size: 18px; margin: 0; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 600; }
+  header .sub { color: var(--text-dim); font-size: 12px; margin-top: 2px; }
+  .back-link {
+    font-size: 12px; color: var(--text-dim); text-decoration: none; border: 1px solid var(--rail);
+    padding: 6px 12px; border-radius: 4px;
+  }
+  .back-link:hover { color: var(--text-bright); border-color: var(--text-bright); }
+
+  nav.sections {
+    display: flex; gap: 6px;
+    padding: 12px 28px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--rail);
+  }
+  .section-btn {
+    background: var(--panel-light);
+    border: 1px solid var(--rail);
+    color: var(--text-dim);
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 9px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .section-btn.active { background: var(--amber); color: var(--ink); border-color: var(--amber); }
+  .section-btn[disabled] { cursor: not-allowed; opacity: 0.45; }
+
+  main { padding: 28px; max-width: 1100px; }
+  .section-panel { display: none; }
+  .section-panel.active { display: block; }
+
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+  .toolbar h2 { font-size: 20px; margin: 0; }
+  .toolbar .desc { color: var(--text-dim); font-size: 13px; margin-top: 4px; max-width: 60ch; line-height: 1.5; }
+
+  button.action {
+    background: var(--amber); color: var(--ink); border: none; border-radius: 6px;
+    padding: 9px 16px; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 12.5px;
+    text-transform: uppercase; letter-spacing: 0.03em; cursor: pointer; white-space: nowrap;
+  }
+  button.ghost {
+    background: none; border: 1px solid var(--rail); color: var(--text-dim);
+    padding: 8px 14px; border-radius: 6px; font-family: inherit; font-size: 12.5px; cursor: pointer;
+  }
+  button.ghost:hover { color: var(--text-bright); border-color: var(--text-bright); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--rail); border-radius: 8px; overflow: hidden; }
+  thead th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim);
+    padding: 10px 12px; border-bottom: 1px solid var(--rail); font-weight: 600;
+  }
+  tbody tr { border-bottom: 1px solid var(--rail); }
+  tbody tr:nth-child(even) { background: var(--row-alt); }
+  tbody tr:last-child { border-bottom: none; }
+  td { padding: 8px 12px; vertical-align: middle; }
+  td input[type=text], td input[type=tel], td input[type=date] {
+    width: 100%; background: var(--bg); border: 1px solid var(--rail); color: var(--text-bright);
+    border-radius: 4px; padding: 6px 8px; font-size: 13px; font-family: inherit;
+  }
+  td input[type=text].rate-input { max-width: 90px; }
+  .roles-cell { display: flex; flex-wrap: wrap; gap: 4px; max-width: 220px; }
+  .role-chip {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em;
+    background: var(--panel-light); border: 1px solid var(--rail); color: var(--text-dim);
+    padding: 2px 7px; border-radius: 10px;
+  }
+  .del-cell-btn { background: none; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; }
+  .del-cell-btn:hover { color: var(--red); }
+  .add-row td { background: var(--panel-light); }
+  .empty-note { color: var(--text-dim); font-size: 13px; padding: 20px; text-align: center; }
+
+  #banner { font-size: 12.5px; text-align: center; padding: 9px; font-weight: 600; }
+  #banner.success { background: var(--green); color: #fff; }
+  #banner.warn { background: var(--amber); color: var(--ink); }
+
+  #authGate { display: flex; align-items: center; justify-content: center; min-height: 80vh; text-align: center; padding: 24px; }
+  #authGate .box { max-width: 320px; }
+  #authGate h1 { font-size: 20px; margin-bottom: 10px; }
+  #authGate p { color: var(--text-dim); font-size: 13px; line-height: 1.5; margin-bottom: 18px; }
+
+  @media (max-width: 720px) {
+    main { padding: 16px; }
+    header, nav.sections { padding: 12px 16px; }
+    table, thead, tbody, th, td, tr { display: block; }
+    thead { display: none; }
+    tbody tr { border: 1px solid var(--rail); border-radius: 6px; margin-bottom: 10px; padding: 8px; }
+    td { border: none; padding: 6px 4px; }
+    td::before { content: attr(data-label); display: block; font-size: 10px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 3px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="authGate" style="display:none">
+  <div class="box">
+    <h1>Log in required</h1>
+    <p>The Back Office uses the same account as the main app. Log in there first, then come back to this page.</p>
+    <a class="back-link" href="/">Go to the main app</a>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <div>
+      <h1 id="restaurantHeading">Back Office</h1>
+      <div class="sub">Business data that keeps the app up to date — separate from day-to-day operations.</div>
+    </div>
+    <a class="back-link" href="/">← Back to main app</a>
+  </header>
+
+  <nav class="sections">
+    <button class="section-btn active" id="sectionBtnStaff" onclick="showSection('staff')">Staff</button>
+    <button class="section-btn" disabled title="Coming next">Sales</button>
+    <button class="section-btn" disabled title="Coming next">Revenue history</button>
+  </nav>
+
+  <div id="banner"></div>
+
+  <main>
+    <div class="section-panel active" id="sectionStaff">
+      <div class="toolbar">
+        <div>
+          <h2>Staff pay & tenure</h2>
+          <div class="desc">Rates and hire dates feed real labor-cost math elsewhere in the app. Roles and phone numbers are also editable here for full setup in one place.</div>
+        </div>
+        <button class="ghost" onclick="loadStaff()">Refresh</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:16%">Name</th>
+            <th style="width:16%">Phone</th>
+            <th style="width:22%">Roles (comma-separated)</th>
+            <th style="width:12%">Rate ($/hr)</th>
+            <th style="width:14%">Hire date</th>
+            <th style="width:5%"></th>
+          </tr>
+        </thead>
+        <tbody id="staffTableBody"></tbody>
+        <tbody>
+          <tr class="add-row">
+            <td data-label="Name"><input type="text" id="newName" placeholder="Full name" /></td>
+            <td data-label="Phone"><input type="tel" id="newPhone" placeholder="+15551234567" /></td>
+            <td data-label="Roles"><input type="text" id="newRoles" placeholder="Server, Host" /></td>
+            <td data-label="Rate"><input type="text" class="rate-input" id="newRate" placeholder="19.50" /></td>
+            <td data-label="Hire date"><input type="date" id="newHireDate" /></td>
+            <td><button class="action" style="padding:7px 10px" onclick="addStaffRow()">Add</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+let staff = [];
+
+function showBanner(text, tone) {
+  const el = document.getElementById("banner");
+  el.className = tone;
+  el.textContent = text;
+  setTimeout(() => { el.textContent = ""; el.className = ""; }, 5000);
+}
+
+async function api(path, options) {
+  try {
+    const res = await fetch(path, { headers: { "Content-Type": "application/json" }, credentials: "same-origin", ...options });
+    let body = null;
+    try { body = await res.json(); } catch (e) {}
+    if (!res.ok) return { ok: false, error: (body && body.error) || `HTTP ${res.status}`, status: res.status };
+    return { ok: true, data: body };
+  } catch (e) {
+    return { ok: false, error: "Network error — is the server running?" };
+  }
+}
+
+function showSection(name) {
+  document.getElementById("sectionStaff").classList.toggle("active", name === "staff");
+  document.getElementById("sectionBtnStaff").classList.toggle("active", name === "staff");
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str == null ? "" : String(str);
+  return div.innerHTML;
+}
+
+function renderStaffTable() {
+  const tbody = document.getElementById("staffTableBody");
+  if (staff.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-note">No staff yet — add your first one below.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = staff.map(p => `
+    <tr data-id="${p.id}">
+      <td data-label="Name"><input type="text" value="${escapeHtml(p.name)}" onblur="updateField('${p.id}','name',this.value)" /></td>
+      <td data-label="Phone"><input type="tel" value="${escapeHtml(p.phone)}" onblur="updateField('${p.id}','phone',this.value)" /></td>
+      <td data-label="Roles"><input type="text" value="${escapeHtml((p.roles || []).join(', '))}" onblur="updateRoles('${p.id}',this.value)" /></td>
+      <td data-label="Rate"><input type="text" class="rate-input num" value="${p.hourlyRate !== null ? p.hourlyRate : ''}" placeholder="—" onblur="updateField('${p.id}','hourlyRate',this.value)" /></td>
+      <td data-label="Hire date"><input type="date" value="${escapeHtml(p.hireDate || '')}" onblur="updateField('${p.id}','hireDate',this.value)" /></td>
+      <td><button class="del-cell-btn" onclick="deleteStaff('${p.id}')" title="Delete">✕</button></td>
+    </tr>
+  `).join("");
+}
+
+async function loadStaff() {
+  const result = await api("/api/staff");
+  if (result.ok) {
+    staff = result.data;
+    renderStaffTable();
+  } else {
+    showBanner(result.error, "warn");
+  }
+}
+
+async function updateField(id, field, value) {
+  const body = {};
+  body[field] = value.trim() === "" ? null : value.trim();
+  const result = await api(`/api/staff/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+  if (result.ok) {
+    showBanner("Saved", "success");
+    const idx = staff.findIndex(s => s.id === id);
+    if (idx !== -1) staff[idx] = result.data;
+  } else {
+    showBanner(result.error, "warn");
+    loadStaff();
+  }
+}
+
+async function updateRoles(id, value) {
+  const roles = value.split(",").map(r => r.trim()).filter(Boolean);
+  const result = await api(`/api/staff/${id}`, { method: "PATCH", body: JSON.stringify({ roles }) });
+  if (result.ok) {
+    showBanner("Saved", "success");
+    const idx = staff.findIndex(s => s.id === id);
+    if (idx !== -1) staff[idx] = result.data;
+  } else {
+    showBanner(result.error, "warn");
+    loadStaff();
+  }
+}
+
+async function addStaffRow() {
+  const name = document.getElementById("newName").value.trim();
+  const phone = document.getElementById("newPhone").value.trim();
+  const rolesRaw = document.getElementById("newRoles").value.trim();
+  const rate = document.getElementById("newRate").value.trim();
+  const hireDate = document.getElementById("newHireDate").value;
+  if (!name) return showBanner("Enter a name first", "warn");
+  if (!phone) return showBanner("Enter a phone number first", "warn");
+  const roles = rolesRaw ? rolesRaw.split(",").map(r => r.trim()).filter(Boolean) : [];
+
+  const result = await api("/api/staff", {
+    method: "POST",
+    body: JSON.stringify({ name, phone, roles, hourlyRate: rate || null, hireDate: hireDate || null }),
+  });
+  if (result.ok) {
+    showBanner(`Added ${name}`, "success");
+    document.getElementById("newName").value = "";
+    document.getElementById("newPhone").value = "";
+    document.getElementById("newRoles").value = "";
+    document.getElementById("newRate").value = "";
+    document.getElementById("newHireDate").value = "";
+    loadStaff();
+  } else {
+    showBanner(result.error, "warn");
+  }
+}
+
+async function deleteStaff(id) {
+  if (!confirm("Delete this staff member? This can't be undone.")) return;
+  await api(`/api/staff/${id}`, { method: "DELETE" });
+  loadStaff();
+}
+
+(async function init() {
+  const me = await api("/api/auth/me");
+  if (!me.ok) {
+    document.getElementById("authGate").style.display = "flex";
+    return;
+  }
+  document.getElementById("app").style.display = "block";
+  document.getElementById("restaurantHeading").textContent = `${me.data.restaurant.name} — Back Office`;
+  loadStaff();
+})();
+</script>
+</body>
+</html>
