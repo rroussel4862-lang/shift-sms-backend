@@ -456,9 +456,10 @@
   .overview-card .sub { font-size: 12px; opacity: 0.7; margin-top: 6px; }
   @media (max-width: 760px) {
     #shell { flex-direction: column; }
-    #sidebar { width: 100%; flex-direction: row; overflow-x: auto; padding: 12px; gap: 8px; border-right: none; border-bottom: 1px solid var(--rail); }
+    #sidebar { width: 100%; flex-direction: row; overflow-x: auto; padding: 8px 10px; gap: 4px; border-right: none; border-bottom: 1px solid var(--rail); }
     .brand { display: none; }
-    .nav-stub { flex-shrink: 0; white-space: nowrap; }
+    .nav-stub { flex-shrink: 0; white-space: nowrap; padding: 8px 10px; font-size: 12px; }
+    .nav-stub .dot { width: 6px; height: 6px; }
     #contentWrap { padding: 16px 16px 50px; }
   }
 </style>
