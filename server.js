@@ -150,6 +150,18 @@ async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS schedule_shifts_restaurant_idx ON schedule_shifts (restaurant_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS schedule_shifts_date_idx ON schedule_shifts (shift_date);`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sales_projections (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      proj_date DATE NOT NULL,
+      projected_amount NUMERIC,
+      created_at BIGINT NOT NULL,
+      UNIQUE(restaurant_id, proj_date)
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS sales_projections_restaurant_idx ON sales_projections (restaurant_id);`);
 }
 
 // ---------- helpers ----------
@@ -789,6 +801,45 @@ app.patch("/api/schedule/:id", requireAuth, async (req, res) => {
 app.delete("/api/schedule/:id", requireAuth, async (req, res) => {
   await pool.query("DELETE FROM schedule_shifts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
   res.status(204).end();
+});
+
+// ---------- projected sales (manual daily entry) ----------
+
+app.get("/api/sales-projections", requireAuth, async (req, res) => {
+  const { start, end } = req.query;
+  if (!start || !end) return res.status(400).json({ error: "start and end date query params are required (YYYY-MM-DD)" });
+  const { rows } = await pool.query(
+    "SELECT * FROM sales_projections WHERE restaurant_id = $1 AND proj_date >= $2 AND proj_date <= $3",
+    [req.restaurantId, start, end]
+  );
+  res.json(
+    rows.map((r) => ({
+      date: r.proj_date instanceof Date ? r.proj_date.toISOString().slice(0, 10) : r.proj_date,
+      projectedAmount: r.projected_amount !== null ? Number(r.projected_amount) : null,
+    }))
+  );
+});
+
+app.put("/api/sales-projections", requireAuth, async (req, res) => {
+  const { date, projectedAmount } = req.body || {};
+  if (!date) return res.status(400).json({ error: "date is required" });
+  let amount = null;
+  if (projectedAmount !== undefined && projectedAmount !== "" && projectedAmount !== null) {
+    amount = Number(projectedAmount);
+    if (isNaN(amount) || amount < 0) return res.status(400).json({ error: "projected amount must be a positive number" });
+  }
+  const newId = id();
+  const { rows } = await pool.query(
+    `INSERT INTO sales_projections (id, restaurant_id, proj_date, projected_amount, created_at)
+     VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (restaurant_id, proj_date) DO UPDATE SET projected_amount = EXCLUDED.projected_amount
+     RETURNING *`,
+    [newId, req.restaurantId, date, amount, Date.now()]
+  );
+  res.json({
+    date: rows[0].proj_date instanceof Date ? rows[0].proj_date.toISOString().slice(0, 10) : rows[0].proj_date,
+    projectedAmount: rows[0].projected_amount !== null ? Number(rows[0].projected_amount) : null,
+  });
 });
 
 // ---------- health check ----------

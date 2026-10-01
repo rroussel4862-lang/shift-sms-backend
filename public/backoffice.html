@@ -116,41 +116,81 @@
   .empty-note { color: var(--text-dim); font-size: 13px; padding: 20px; text-align: center; }
 
   /* ---------- schedule grid ---------- */
-  .week-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  :root {
+    --grid-bg: #FFFFFF;
+    --grid-alt: #F6F3EB;
+    --grid-border: #DAD4C4;
+    --grid-text: #23261F;
+    --grid-dim: #7A7566;
+  }
+  .week-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
   .week-label { font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 600; }
-  .grid-wrap { overflow-x: auto; border: 1px solid var(--rail); border-radius: 8px; }
-  table.schedule-grid { width: 100%; min-width: 820px; border-collapse: collapse; background: var(--panel); }
-  table.schedule-grid th, table.schedule-grid td { border: 1px solid var(--rail); padding: 6px; vertical-align: top; }
+  .house-toggle { display: flex; gap: 6px; margin-bottom: 14px; }
+  .house-btn {
+    background: var(--panel-light); border: 1px solid var(--rail); color: var(--text-dim);
+    font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 0.03em; padding: 8px 16px; border-radius: 6px; cursor: pointer;
+  }
+  .house-btn.active { background: var(--amber); color: var(--ink); border-color: var(--amber); }
+  .copy-bar {
+    display: none; align-items: center; gap: 10px; background: var(--amber); color: var(--ink);
+    padding: 8px 14px; border-radius: 6px; font-size: 12.5px; margin-bottom: 12px;
+  }
+  .copy-bar.active { display: flex; }
+  .copy-bar button { background: var(--ink); color: #fff; border: none; border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
+
+  .grid-wrap { overflow-x: auto; border: 1px solid var(--grid-border); border-radius: 8px; }
+  table.schedule-grid { width: 100%; min-width: 860px; border-collapse: collapse; background: var(--grid-bg); color: var(--grid-text); }
+  table.schedule-grid th, table.schedule-grid td { border: 1px solid var(--grid-border); padding: 6px; vertical-align: top; }
   table.schedule-grid thead th {
-    background: var(--panel-light); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em;
-    color: var(--text-dim); text-align: center; padding: 8px 6px;
+    background: var(--grid-alt); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em;
+    color: var(--grid-dim); text-align: center; padding: 8px 6px;
   }
-  table.schedule-grid thead th .day-date { display: block; font-size: 10px; opacity: 0.7; margin-top: 2px; }
-  .staff-cell { min-width: 130px; background: var(--row-alt); }
+  table.schedule-grid thead th .day-date { display: block; font-size: 10px; opacity: 0.8; margin-top: 2px; }
+  .staff-cell { min-width: 130px; background: var(--grid-alt); color: var(--grid-text); }
   .staff-cell .name { font-weight: 600; font-size: 13px; }
-  .staff-cell .rate { font-size: 11px; color: var(--text-dim); }
-  .day-cell { min-width: 100px; }
+  .staff-cell .rate { font-size: 11px; color: var(--grid-dim); }
+  .day-cell { min-width: 105px; background: var(--grid-bg); }
+  .day-cell.drag-over { background: #EFE6C9; }
   .shift-chip {
-    background: var(--panel-light); border: 1px solid var(--rail); border-radius: 5px;
-    padding: 5px 6px; font-size: 11.5px; margin-bottom: 4px; position: relative;
+    background: var(--grid-alt); border: 1px solid var(--grid-border); border-radius: 5px; color: var(--grid-text);
+    padding: 5px 6px; font-size: 11.5px; margin-bottom: 4px; position: relative; cursor: grab;
   }
+  .shift-chip.dragging { opacity: 0.4; }
   .shift-chip .times { font-family: 'IBM Plex Mono', monospace; }
-  .shift-chip .role-tag { color: var(--text-dim); font-size: 10.5px; }
-  .shift-chip .chip-del {
-    position: absolute; top: 2px; right: 4px; background: none; border: none; color: var(--text-dim);
-    font-size: 12px; cursor: pointer; line-height: 1;
+  .shift-chip .role-tag { color: var(--grid-dim); font-size: 10.5px; }
+  .shift-chip .chip-actions { position: absolute; top: 2px; right: 3px; display: flex; gap: 3px; }
+  .shift-chip .chip-btn {
+    background: none; border: none; color: var(--grid-dim);
+    font-size: 11px; cursor: pointer; line-height: 1; padding: 1px;
   }
+  .shift-chip .chip-btn:hover { color: var(--ink); }
   .add-shift-btn {
-    width: 100%; background: none; border: 1px dashed var(--rail); color: var(--text-dim);
+    width: 100%; background: none; border: 1px dashed var(--grid-border); color: var(--grid-dim);
     border-radius: 5px; padding: 6px; font-size: 11px; cursor: pointer;
   }
-  .add-shift-btn:hover { color: var(--text-bright); border-color: var(--text-bright); }
+  .add-shift-btn:hover { color: var(--ink); border-color: var(--ink); }
+  .paste-btn {
+    width: 100%; background: var(--amber); border: none; color: var(--ink);
+    border-radius: 5px; padding: 6px; font-size: 11px; cursor: pointer; margin-top: 4px; font-weight: 600;
+  }
   .shift-form { display: flex; flex-direction: column; gap: 4px; }
   .shift-form input, .shift-form select { font-size: 11.5px; padding: 4px 5px; }
   .shift-form .form-actions { display: flex; gap: 4px; margin-top: 2px; }
   .shift-form .form-actions button { flex: 1; font-size: 10.5px; padding: 4px; border-radius: 4px; border: none; cursor: pointer; }
-  .totals-row td { background: var(--panel-light); font-weight: 600; }
+  .totals-row td { background: var(--grid-alt); font-weight: 600; color: var(--grid-text); }
   .day-total { font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: center; }
+  .proj-row td { background: var(--grid-bg); }
+  .proj-row input {
+    width: 100%; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;
+    border: 1px solid var(--grid-border); border-radius: 4px; padding: 4px; color: var(--grid-text); background: var(--grid-bg);
+  }
+  .index-row td { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; text-align: center; font-weight: 600; }
+  .index-ok { color: #4C7A5E; }
+  .index-warn { color: #B8860B; }
+  .index-bad { color: #B3452C; }
+  .ai-row td { color: var(--grid-dim); font-size: 10.5px; text-align: center; font-style: italic; }
+  .row-label { color: var(--grid-dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; text-align: left !important; font-style: normal !important; }
   .grand-total-bar {
     margin-top: 16px; padding: 14px 18px; background: var(--panel); border: 1px solid var(--rail);
     border-radius: 8px; display: flex; gap: 32px; flex-wrap: wrap;
@@ -247,8 +287,13 @@
       <div class="toolbar">
         <div>
           <h2>Weekly schedule</h2>
-          <div class="desc">Assign staff to shifts for the week. Hours and labor cost are calculated live from each person's rate.</div>
+          <div class="desc">Assign staff to shifts for the week. Drag a shift to move it, or copy/paste it to another day. Hours and labor cost are calculated live from each person's rate.</div>
         </div>
+      </div>
+
+      <div class="house-toggle">
+        <button class="house-btn active" id="houseBtnFoh" onclick="setHouseView('foh')">Front of House</button>
+        <button class="house-btn" id="houseBtnBoh" onclick="setHouseView('boh')">Back of House</button>
       </div>
 
       <div class="week-nav">
@@ -258,12 +303,20 @@
         <button class="ghost" onclick="goToThisWeek()">This week</button>
       </div>
 
+      <div class="copy-bar" id="copyBar">
+        <span>Shift copied — click "Paste here" on any cell to duplicate it.</span>
+        <button onclick="cancelCopy()">Cancel</button>
+      </div>
+
       <div class="grid-wrap">
         <table class="schedule-grid">
           <thead>
             <tr id="scheduleHeaderRow">
               <th style="text-align:left">Staff</th>
             </tr>
+            <tr class="ai-row" id="scheduleAiRow"></tr>
+            <tr class="proj-row" id="scheduleProjRow"></tr>
+            <tr class="index-row" id="scheduleIndexRow"></tr>
           </thead>
           <tbody id="scheduleBody"></tbody>
           <tfoot>
@@ -280,9 +333,15 @@
 <script>
 let staff = [];
 const ROLES = ["Line Cook", "Server", "Host", "Bartender", "Busser", "Dishwasher", "Prep Cook", "Expo"];
+const FOH_ROLES = ["Server", "Host", "Bartender", "Busser"];
+const BOH_ROLES = ["Line Cook", "Dishwasher", "Prep Cook", "Expo"];
 let weekStart = getMonday(new Date());
 let scheduleShifts = [];
+let salesProjections = {};
 let addingCell = null;
+let houseView = "foh";
+let draggedShiftId = null;
+let copiedShift = null;
 
 function showBanner(text, tone) {
   const el = document.getElementById("banner");
@@ -453,13 +512,100 @@ async function loadSchedule() {
   const endDate = new Date(weekStart);
   endDate.setDate(endDate.getDate() + 6);
   document.getElementById("weekLabel").textContent = `${formatShort(weekStart)} – ${formatShort(endDate)}, ${endDate.getFullYear()}`;
-  const result = await api(`/api/schedule?start=${toISODate(weekStart)}&end=${toISODate(endDate)}`);
+  const startStr = toISODate(weekStart), endStr = toISODate(endDate);
+  const [shiftsResult, projResult] = await Promise.all([
+    api(`/api/schedule?start=${startStr}&end=${endStr}`),
+    api(`/api/sales-projections?start=${startStr}&end=${endStr}`),
+  ]);
+  if (shiftsResult.ok) scheduleShifts = shiftsResult.data;
+  else showBanner(shiftsResult.error, "warn");
+  salesProjections = {};
+  if (projResult.ok) {
+    projResult.data.forEach(p => { salesProjections[p.date] = p.projectedAmount; });
+  }
+  renderScheduleGrid();
+}
+
+function setHouseView(view) {
+  houseView = view;
+  document.getElementById("houseBtnFoh").classList.toggle("active", view === "foh");
+  document.getElementById("houseBtnBoh").classList.toggle("active", view === "boh");
+  addingCell = null;
+  renderScheduleGrid();
+}
+
+async function saveProjection(dateStr, value) {
+  const amount = value.trim();
+  const result = await api("/api/sales-projections", {
+    method: "PUT",
+    body: JSON.stringify({ date: dateStr, projectedAmount: amount || null }),
+  });
   if (result.ok) {
-    scheduleShifts = result.data;
+    salesProjections[dateStr] = result.data.projectedAmount;
     renderScheduleGrid();
   } else {
     showBanner(result.error, "warn");
   }
+}
+
+function copyShiftFromChip(btn) {
+  const chip = btn.closest(".shift-chip");
+  copyShift(chip.dataset.start, chip.dataset.end, chip.dataset.role);
+}
+
+function copyShift(startTime, endTime, role) {
+  copiedShift = { startTime, endTime, role };
+  document.getElementById("copyBar").classList.add("active");
+  renderScheduleGrid();
+}
+
+function cancelCopy() {
+  copiedShift = null;
+  document.getElementById("copyBar").classList.remove("active");
+  renderScheduleGrid();
+}
+
+async function pasteShift(staffId, dateStr) {
+  if (!copiedShift) return;
+  const result = await api("/api/schedule", {
+    method: "POST",
+    body: JSON.stringify({ staffId, date: dateStr, startTime: copiedShift.startTime, endTime: copiedShift.endTime, role: copiedShift.role }),
+  });
+  if (result.ok) loadSchedule();
+  else showBanner(result.error, "warn");
+}
+
+function onDragStart(e, shiftId) {
+  draggedShiftId = shiftId;
+  e.dataTransfer.effectAllowed = "move";
+  e.currentTarget.classList.add("dragging");
+}
+
+function onDragEnd(e) {
+  e.currentTarget.classList.remove("dragging");
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add("drag-over");
+}
+
+function onDragLeave(e) {
+  e.currentTarget.classList.remove("drag-over");
+}
+
+async function onDrop(e, staffId, dateStr) {
+  e.preventDefault();
+  e.currentTarget.classList.remove("drag-over");
+  if (!draggedShiftId) return;
+  const idToMove = draggedShiftId;
+  draggedShiftId = null;
+  const result = await api(`/api/schedule/${idToMove}`, {
+    method: "PATCH",
+    body: JSON.stringify({ staffId, date: dateStr }),
+  });
+  if (result.ok) loadSchedule();
+  else showBanner(result.error, "warn");
 }
 
 function shiftWeek(delta) {
@@ -479,8 +625,13 @@ function renderDayCell(staffMember, dateStr) {
   const isAdding = addingCell && addingCell.staffId === staffMember.id && addingCell.dateStr === dateStr;
 
   let html = shiftsForCell.map(s => `
-    <div class="shift-chip">
-      <button class="chip-del" onclick="deleteScheduleShift('${s.id}')">✕</button>
+    <div class="shift-chip" draggable="true"
+      ondragstart="onDragStart(event,'${s.id}')" ondragend="onDragEnd(event)"
+      data-start="${s.startTime}" data-end="${s.endTime}" data-role="${escapeHtml(s.role || '')}">
+      <div class="chip-actions">
+        <button class="chip-btn" onclick="copyShiftFromChip(this)" title="Copy">⧉</button>
+        <button class="chip-btn" onclick="deleteScheduleShift('${s.id}')" title="Delete">✕</button>
+      </div>
       <div class="times">${formatTime(s.startTime)}–${formatTime(s.endTime)}</div>
       ${s.role ? `<div class="role-tag">${escapeHtml(s.role)}</div>` : ""}
     </div>
@@ -503,6 +654,9 @@ function renderDayCell(staffMember, dateStr) {
     `;
   } else {
     html += `<button class="add-shift-btn" onclick="showAddShiftForm('${staffMember.id}','${dateStr}')">+ Add</button>`;
+    if (copiedShift) {
+      html += `<button class="paste-btn" onclick="pasteShift('${staffMember.id}','${dateStr}')">Paste here</button>`;
+    }
   }
   return html;
 }
@@ -547,17 +701,37 @@ function renderScheduleGrid() {
     weekDates.push(d);
   }
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
+  const visibleStaff = staff.filter(p => (p.roles || []).some(r => activeRoles.includes(r)));
 
   const headerRow = document.getElementById("scheduleHeaderRow");
   headerRow.innerHTML = `<th style="text-align:left">Staff</th>` +
     weekDates.map((d, i) => `<th>${dayNames[i]}<span class="day-date">${d.getMonth() + 1}/${d.getDate()}</span></th>`).join("") +
     `<th>Total</th>`;
 
+  // AI forecast row (placeholder — needs real sales history, not available yet)
+  const aiRow = document.getElementById("scheduleAiRow");
+  aiRow.innerHTML = `<td class="row-label">AI forecast</td>` +
+    weekDates.map(() => `<td>—</td>`).join("") +
+    `<td>not yet available</td>`;
+
+  // Projected sales row (manual entry, shared across both house views)
+  const projRow = document.getElementById("scheduleProjRow");
+  let weekProjTotal = 0, anyProj = false;
+  const projCells = weekDates.map(d => {
+    const dateStr = toISODate(d);
+    const val = salesProjections[dateStr];
+    if (val !== undefined && val !== null) { weekProjTotal += val; anyProj = true; }
+    return `<td><input type="text" inputmode="decimal" value="${val !== undefined && val !== null ? val : ''}" placeholder="$" onblur="saveProjection('${dateStr}', this.value)" /></td>`;
+  }).join("");
+  projRow.innerHTML = `<td class="row-label">Projected sales</td>${projCells}<td class="day-total">${anyProj ? "$" + weekProjTotal.toFixed(2) : "—"}</td>`;
+
   const body = document.getElementById("scheduleBody");
-  if (staff.length === 0) {
-    body.innerHTML = `<tr><td colspan="9" class="empty-note">Add staff in the Staff tab first.</td></tr>`;
+  if (visibleStaff.length === 0) {
+    const label = houseView === "foh" ? "Front of House" : "Back of House";
+    body.innerHTML = `<tr><td colspan="9" class="empty-note">No staff tagged with ${label} roles yet. Add roles in the Staff tab.</td></tr>`;
   } else {
-    body.innerHTML = staff.map(p => {
+    body.innerHTML = visibleStaff.map(p => {
       let weekHours = 0, weekCost = 0;
       const dayCells = weekDates.map(d => {
         const dateStr = toISODate(d);
@@ -566,7 +740,7 @@ function renderScheduleGrid() {
           weekHours += hrs;
           weekCost += hrs * (p.hourlyRate || 0);
         });
-        return `<td class="day-cell">${renderDayCell(p, dateStr)}</td>`;
+        return `<td class="day-cell" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${p.id}','${dateStr}')">${renderDayCell(p, dateStr)}</td>`;
       }).join("");
       return `
         <tr>
@@ -583,25 +757,42 @@ function renderScheduleGrid() {
 
   const totalsRow = document.getElementById("scheduleTotalsRow");
   let grandHours = 0, grandCost = 0;
+  const dayCostByDate = {};
   const dayTotalsHtml = weekDates.map(d => {
     const dateStr = toISODate(d);
     let dayHours = 0, dayCost = 0;
-    staff.forEach(p => {
+    visibleStaff.forEach(p => {
       scheduleShifts.filter(s => s.staffId === p.id && s.date === dateStr).forEach(s => {
         const hrs = computeHours(s.startTime, s.endTime);
         dayHours += hrs;
         dayCost += hrs * (p.hourlyRate || 0);
       });
     });
+    dayCostByDate[dateStr] = dayCost;
     grandHours += dayHours;
     grandCost += dayCost;
     return `<td class="day-total">${dayHours.toFixed(1)}h<br>$${dayCost.toFixed(2)}</td>`;
   }).join("");
   totalsRow.innerHTML = `<td style="text-align:left">Daily totals</td>${dayTotalsHtml}<td class="day-total">${grandHours.toFixed(1)}h<br>$${grandCost.toFixed(2)}</td>`;
 
+  // Labor cost index row — this house's labor cost against the day's projected sales
+  const indexRow = document.getElementById("scheduleIndexRow");
+  const indexCells = weekDates.map(d => {
+    const dateStr = toISODate(d);
+    const sales = salesProjections[dateStr];
+    const cost = dayCostByDate[dateStr] || 0;
+    if (sales === undefined || sales === null || sales === 0) return `<td>—</td>`;
+    const pct = (cost / sales) * 100;
+    const cls = pct < 25 ? "index-ok" : pct < 35 ? "index-warn" : "index-bad";
+    return `<td class="${cls}">${pct.toFixed(1)}%</td>`;
+  }).join("");
+  const weekIndex = weekProjTotal > 0 ? (grandCost / weekProjTotal) * 100 : null;
+  const weekIndexCls = weekIndex === null ? "" : weekIndex < 25 ? "index-ok" : weekIndex < 35 ? "index-warn" : "index-bad";
+  indexRow.innerHTML = `<td class="row-label">Labor cost index</td>${indexCells}<td class="${weekIndexCls}">${weekIndex !== null ? weekIndex.toFixed(1) + "%" : "—"}</td>`;
+
   document.getElementById("grandTotalBar").innerHTML = `
-    <div class="item"><span class="num">${grandHours.toFixed(1)}</span><span class="label">Total hours this week</span></div>
-    <div class="item"><span class="num">$${grandCost.toFixed(2)}</span><span class="label">Total labor cost this week</span></div>
+    <div class="item"><span class="num">${grandHours.toFixed(1)}</span><span class="label">${houseView === "foh" ? "FOH" : "BOH"} hours this week</span></div>
+    <div class="item"><span class="num">$${grandCost.toFixed(2)}</span><span class="label">${houseView === "foh" ? "FOH" : "BOH"} labor cost this week</span></div>
   `;
 }
 
