@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>My Shifts — Open Shift Rail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #1C201D; --panel: #262B27; --panel-light: #2E332E; --paper: #F0EAD8; --ink: #23261F;
+    --amber: #E2A33B; --green: #5C8C6B; --rail: #454C46; --text-dim: #9BA39C; --text-bright: #F2EFE6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text-bright);
+    font-family: 'IBM Plex Mono', monospace; padding-bottom: 60px;
+  }
+  h1, h2 { font-family: 'Oswald', sans-serif; }
+  .num { font-family: 'IBM Plex Mono', monospace; }
+
+  /* ---------- landing / login ---------- */
+  #landing { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  .landing-mark { width: 56px; height: 56px; border: 2px solid var(--amber); border-radius: 8px; display: flex; align-items: center; justify-content: center; transform: rotate(-4deg); margin-bottom: 22px; }
+  .landing-mark span { font-family: 'Oswald', sans-serif; font-weight: 700; color: var(--amber); font-size: 22px; }
+  #landing h1 { font-size: 24px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; margin: 0; }
+  #landing p { color: var(--text-dim); font-size: 13px; max-width: 280px; margin: 12px 0 24px; line-height: 1.5; }
+  #authForms { width: 100%; max-width: 300px; text-align: left; }
+  label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 12px 0 5px; }
+  input[type=text], input[type=email], input[type=password], input[type=date] {
+    width: 100%; background: var(--bg); border: 1px solid var(--rail); color: var(--text-bright);
+    border-radius: 5px; padding: 10px 12px; font-family: inherit; font-size: 14px;
+  }
+  .enter-btn {
+    width: 100%; margin-top: 16px; padding: 14px;
+    background: var(--amber); color: var(--ink); border: none; border-radius: 6px;
+    font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.04em; font-size: 14px; cursor: pointer;
+  }
+  #authError { color: var(--amber); font-size: 12px; margin-top: 10px; min-height: 16px; }
+
+  /* ---------- app shell ---------- */
+  #appShell { display: none; }
+  header { background: var(--panel); border-bottom: 1px solid var(--rail); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 17px; margin: 0; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 600; }
+  header p { color: var(--text-dim); font-size: 11px; margin: 2px 0 0; }
+  #logoutBtn { background: none; border: 1px solid var(--rail); color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-family: inherit; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+
+  .tabs { display: flex; gap: 6px; padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--rail); }
+  .tab-btn { flex: 1; background: var(--panel-light); border: 1px solid var(--rail); color: var(--text-dim); font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; padding: 10px 4px; border-radius: 6px; cursor: pointer; }
+  .tab-btn.active { background: var(--amber); color: var(--ink); border-color: var(--amber); }
+
+  main { padding: 16px; max-width: 480px; margin: 0 auto; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .card { background: var(--panel); border: 1px solid var(--rail); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.02em; }
+  .empty { color: var(--text-dim); font-size: 13px; }
+
+  .ticket { position: relative; background: var(--paper); color: var(--ink); border-radius: 4px; padding: 14px 14px 12px; margin-bottom: 12px;
+    background-image: repeating-linear-gradient(to right, transparent 0 6px, rgba(0,0,0,0.07) 6px 7px); background-size: 13px 100%; background-position: top; background-repeat: repeat-x; }
+  .ticket .stamp { position: absolute; top: 10px; right: 12px; border: 2px solid var(--amber); color: var(--amber); font-family: 'Oswald', sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; padding: 1px 7px; border-radius: 3px; transform: rotate(-6deg); }
+  .ticket h3 { font-size: 15px; margin: 0 0 4px; padding-right: 70px; }
+  .ticket .meta { font-size: 11px; opacity: 0.65; margin-bottom: 6px; }
+  .ticket .note { font-size: 13px; line-height: 1.4; }
+  .claim-btn { width: 100%; margin-top: 10px; padding: 10px; background: var(--green); color: #fff; border: none; border-radius: 5px; font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; font-size: 12.5px; cursor: pointer; }
+  .claim-btn[disabled] { background: rgba(35,38,31,0.2); color: rgba(35,38,31,0.5); cursor: not-allowed; }
+
+  .avail-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--rail); }
+  .avail-row:last-child { border-bottom: none; }
+  .avail-day { font-weight: 600; font-size: 13px; width: 70px; flex-shrink: 0; }
+  .avail-toggle { display: flex; gap: 6px; }
+  .avail-toggle button { background: var(--panel-light); border: 1px solid var(--rail); color: var(--text-dim); border-radius: 4px; padding: 6px 10px; font-size: 11px; font-family: inherit; cursor: pointer; }
+  .avail-toggle button.active.yes { background: var(--green); color: #fff; border-color: var(--green); }
+  .avail-toggle button.active.no { background: var(--amber); color: var(--ink); border-color: var(--amber); }
+  .avail-note { flex: 1; background: var(--bg); border: 1px solid var(--rail); color: var(--text-bright); border-radius: 4px; padding: 6px 8px; font-size: 11.5px; font-family: inherit; min-width: 0; }
+
+  #banner { font-size: 12.5px; text-align: center; padding: 9px; font-weight: 600; }
+  #banner.success { background: var(--green); color: #fff; }
+  #banner.warn { background: var(--amber); color: var(--ink); }
+</style>
+</head>
+<body>
+
+<div id="landing">
+  <div class="landing-mark"><span>OSR</span></div>
+  <h1>My Shifts</h1>
+  <p>Your schedule, your availability, and open shifts you can pick up — log in to get started.</p>
+  <div id="authForms">
+    <label>Email</label>
+    <input type="text" id="loginEmail" placeholder="you@example.com" />
+    <label>Password</label>
+    <input type="password" id="loginPassword" placeholder="••••••••" />
+    <button class="enter-btn" onclick="submitLogin()">Log in</button>
+    <div id="authError"></div>
+  </div>
+</div>
+
+<div id="appShell">
+  <header>
+    <div>
+      <h1 id="staffHeading">My Shifts</h1>
+      <p id="staffSub"></p>
+    </div>
+    <button id="logoutBtn" onclick="logout()">Log out</button>
+  </header>
+
+  <div id="banner"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tabBtnSchedule" onclick="switchStaffTab('schedule')">My Schedule</button>
+    <button class="tab-btn" id="tabBtnAvailability" onclick="switchStaffTab('availability')">Availability</button>
+    <button class="tab-btn" id="tabBtnOpen" onclick="switchStaffTab('open')">Open Shifts</button>
+  </div>
+
+  <main>
+    <div class="tab-panel active" id="panelSchedule">
+      <div class="card">
+        <h2>Upcoming shifts</h2>
+        <div id="myScheduleList"><p class="empty">Loading…</p></div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="panelAvailability">
+      <div class="card">
+        <h2>Your weekly availability</h2>
+        <div style="color:var(--text-dim);font-size:12px;margin-bottom:10px;line-height:1.4">Let your manager know which days you're generally free to work.</div>
+        <div id="availabilityList"></div>
+        <button class="claim-btn" style="background:var(--amber);color:var(--ink);margin-top:14px" onclick="saveAvailability()">Save availability</button>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="panelOpen">
+      <div class="card">
+        <h2>Open shifts you can take</h2>
+        <div id="openShiftsList"><p class="empty">Loading…</p></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const DAYS = [
+  { key: "mon", label: "Mon" }, { key: "tue", label: "Tue" }, { key: "wed", label: "Wed" },
+  { key: "thu", label: "Thu" }, { key: "fri", label: "Fri" }, { key: "sat", label: "Sat" }, { key: "sun", label: "Sun" },
+];
+
+let myAvailability = {};
+
+function showBanner(text, tone) {
+  const el = document.getElementById("banner");
+  el.innerHTML = `<div class="banner ${tone}" style="background:${tone === 'success' ? 'var(--green)' : 'var(--amber)'};color:${tone === 'success' ? '#fff' : 'var(--ink)'}">${text}</div>`;
+  setTimeout(() => { el.innerHTML = ""; }, 5000);
+}
+
+async function api(path, options) {
+  try {
+    const res = await fetch(path, { headers: { "Content-Type": "application/json" }, credentials: "same-origin", ...options });
+    let body = null;
+    try { body = await res.json(); } catch (e) {}
+    if (!res.ok) return { ok: false, error: (body && body.error) || `HTTP ${res.status}` };
+    return { ok: true, data: body };
+  } catch (e) {
+    return { ok: false, error: "Network error — is the server running?" };
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str == null ? "" : String(str);
+  return div.innerHTML;
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+
+function formatTime(t) {
+  const [h, m] = t.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+async function submitLogin() {
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  const errorDiv = document.getElementById("authError");
+  errorDiv.textContent = "";
+  if (!email || !password) { errorDiv.textContent = "Enter your email and password"; return; }
+  const result = await api("/api/staff-auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+  if (!result.ok) { errorDiv.textContent = result.error; return; }
+  enterApp(result.data.name);
+}
+
+async function logout() {
+  await api("/api/staff-auth/logout", { method: "POST" });
+  location.reload();
+}
+
+function switchStaffTab(name) {
+  document.getElementById("panelSchedule").classList.toggle("active", name === "schedule");
+  document.getElementById("panelAvailability").classList.toggle("active", name === "availability");
+  document.getElementById("panelOpen").classList.toggle("active", name === "open");
+  document.getElementById("tabBtnSchedule").classList.toggle("active", name === "schedule");
+  document.getElementById("tabBtnAvailability").classList.toggle("active", name === "availability");
+  document.getElementById("tabBtnOpen").classList.toggle("active", name === "open");
+}
+
+function enterApp(name) {
+  document.getElementById("landing").style.display = "none";
+  document.getElementById("appShell").style.display = "block";
+  document.getElementById("staffHeading").textContent = name ? `Hi, ${name.split(" ")[0]}` : "My Shifts";
+  loadSchedule();
+  loadAvailability();
+  loadOpenShifts();
+}
+
+async function loadSchedule() {
+  const today = new Date();
+  const future = new Date(today);
+  future.setDate(future.getDate() + 21);
+  const toISO = (d) => d.toISOString().slice(0, 10);
+  const result = await api(`/api/staff-auth/schedule?start=${toISO(today)}&end=${toISO(future)}`);
+  const list = document.getElementById("myScheduleList");
+  if (!result.ok) { list.innerHTML = `<p class="empty">${result.error}</p>`; return; }
+  const shifts = result.data;
+  document.getElementById("staffSub").textContent = `${shifts.length} upcoming shift${shifts.length === 1 ? "" : "s"}`;
+  list.innerHTML = shifts.length === 0
+    ? '<p class="empty">No shifts scheduled yet — check back soon.</p>'
+    : shifts.map(s => `
+        <div class="ticket">
+          <div class="stamp">${escapeHtml(s.role || "Shift")}</div>
+          <h3>${formatDate(s.date)}</h3>
+          <div class="meta">${formatTime(s.startTime)} – ${formatTime(s.endTime)}</div>
+        </div>
+      `).join("");
+}
+
+async function loadAvailability() {
+  const result = await api("/api/staff-auth/availability");
+  if (result.ok) myAvailability = result.data.availability || {};
+  renderAvailability();
+}
+
+function renderAvailability() {
+  const list = document.getElementById("availabilityList");
+  list.innerHTML = DAYS.map(d => {
+    const entry = myAvailability[d.key] || { available: null, note: "" };
+    return `
+      <div class="avail-row">
+        <div class="avail-day">${d.label}</div>
+        <div class="avail-toggle">
+          <button class="${entry.available === true ? "active yes" : ""}" onclick="setAvailDay('${d.key}', true)">Free</button>
+          <button class="${entry.available === false ? "active no" : ""}" onclick="setAvailDay('${d.key}', false)">Busy</button>
+        </div>
+        <input type="text" class="avail-note" placeholder="e.g. after 5pm" value="${escapeHtml(entry.note || "")}" oninput="setAvailNote('${d.key}', this.value)" />
+      </div>
+    `;
+  }).join("");
+}
+
+function setAvailDay(key, value) {
+  if (!myAvailability[key]) myAvailability[key] = { available: null, note: "" };
+  myAvailability[key].available = value;
+  renderAvailability();
+}
+
+function setAvailNote(key, value) {
+  if (!myAvailability[key]) myAvailability[key] = { available: null, note: "" };
+  myAvailability[key].note = value;
+}
+
+async function saveAvailability() {
+  const result = await api("/api/staff-auth/availability", { method: "PUT", body: JSON.stringify({ availability: myAvailability }) });
+  if (result.ok) showBanner("Availability saved", "success");
+  else showBanner(result.error, "warn");
+}
+
+async function loadOpenShifts() {
+  const result = await api("/api/staff-auth/open-shifts");
+  const list = document.getElementById("openShiftsList");
+  if (!result.ok) { list.innerHTML = `<p class="empty">${result.error}</p>`; return; }
+  const shifts = result.data;
+  list.innerHTML = shifts.length === 0
+    ? '<p class="empty">No open shifts matching your roles right now.</p>'
+    : shifts.map(s => {
+        const myId = window.__myStaffId;
+        const alreadyIn = s.responders.some(r => r.staffId === myId);
+        return `
+          <div class="ticket">
+            <div class="stamp">Open</div>
+            <h3>${escapeHtml(s.role)}</h3>
+            <div class="meta">${escapeHtml(s.time || "ASAP")}</div>
+            ${s.note ? `<div class="note">${escapeHtml(s.note)}</div>` : ""}
+            <button class="claim-btn" ${alreadyIn ? "disabled" : ""} onclick="claimShift('${s.id}')">${alreadyIn ? "You're in — waiting on manager" : "Claim this shift"}</button>
+          </div>
+        `;
+      }).join("");
+}
+
+async function claimShift(shiftId) {
+  const result = await api(`/api/staff-auth/open-shifts/${shiftId}/claim`, { method: "POST" });
+  if (result.ok) {
+    showBanner("You're in — your manager will confirm shortly", "success");
+    loadOpenShifts();
+  } else {
+    showBanner(result.error, "warn");
+  }
+}
+
+(async function checkSession() {
+  const result = await api("/api/staff-auth/me");
+  if (result.ok) {
+    window.__myStaffId = result.data.id;
+    enterApp(result.data.name);
+  }
+})();
+</script>
+</body>
+</html>

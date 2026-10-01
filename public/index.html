@@ -904,8 +904,12 @@ function render() {
               <div style="font-size:11px;color:var(--text-dim);margin-top:4px" class="num">
                 ${p.hourlyRate !== null ? `$${p.hourlyRate.toFixed(2)}/hr` : "no rate set"}${p.hireDate ? ` · hired ${formatHireDate(p.hireDate)}` : ""}
               </div>
+              <div style="font-size:11px;margin-top:3px;color:${p.hasLogin ? "var(--green)" : "var(--text-dim)"}">
+                ${p.hasLogin ? "Staff portal: active" : "Staff portal: not set up"}
+              </div>
             </div>
             <div class="row-actions">
+              ${p.hasLogin ? "" : `<button class="edit-btn" onclick="sendLoginSetup('${p.id}')">Send login</button>`}
               <button class="edit-btn" onclick="startEdit('${p.id}')">Edit</button>
               <button class="del-btn" onclick="removeStaff('${p.id}')">✕</button>
             </div>
@@ -1057,6 +1061,12 @@ async function addStaff() {
 async function removeStaff(id) {
   await api(`/api/staff/${id}`, { method: "DELETE" });
   loadAll();
+}
+
+async function sendLoginSetup(id) {
+  const result = await api(`/api/staff/${id}/send-login-setup`, { method: "POST" });
+  if (result.ok) showBanner("Login setup link texted", "success");
+  else showBanner(result.error, "warn");
 }
 
 function setStaffFilterMode(mode) {

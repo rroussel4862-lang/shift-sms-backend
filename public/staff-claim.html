@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Set up your account — Open Shift Rail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #1C201D; --panel: #262B27; --ink: #23261F;
+    --amber: #E2A33B; --green: #5C8C6B; --rail: #454C46;
+    --text-bright: #F2EFE6; --text-dim: #9BA39C;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--bg); color: var(--text-bright);
+    font-family: 'IBM Plex Mono', monospace;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .card { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--rail); border-radius: 8px; padding: 24px; }
+  h1 { font-family: 'Oswald', sans-serif; font-size: 20px; text-transform: uppercase; margin: 0 0 4px; }
+  .sub { color: var(--text-dim); font-size: 12.5px; margin-bottom: 18px; }
+  label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 12px 0 5px; }
+  input {
+    width: 100%; background: var(--bg); border: 1px solid var(--rail); color: var(--text-bright);
+    border-radius: 5px; padding: 10px 12px; font-family: inherit; font-size: 14px;
+  }
+  button {
+    width: 100%; margin-top: 18px; padding: 13px;
+    background: var(--amber); color: var(--ink); border: none; border-radius: 6px;
+    font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.03em; font-size: 13px; cursor: pointer;
+  }
+  #status { font-size: 12.5px; margin-top: 12px; min-height: 16px; }
+  #status.error { color: var(--amber); }
+  #successPanel { display: none; text-align: center; }
+  #successPanel .check { font-size: 36px; margin-bottom: 10px; }
+  #loading, #notFound { text-align: center; color: var(--text-dim); font-size: 13px; }
+  a.goto-link { color: var(--amber); }
+</style>
+</head>
+<body>
+
+<div class="card" id="loading">Loading…</div>
+
+<div class="card" id="notFound" style="display:none">
+  <h1>Link not valid</h1>
+  <div class="sub">This setup link has already been used or has expired. Ask your manager to send a new one.</div>
+</div>
+
+<div class="card" id="formCard" style="display:none">
+  <h1 id="welcomeTitle"></h1>
+  <div class="sub" id="welcomeSub"></div>
+
+  <div id="claimForm">
+    <label>Email</label>
+    <input type="text" id="email" placeholder="you@example.com" />
+    <label>Password</label>
+    <input type="password" id="password" placeholder="At least 8 characters" />
+    <button onclick="submitClaim()">Create my account</button>
+    <div id="status"></div>
+  </div>
+
+  <div id="successPanel">
+    <div class="check">✓</div>
+    <h1>You're all set</h1>
+    <div class="sub">Your account is ready. Head to your staff portal and log in.</div>
+    <a class="goto-link" href="/staff-portal.html">Go to my staff portal →</a>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const claimToken = params.get("token");
+
+async function loadClaim() {
+  if (!claimToken) return showNotFound();
+  try {
+    const res = await fetch(`/api/staff-auth/claim/${claimToken}`);
+    if (!res.ok) return showNotFound();
+    const data = await res.json();
+    document.getElementById("welcomeTitle").textContent = `Welcome, ${data.name.split(" ")[0]}`;
+    document.getElementById("welcomeSub").textContent = `Set up your login for ${data.restaurantName}.`;
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("formCard").style.display = "block";
+  } catch (e) {
+    showNotFound();
+  }
+}
+
+function showNotFound() {
+  document.getElementById("loading").style.display = "none";
+  document.getElementById("notFound").style.display = "block";
+}
+
+async function submitClaim() {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  const status = document.getElementById("status");
+  status.className = ""; status.textContent = "";
+
+  if (!email) { status.className = "error"; status.textContent = "Enter your email."; return; }
+  if (!password || password.length < 8) { status.className = "error"; status.textContent = "Password must be at least 8 characters."; return; }
+
+  try {
+    const res = await fetch("/api/staff-auth/claim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ token: claimToken, email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) { status.className = "error"; status.textContent = data.error || "Something went wrong."; return; }
+    document.getElementById("claimForm").style.display = "none";
+    document.getElementById("successPanel").style.display = "block";
+  } catch (e) {
+    status.className = "error"; status.textContent = "Network error — please try again.";
+  }
+}
+
+loadClaim();
+</script>
+</body>
+</html>

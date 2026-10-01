@@ -163,6 +163,20 @@ async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS sales_projections_restaurant_idx ON sales_projections (restaurant_id);`);
+
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;`);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS password_hash TEXT;`);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS claim_token TEXT UNIQUE;`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS staff_availability (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      staff_id TEXT NOT NULL UNIQUE REFERENCES staff(id) ON DELETE CASCADE,
+      availability JSONB NOT NULL DEFAULT '{}'::jsonb,
+      updated_at BIGINT NOT NULL
+    );
+  `);
 }
 
 // ---------- helpers ----------
@@ -201,6 +215,8 @@ function staffRowToJson(row) {
     hourlyRate: row.hourly_rate !== null && row.hourly_rate !== undefined ? Number(row.hourly_rate) : null,
     hireDate: row.hire_date || "",
     address: row.address || "",
+    email: row.email || "",
+    hasLogin: !!row.password_hash,
   };
 }
 function shiftRowToJson(row) {
@@ -266,6 +282,19 @@ function requireAuth(req, res, next) {
     const payload = jwt.verify(token, JWT_SECRET);
     req.restaurantId = payload.restaurantId;
     req.userId = payload.userId;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: "session expired — please log in again" });
+  }
+}
+
+function requireStaffAuth(req, res, next) {
+  const token = req.cookies && req.cookies.staff_token;
+  if (!token) return res.status(401).json({ error: "not logged in" });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.staffId = payload.staffId;
+    req.restaurantId = payload.restaurantId;
     next();
   } catch (e) {
     return res.status(401).json({ error: "session expired — please log in again" });
@@ -454,6 +483,28 @@ app.delete("/api/staff/:id", requireAuth, async (req, res) => {
   res.status(204).end();
 });
 
+app.post("/api/staff/:id/send-login-setup", requireAuth, async (req, res) => {
+  const { rows } = await pool.query("SELECT * FROM staff WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  if (rows.length === 0) return res.status(404).json({ error: "staff not found" });
+  const staffer = rows[0];
+
+  const token = id() + id(); // longer, single-use token
+  await pool.query("UPDATE staff SET claim_token = $1 WHERE id = $2", [token, staffer.id]);
+
+  const restaurantRows = await pool.query("SELECT name FROM restaurants WHERE id = $1", [req.restaurantId]);
+  const restaurantName = restaurantRows.rows[0] ? restaurantRows.rows[0].name : "your restaurant";
+  const baseUrl = PUBLIC_URL || `${req.protocol}://${req.get("host")}`;
+  const link = `${baseUrl}/staff-claim.html?token=${token}`;
+  const text = `Hi ${staffer.name.split(" ")[0]} — set up your ${restaurantName} staff login here: ${link}`;
+
+  const result = await sendSms(staffer.phone, text);
+  if (result.ok) {
+    res.json({ sent: true });
+  } else {
+    res.status(502).json({ error: `Couldn't text the link: ${result.error}` });
+  }
+});
+
 // ---------- shift endpoints (scoped to the logged-in restaurant) ----------
 
 app.get("/api/shifts", requireAuth, async (req, res) => {
@@ -593,6 +644,125 @@ app.post("/api/sms/inbound", async (req, res) => {
 
   twiml.message(`Got it, ${staffer.name.split(" ")[0]} — you're down for ${shift.role}. Your manager will confirm shortly.`);
   res.type("text/xml").send(twiml.toString());
+});
+
+// ---------- staff portal: account setup & login (public) ----------
+
+app.get("/api/staff-auth/claim/:token", async (req, res) => {
+  const { rows } = await pool.query("SELECT staff.*, restaurants.name AS restaurant_name FROM staff JOIN restaurants ON restaurants.id = staff.restaurant_id WHERE staff.claim_token = $1", [req.params.token]);
+  if (rows.length === 0) return res.status(404).json({ error: "This setup link isn't valid — ask your manager to send a new one." });
+  res.json({ name: rows[0].name, restaurantName: rows[0].restaurant_name });
+});
+
+app.post("/api/staff-auth/claim", async (req, res) => {
+  const { token, email, password } = req.body || {};
+  if (!token) return res.status(400).json({ error: "token is required" });
+  if (!email || !isValidEmail(email)) return res.status(400).json({ error: "a valid email is required" });
+  if (!password || password.length < 8) return res.status(400).json({ error: "password must be at least 8 characters" });
+
+  const { rows } = await pool.query("SELECT * FROM staff WHERE claim_token = $1", [token]);
+  if (rows.length === 0) return res.status(404).json({ error: "This setup link isn't valid — ask your manager to send a new one." });
+  const staffer = rows[0];
+
+  const { rows: emailTaken } = await pool.query("SELECT id FROM staff WHERE email = $1 AND id != $2", [email.toLowerCase(), staffer.id]);
+  if (emailTaken.length > 0) return res.status(409).json({ error: "An account with that email already exists" });
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await pool.query("UPDATE staff SET email = $1, password_hash = $2, claim_token = NULL WHERE id = $3", [email.toLowerCase(), passwordHash, staffer.id]);
+
+  const sessionToken = signToken({ staffId: staffer.id, restaurantId: staffer.restaurant_id });
+  res.cookie("staff_token", sessionToken, COOKIE_OPTS);
+  res.status(201).json({ name: staffer.name });
+});
+
+app.post("/api/staff-auth/login", async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: "email and password are required" });
+
+  const { rows } = await pool.query("SELECT * FROM staff WHERE email = $1", [email.toLowerCase()]);
+  const staffer = rows[0];
+  if (!staffer || !staffer.password_hash) return res.status(401).json({ error: "incorrect email or password" });
+
+  const valid = await bcrypt.compare(password, staffer.password_hash);
+  if (!valid) return res.status(401).json({ error: "incorrect email or password" });
+
+  const sessionToken = signToken({ staffId: staffer.id, restaurantId: staffer.restaurant_id });
+  res.cookie("staff_token", sessionToken, COOKIE_OPTS);
+  res.json({ name: staffer.name });
+});
+
+app.post("/api/staff-auth/logout", (req, res) => {
+  res.clearCookie("staff_token", { ...COOKIE_OPTS, maxAge: undefined });
+  res.status(204).end();
+});
+
+app.get("/api/staff-auth/me", requireStaffAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    "SELECT staff.*, restaurants.name AS restaurant_name FROM staff JOIN restaurants ON restaurants.id = staff.restaurant_id WHERE staff.id = $1",
+    [req.staffId]
+  );
+  if (rows.length === 0) return res.status(401).json({ error: "not logged in" });
+  res.json({ ...staffRowToJson(rows[0]), restaurantName: rows[0].restaurant_name });
+});
+
+// ---------- staff portal: schedule, availability, open shifts (staff, authenticated) ----------
+
+app.get("/api/staff-auth/schedule", requireStaffAuth, async (req, res) => {
+  const { start, end } = req.query;
+  if (!start || !end) return res.status(400).json({ error: "start and end date query params are required (YYYY-MM-DD)" });
+  const { rows } = await pool.query(
+    "SELECT * FROM schedule_shifts WHERE staff_id = $1 AND restaurant_id = $2 AND shift_date >= $3 AND shift_date <= $4 ORDER BY shift_date ASC, start_time ASC",
+    [req.staffId, req.restaurantId, start, end]
+  );
+  res.json(rows.map(scheduleShiftRowToJson));
+});
+
+app.get("/api/staff-auth/availability", requireStaffAuth, async (req, res) => {
+  const { rows } = await pool.query("SELECT * FROM staff_availability WHERE staff_id = $1", [req.staffId]);
+  res.json({ availability: rows[0] ? rows[0].availability : {} });
+});
+
+app.put("/api/staff-auth/availability", requireStaffAuth, async (req, res) => {
+  const { availability } = req.body || {};
+  if (!availability || typeof availability !== "object") return res.status(400).json({ error: "availability object is required" });
+  const newId = id();
+  const { rows } = await pool.query(
+    `INSERT INTO staff_availability (id, restaurant_id, staff_id, availability, updated_at)
+     VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (staff_id) DO UPDATE SET availability = EXCLUDED.availability, updated_at = EXCLUDED.updated_at
+     RETURNING *`,
+    [newId, req.restaurantId, req.staffId, JSON.stringify(availability), Date.now()]
+  );
+  res.json({ availability: rows[0].availability });
+});
+
+app.get("/api/staff-auth/open-shifts", requireStaffAuth, async (req, res) => {
+  const { rows: staffRows } = await pool.query("SELECT roles FROM staff WHERE id = $1", [req.staffId]);
+  const myRoles = (staffRows[0] && staffRows[0].roles) || [];
+  const { rows } = await pool.query("SELECT * FROM shifts WHERE restaurant_id = $1 AND status = 'open' ORDER BY posted_at DESC", [req.restaurantId]);
+  const matching = rows
+    .map(shiftRowToJson)
+    .filter((s) => myRoles.some((r) => r.trim().toLowerCase() === s.role.trim().toLowerCase()));
+  res.json(matching);
+});
+
+app.post("/api/staff-auth/open-shifts/:id/claim", requireStaffAuth, async (req, res) => {
+  const { rows: shiftRows } = await pool.query("SELECT * FROM shifts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  if (shiftRows.length === 0) return res.status(404).json({ error: "shift not found" });
+  const shift = shiftRowToJson(shiftRows[0]);
+  if (shift.status !== "open") return res.status(400).json({ error: "This shift is no longer open" });
+
+  const { rows: staffRows } = await pool.query("SELECT * FROM staff WHERE id = $1", [req.staffId]);
+  const staffer = staffRowToJson(staffRows[0]);
+
+  const already = shift.responders.some((r) => r.staffId === req.staffId);
+  const responders = already ? shift.responders : [...shift.responders, { staffId: req.staffId, name: staffer.name, ts: Date.now() }];
+
+  const { rows } = await pool.query(
+    "UPDATE shifts SET responders = $1 WHERE id = $2 AND restaurant_id = $3 RETURNING *",
+    [JSON.stringify(responders), req.params.id, req.restaurantId]
+  );
+  res.json(shiftRowToJson(rows[0]));
 });
 
 // ---------- hiring: postings (manager, authenticated) ----------
