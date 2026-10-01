@@ -115,6 +115,49 @@
   .add-row td { background: var(--panel-light); }
   .empty-note { color: var(--text-dim); font-size: 13px; padding: 20px; text-align: center; }
 
+  /* ---------- schedule grid ---------- */
+  .week-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .week-label { font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 600; }
+  .grid-wrap { overflow-x: auto; border: 1px solid var(--rail); border-radius: 8px; }
+  table.schedule-grid { width: 100%; min-width: 820px; border-collapse: collapse; background: var(--panel); }
+  table.schedule-grid th, table.schedule-grid td { border: 1px solid var(--rail); padding: 6px; vertical-align: top; }
+  table.schedule-grid thead th {
+    background: var(--panel-light); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em;
+    color: var(--text-dim); text-align: center; padding: 8px 6px;
+  }
+  table.schedule-grid thead th .day-date { display: block; font-size: 10px; opacity: 0.7; margin-top: 2px; }
+  .staff-cell { min-width: 130px; background: var(--row-alt); }
+  .staff-cell .name { font-weight: 600; font-size: 13px; }
+  .staff-cell .rate { font-size: 11px; color: var(--text-dim); }
+  .day-cell { min-width: 100px; }
+  .shift-chip {
+    background: var(--panel-light); border: 1px solid var(--rail); border-radius: 5px;
+    padding: 5px 6px; font-size: 11.5px; margin-bottom: 4px; position: relative;
+  }
+  .shift-chip .times { font-family: 'IBM Plex Mono', monospace; }
+  .shift-chip .role-tag { color: var(--text-dim); font-size: 10.5px; }
+  .shift-chip .chip-del {
+    position: absolute; top: 2px; right: 4px; background: none; border: none; color: var(--text-dim);
+    font-size: 12px; cursor: pointer; line-height: 1;
+  }
+  .add-shift-btn {
+    width: 100%; background: none; border: 1px dashed var(--rail); color: var(--text-dim);
+    border-radius: 5px; padding: 6px; font-size: 11px; cursor: pointer;
+  }
+  .add-shift-btn:hover { color: var(--text-bright); border-color: var(--text-bright); }
+  .shift-form { display: flex; flex-direction: column; gap: 4px; }
+  .shift-form input, .shift-form select { font-size: 11.5px; padding: 4px 5px; }
+  .shift-form .form-actions { display: flex; gap: 4px; margin-top: 2px; }
+  .shift-form .form-actions button { flex: 1; font-size: 10.5px; padding: 4px; border-radius: 4px; border: none; cursor: pointer; }
+  .totals-row td { background: var(--panel-light); font-weight: 600; }
+  .day-total { font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: center; }
+  .grand-total-bar {
+    margin-top: 16px; padding: 14px 18px; background: var(--panel); border: 1px solid var(--rail);
+    border-radius: 8px; display: flex; gap: 32px; flex-wrap: wrap;
+  }
+  .grand-total-bar .item .num { font-size: 20px; font-weight: 600; display: block; }
+  .grand-total-bar .item .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
+
   #banner { font-size: 12.5px; text-align: center; padding: 9px; font-weight: 600; }
   #banner.success { background: var(--green); color: #fff; }
   #banner.warn { background: var(--amber); color: var(--ink); }
@@ -156,6 +199,7 @@
 
   <nav class="sections">
     <button class="section-btn active" id="sectionBtnStaff" onclick="showSection('staff')">Staff</button>
+    <button class="section-btn" id="sectionBtnSchedule" onclick="showSection('schedule')">Schedule</button>
     <button class="section-btn" disabled title="Coming next">Sales</button>
     <button class="section-btn" disabled title="Coming next">Revenue history</button>
   </nav>
@@ -198,11 +242,47 @@
         </tbody>
       </table>
     </div>
+
+    <div class="section-panel" id="sectionSchedule">
+      <div class="toolbar">
+        <div>
+          <h2>Weekly schedule</h2>
+          <div class="desc">Assign staff to shifts for the week. Hours and labor cost are calculated live from each person's rate.</div>
+        </div>
+      </div>
+
+      <div class="week-nav">
+        <button class="ghost" onclick="shiftWeek(-1)">← Prev week</button>
+        <span class="week-label" id="weekLabel"></span>
+        <button class="ghost" onclick="shiftWeek(1)">Next week →</button>
+        <button class="ghost" onclick="goToThisWeek()">This week</button>
+      </div>
+
+      <div class="grid-wrap">
+        <table class="schedule-grid">
+          <thead>
+            <tr id="scheduleHeaderRow">
+              <th style="text-align:left">Staff</th>
+            </tr>
+          </thead>
+          <tbody id="scheduleBody"></tbody>
+          <tfoot>
+            <tr class="totals-row" id="scheduleTotalsRow"></tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="grand-total-bar" id="grandTotalBar"></div>
+    </div>
   </main>
 </div>
 
 <script>
 let staff = [];
+const ROLES = ["Line Cook", "Server", "Host", "Bartender", "Busser", "Dishwasher", "Prep Cook", "Expo"];
+let weekStart = getMonday(new Date());
+let scheduleShifts = [];
+let addingCell = null;
 
 function showBanner(text, tone) {
   const el = document.getElementById("banner");
@@ -223,9 +303,16 @@ async function api(path, options) {
   }
 }
 
+let scheduleLoaded = false;
 function showSection(name) {
   document.getElementById("sectionStaff").classList.toggle("active", name === "staff");
+  document.getElementById("sectionSchedule").classList.toggle("active", name === "schedule");
   document.getElementById("sectionBtnStaff").classList.toggle("active", name === "staff");
+  document.getElementById("sectionBtnSchedule").classList.toggle("active", name === "schedule");
+  if (name === "schedule" && !scheduleLoaded) {
+    scheduleLoaded = true;
+    initSchedule();
+  }
 }
 
 function escapeHtml(str) {
@@ -323,6 +410,199 @@ async function deleteStaff(id) {
   if (!confirm("Delete this staff member? This can't be undone.")) return;
   await api(`/api/staff/${id}`, { method: "DELETE" });
   loadStaff();
+}
+
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function toISODate(d) {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatShort(d) {
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatTime(t) {
+  const [h, m] = t.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+function computeHours(start, end) {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  let startMin = sh * 60 + sm, endMin = eh * 60 + em;
+  if (endMin <= startMin) endMin += 24 * 60;
+  return (endMin - startMin) / 60;
+}
+
+function initSchedule() {
+  loadSchedule();
+}
+
+async function loadSchedule() {
+  const endDate = new Date(weekStart);
+  endDate.setDate(endDate.getDate() + 6);
+  document.getElementById("weekLabel").textContent = `${formatShort(weekStart)} – ${formatShort(endDate)}, ${endDate.getFullYear()}`;
+  const result = await api(`/api/schedule?start=${toISODate(weekStart)}&end=${toISODate(endDate)}`);
+  if (result.ok) {
+    scheduleShifts = result.data;
+    renderScheduleGrid();
+  } else {
+    showBanner(result.error, "warn");
+  }
+}
+
+function shiftWeek(delta) {
+  weekStart.setDate(weekStart.getDate() + delta * 7);
+  addingCell = null;
+  loadSchedule();
+}
+
+function goToThisWeek() {
+  weekStart = getMonday(new Date());
+  addingCell = null;
+  loadSchedule();
+}
+
+function renderDayCell(staffMember, dateStr) {
+  const shiftsForCell = scheduleShifts.filter(s => s.staffId === staffMember.id && s.date === dateStr);
+  const isAdding = addingCell && addingCell.staffId === staffMember.id && addingCell.dateStr === dateStr;
+
+  let html = shiftsForCell.map(s => `
+    <div class="shift-chip">
+      <button class="chip-del" onclick="deleteScheduleShift('${s.id}')">✕</button>
+      <div class="times">${formatTime(s.startTime)}–${formatTime(s.endTime)}</div>
+      ${s.role ? `<div class="role-tag">${escapeHtml(s.role)}</div>` : ""}
+    </div>
+  `).join("");
+
+  if (isAdding) {
+    html += `
+      <div class="shift-form">
+        <input type="time" id="shiftStart-${staffMember.id}-${dateStr}" />
+        <input type="time" id="shiftEnd-${staffMember.id}-${dateStr}" />
+        <select id="shiftRoleSel-${staffMember.id}-${dateStr}">
+          <option value="">Role (optional)</option>
+          ${ROLES.map(r => `<option value="${r}">${r}</option>`).join("")}
+        </select>
+        <div class="form-actions">
+          <button style="background:var(--green);color:#fff" onclick="submitAddShift('${staffMember.id}','${dateStr}')">Save</button>
+          <button style="background:var(--rail);color:var(--text-bright)" onclick="cancelAddShift()">Cancel</button>
+        </div>
+      </div>
+    `;
+  } else {
+    html += `<button class="add-shift-btn" onclick="showAddShiftForm('${staffMember.id}','${dateStr}')">+ Add</button>`;
+  }
+  return html;
+}
+
+function showAddShiftForm(staffId, dateStr) {
+  addingCell = { staffId, dateStr };
+  renderScheduleGrid();
+}
+
+function cancelAddShift() {
+  addingCell = null;
+  renderScheduleGrid();
+}
+
+async function submitAddShift(staffId, dateStr) {
+  const startInput = document.getElementById(`shiftStart-${staffId}-${dateStr}`);
+  const endInput = document.getElementById(`shiftEnd-${staffId}-${dateStr}`);
+  const roleInput = document.getElementById(`shiftRoleSel-${staffId}-${dateStr}`);
+  if (!startInput.value || !endInput.value) return showBanner("Pick a start and end time", "warn");
+  const result = await api("/api/schedule", {
+    method: "POST",
+    body: JSON.stringify({ staffId, date: dateStr, startTime: startInput.value, endTime: endInput.value, role: roleInput.value }),
+  });
+  if (result.ok) {
+    addingCell = null;
+    loadSchedule();
+  } else {
+    showBanner(result.error, "warn");
+  }
+}
+
+async function deleteScheduleShift(id) {
+  await api(`/api/schedule/${id}`, { method: "DELETE" });
+  loadSchedule();
+}
+
+function renderScheduleGrid() {
+  const weekDates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    weekDates.push(d);
+  }
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  const headerRow = document.getElementById("scheduleHeaderRow");
+  headerRow.innerHTML = `<th style="text-align:left">Staff</th>` +
+    weekDates.map((d, i) => `<th>${dayNames[i]}<span class="day-date">${d.getMonth() + 1}/${d.getDate()}</span></th>`).join("") +
+    `<th>Total</th>`;
+
+  const body = document.getElementById("scheduleBody");
+  if (staff.length === 0) {
+    body.innerHTML = `<tr><td colspan="9" class="empty-note">Add staff in the Staff tab first.</td></tr>`;
+  } else {
+    body.innerHTML = staff.map(p => {
+      let weekHours = 0, weekCost = 0;
+      const dayCells = weekDates.map(d => {
+        const dateStr = toISODate(d);
+        scheduleShifts.filter(s => s.staffId === p.id && s.date === dateStr).forEach(s => {
+          const hrs = computeHours(s.startTime, s.endTime);
+          weekHours += hrs;
+          weekCost += hrs * (p.hourlyRate || 0);
+        });
+        return `<td class="day-cell">${renderDayCell(p, dateStr)}</td>`;
+      }).join("");
+      return `
+        <tr>
+          <td class="staff-cell">
+            <div class="name">${escapeHtml(p.name)}</div>
+            <div class="rate num">${p.hourlyRate !== null ? "$" + p.hourlyRate.toFixed(2) + "/hr" : "no rate"}</div>
+          </td>
+          ${dayCells}
+          <td class="day-total">${weekHours.toFixed(1)}h<br>$${weekCost.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  const totalsRow = document.getElementById("scheduleTotalsRow");
+  let grandHours = 0, grandCost = 0;
+  const dayTotalsHtml = weekDates.map(d => {
+    const dateStr = toISODate(d);
+    let dayHours = 0, dayCost = 0;
+    staff.forEach(p => {
+      scheduleShifts.filter(s => s.staffId === p.id && s.date === dateStr).forEach(s => {
+        const hrs = computeHours(s.startTime, s.endTime);
+        dayHours += hrs;
+        dayCost += hrs * (p.hourlyRate || 0);
+      });
+    });
+    grandHours += dayHours;
+    grandCost += dayCost;
+    return `<td class="day-total">${dayHours.toFixed(1)}h<br>$${dayCost.toFixed(2)}</td>`;
+  }).join("");
+  totalsRow.innerHTML = `<td style="text-align:left">Daily totals</td>${dayTotalsHtml}<td class="day-total">${grandHours.toFixed(1)}h<br>$${grandCost.toFixed(2)}</td>`;
+
+  document.getElementById("grandTotalBar").innerHTML = `
+    <div class="item"><span class="num">${grandHours.toFixed(1)}</span><span class="label">Total hours this week</span></div>
+    <div class="item"><span class="num">$${grandCost.toFixed(2)}</span><span class="label">Total labor cost this week</span></div>
+  `;
 }
 
 (async function init() {

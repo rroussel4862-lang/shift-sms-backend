@@ -135,6 +135,21 @@ async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS applications_restaurant_idx ON applications (restaurant_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS applications_posting_idx ON applications (posting_id);`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS schedule_shifts (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      staff_id TEXT NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+      shift_date DATE NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      role TEXT,
+      created_at BIGINT NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS schedule_shifts_restaurant_idx ON schedule_shifts (restaurant_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS schedule_shifts_date_idx ON schedule_shifts (shift_date);`);
 }
 
 // ---------- helpers ----------
@@ -209,6 +224,16 @@ function applicationRowToJson(row) {
     stage: row.stage,
     interviewTime: row.interview_time || "",
     createdAt: Number(row.created_at),
+  };
+}
+function scheduleShiftRowToJson(row) {
+  return {
+    id: row.id,
+    staffId: row.staff_id,
+    date: row.shift_date instanceof Date ? row.shift_date.toISOString().slice(0, 10) : row.shift_date,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    role: row.role || "",
   };
 }
 function signToken(payload) {
@@ -705,6 +730,65 @@ app.post("/api/public/applications", async (req, res) => {
     [newId, posting.restaurant_id, postingId, name.trim(), (email || "").trim(), (phone || "").trim(), (note || "").trim(), Date.now()]
   );
   res.status(201).json(applicationRowToJson(rows[0]));
+});
+
+// ---------- weekly schedule grid (manager, authenticated) ----------
+
+app.get("/api/schedule", requireAuth, async (req, res) => {
+  const { start, end } = req.query;
+  if (!start || !end) return res.status(400).json({ error: "start and end date query params are required (YYYY-MM-DD)" });
+  const { rows } = await pool.query(
+    "SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3 ORDER BY shift_date ASC, start_time ASC",
+    [req.restaurantId, start, end]
+  );
+  res.json(rows.map(scheduleShiftRowToJson));
+});
+
+app.post("/api/schedule", requireAuth, async (req, res) => {
+  const { staffId, date, startTime, endTime, role } = req.body || {};
+  if (!staffId) return res.status(400).json({ error: "staffId is required" });
+  if (!date) return res.status(400).json({ error: "date is required" });
+  if (!startTime || !endTime) return res.status(400).json({ error: "startTime and endTime are required" });
+
+  const { rows: staffRows } = await pool.query("SELECT id FROM staff WHERE id = $1 AND restaurant_id = $2", [staffId, req.restaurantId]);
+  if (staffRows.length === 0) return res.status(404).json({ error: "staff not found" });
+
+  const newId = id();
+  const { rows } = await pool.query(
+    "INSERT INTO schedule_shifts (id, restaurant_id, staff_id, shift_date, start_time, end_time, role, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
+    [newId, req.restaurantId, staffId, date, startTime, endTime, (role || "").trim() || null, Date.now()]
+  );
+  res.status(201).json(scheduleShiftRowToJson(rows[0]));
+});
+
+app.patch("/api/schedule/:id", requireAuth, async (req, res) => {
+  const { rows: existing } = await pool.query("SELECT * FROM schedule_shifts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  if (existing.length === 0) return res.status(404).json({ error: "shift not found" });
+
+  const { startTime, endTime, role, date, staffId } = req.body || {};
+  const updates = {
+    start_time: existing[0].start_time,
+    end_time: existing[0].end_time,
+    role: existing[0].role,
+    shift_date: existing[0].shift_date,
+    staff_id: existing[0].staff_id,
+  };
+  if (startTime !== undefined) updates.start_time = startTime;
+  if (endTime !== undefined) updates.end_time = endTime;
+  if (role !== undefined) updates.role = role.trim() || null;
+  if (date !== undefined) updates.shift_date = date;
+  if (staffId !== undefined) updates.staff_id = staffId;
+
+  const { rows } = await pool.query(
+    "UPDATE schedule_shifts SET staff_id=$1, shift_date=$2, start_time=$3, end_time=$4, role=$5 WHERE id=$6 AND restaurant_id=$7 RETURNING *",
+    [updates.staff_id, updates.shift_date, updates.start_time, updates.end_time, updates.role, req.params.id, req.restaurantId]
+  );
+  res.json(scheduleShiftRowToJson(rows[0]));
+});
+
+app.delete("/api/schedule/:id", requireAuth, async (req, res) => {
+  await pool.query("DELETE FROM schedule_shifts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  res.status(204).end();
 });
 
 // ---------- health check ----------
