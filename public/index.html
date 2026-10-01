@@ -21,6 +21,7 @@
     --hiring: #6E8FAE;
     --staffcolor: #4A9B95;
     --scheduling: #E2A33B;
+    --comms: #8C6FA0;
   }
   * { box-sizing: border-box; }
   body {
@@ -446,6 +447,26 @@
   .overview-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; margin-bottom: 8px; }
   .overview-card .big-num { font-family: 'IBM Plex Mono', monospace; font-size: 26px; font-weight: 600; line-height: 1; }
   .overview-card .sub { font-size: 12px; opacity: 0.7; margin-top: 6px; }
+
+  /* ---------- AI agent chat ---------- */
+  #chatThread { margin-bottom: 14px; max-height: 420px; overflow-y: auto; }
+  .chat-msg { display: flex; gap: 10px; margin-bottom: 14px; align-items: flex-start; }
+  .chat-msg.user { flex-direction: row-reverse; }
+  .chat-avatar {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700;
+    background: var(--panel-light); border: 1px solid var(--rail); color: var(--text-dim);
+  }
+  .chat-msg.user .chat-avatar { background: var(--comms); color: #fff; border-color: var(--comms); }
+  .chat-bubble {
+    background: var(--panel-light); border: 1px solid var(--rail); border-radius: 8px;
+    padding: 10px 13px; font-size: 13.5px; line-height: 1.5; max-width: 480px; white-space: pre-wrap;
+  }
+  .chat-msg.user .chat-bubble { background: var(--comms); color: #fff; border-color: var(--comms); }
+  .chat-input-row { display: flex; gap: 8px; }
+  .chat-input-row input { flex: 1; }
+  .chat-thinking { color: var(--text-dim); font-size: 12.5px; font-style: italic; padding: 4px 0; }
+
   @media (max-width: 760px) {
     #sidebar { padding: 10px 12px; gap: 5px; }
     .nav-stub { font-size: 10.5px; padding: 9px 3px; }
@@ -498,6 +519,9 @@
     </button>
     <button class="nav-stub" id="tabBtnHiring" style="--dot-color:var(--hiring)" onclick="switchTab('hiring')">
       <span class="dot"></span><span>Hiring</span>
+    </button>
+    <button class="nav-stub" id="tabBtnComms" style="--dot-color:var(--comms)" onclick="switchTab('comms')">
+      <span class="dot"></span><span>Comms</span>
     </button>
   </nav>
 
@@ -624,6 +648,20 @@
       <div id="applicantsList"><p class="empty">No applications yet.</p></div>
     </div>
   </div>
+
+  <div class="tab-panel" id="panelComms">
+    <div class="module-header" style="--accent:var(--comms)">
+      <div class="eyebrow">Communications</div>
+      <p>Ask about staffing, labor cost, hiring, or anything else — answered from your restaurant's real data, not a canned script.</p>
+    </div>
+    <div class="card">
+      <div id="chatThread"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="e.g. Which shift is understaffed this week?" onkeydown="if(event.key==='Enter') askAi()" />
+        <button class="primary" style="width:auto;padding:0 18px" onclick="askAi()">Ask</button>
+      </div>
+    </div>
+  </div>
 </main>
     </div>
   </div>
@@ -632,17 +670,19 @@
 </div>
 
 <script>
-const TAB_TITLES = { overview: "Overview", shifts: "Scheduling", staff: "Staff", hiring: "Hiring" };
+const TAB_TITLES = { overview: "Overview", shifts: "Scheduling", staff: "Staff", hiring: "Hiring", comms: "Communications" };
 
 function switchTab(name) {
   document.getElementById("panelOverview").classList.toggle("active", name === "overview");
   document.getElementById("panelShifts").classList.toggle("active", name === "shifts");
   document.getElementById("panelStaff").classList.toggle("active", name === "staff");
   document.getElementById("panelHiring").classList.toggle("active", name === "hiring");
+  document.getElementById("panelComms").classList.toggle("active", name === "comms");
   document.getElementById("tabBtnOverview").classList.toggle("active", name === "overview");
   document.getElementById("tabBtnShifts").classList.toggle("active", name === "shifts");
   document.getElementById("tabBtnStaff").classList.toggle("active", name === "staff");
   document.getElementById("tabBtnHiring").classList.toggle("active", name === "hiring");
+  document.getElementById("tabBtnComms").classList.toggle("active", name === "comms");
   document.getElementById("topbarNewTitle").textContent = TAB_TITLES[name] || "Overview";
 }
 
@@ -694,6 +734,46 @@ function showBanner(text, tone) {
   const el = document.getElementById("banner");
   el.innerHTML = `<div class="banner ${tone}">${text}</div>`;
   setTimeout(() => { el.innerHTML = ""; }, 6000);
+}
+
+let chatHistory = [];
+
+function renderChatThread() {
+  const el = document.getElementById("chatThread");
+  if (!el) return;
+  el.innerHTML = chatHistory.map(m => `
+    <div class="chat-msg ${m.role}">
+      <div class="chat-avatar">${m.role === "user" ? "You" : "AI"}</div>
+      <div class="chat-bubble">${escapeHtml(m.text)}</div>
+    </div>
+  `).join("") || `<p class="empty">Ask anything about your staffing, schedule, costs, or hiring pipeline.</p>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+async function askAi() {
+  const input = document.getElementById("chatInput");
+  const question = input.value.trim();
+  if (!question) return;
+  chatHistory.push({ role: "user", text: question });
+  input.value = "";
+  renderChatThread();
+
+  const thinkingEl = document.createElement("div");
+  thinkingEl.className = "chat-thinking";
+  thinkingEl.id = "chatThinking";
+  thinkingEl.textContent = "Thinking…";
+  document.getElementById("chatThread").appendChild(thinkingEl);
+
+  const result = await api("/api/ai/ask", { method: "POST", body: JSON.stringify({ question }) });
+  const thinking = document.getElementById("chatThinking");
+  if (thinking) thinking.remove();
+
+  if (result.ok) {
+    chatHistory.push({ role: "ai", text: result.data.answer });
+  } else {
+    chatHistory.push({ role: "ai", text: `Sorry — ${result.error}` });
+  }
+  renderChatThread();
 }
 
 async function api(path, options) {
@@ -909,6 +989,7 @@ function renderOverview() {
     { id: "shifts", accent: "var(--scheduling)", label: "Open shifts", value: openShiftCount, sub: shifts.length ? `${shifts.length} posted` : "None posted yet" },
     { id: "staff", accent: "var(--staffcolor)", label: "Staff", value: staff.length, sub: "Tap to manage roster" },
     { id: "hiring", accent: "var(--hiring)", label: "Open postings", value: openPostings, sub: `${applications.length} applicant${applications.length === 1 ? "" : "s"} total` },
+    { id: "comms", accent: "var(--comms)", label: "AI agent", value: "Ask", sub: "Ask about staffing, cost, or hiring" },
   ];
   grid.innerHTML = stats.map(s => `
     <div class="overview-card" style="--accent:${s.accent}" onclick="switchTab('${s.id}')">
@@ -1319,6 +1400,7 @@ function enterApp() {
   document.getElementById("appShell").style.display = "block";
   document.getElementById("sidebarRestaurantName").textContent = restaurantName || "Open Shift Rail";
   document.getElementById("restaurantAddress").value = restaurantAddress || "";
+  renderChatThread();
   if (!started) {
     started = true;
     loadAll();

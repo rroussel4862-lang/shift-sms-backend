@@ -34,6 +34,7 @@ const {
   TWILIO_PHONE_NUMBER,
   DATABASE_URL,
   JWT_SECRET,
+  ANTHROPIC_API_KEY,
   PORT = 3000,
   PUBLIC_URL = "",
   ALLOWED_ORIGINS = "",
@@ -840,6 +841,109 @@ app.put("/api/sales-projections", requireAuth, async (req, res) => {
     date: rows[0].proj_date instanceof Date ? rows[0].proj_date.toISOString().slice(0, 10) : rows[0].proj_date,
     projectedAmount: rows[0].projected_amount !== null ? Number(rows[0].projected_amount) : null,
   });
+});
+
+// ---------- AI agent (Communications) ----------
+
+app.post("/api/ai/ask", requireAuth, async (req, res) => {
+  if (!ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: "The AI agent isn't configured yet — ask your developer to set ANTHROPIC_API_KEY." });
+  }
+  const { question } = req.body || {};
+  if (!question || !question.trim()) return res.status(400).json({ error: "question is required" });
+
+  try {
+    const today = new Date();
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const twoWeeksOut = new Date(today);
+    twoWeeksOut.setDate(twoWeeksOut.getDate() + 14);
+    const toDate = (d) => d.toISOString().slice(0, 10);
+
+    const [staffRows, openShiftRows, scheduleRows, postingRows, appRows, projRows] = await Promise.all([
+      pool.query("SELECT * FROM staff WHERE restaurant_id = $1", [req.restaurantId]),
+      pool.query("SELECT * FROM shifts WHERE restaurant_id = $1 AND status = 'open'", [req.restaurantId]),
+      pool.query("SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3", [req.restaurantId, toDate(weekAgo), toDate(twoWeeksOut)]),
+      pool.query("SELECT * FROM job_postings WHERE restaurant_id = $1 AND status = 'open'", [req.restaurantId]),
+      pool.query("SELECT a.*, p.title AS posting_title FROM applications a JOIN job_postings p ON p.id = a.posting_id WHERE a.restaurant_id = $1 ORDER BY a.created_at DESC LIMIT 25", [req.restaurantId]),
+      pool.query("SELECT * FROM sales_projections WHERE restaurant_id = $1 AND proj_date >= $2 AND proj_date <= $3", [req.restaurantId, toDate(weekAgo), toDate(twoWeeksOut)]),
+    ]);
+
+    const staffSummary = staffRows.rows.map((s) => ({
+      name: s.name,
+      roles: s.roles,
+      hourlyRate: s.hourly_rate !== null ? Number(s.hourly_rate) : null,
+      hireDate: s.hire_date || null,
+    }));
+    const openShiftSummary = openShiftRows.rows.map((s) => ({
+      role: s.role,
+      time: s.time,
+      note: s.note,
+      responderCount: (s.responders || []).length,
+    }));
+    const scheduleSummary = scheduleRows.rows.map((s) => {
+      const staffer = staffRows.rows.find((p) => p.id === s.staff_id);
+      return {
+        staff: staffer ? staffer.name : "unknown",
+        date: s.shift_date instanceof Date ? s.shift_date.toISOString().slice(0, 10) : s.shift_date,
+        start: s.start_time,
+        end: s.end_time,
+        role: s.role,
+      };
+    });
+    const postingSummary = postingRows.rows.map((p) => ({ title: p.title, role: p.role }));
+    const appSummary = appRows.rows.map((a) => ({ name: a.name, posting: a.posting_title, stage: a.stage, interviewTime: a.interview_time }));
+    const projSummary = projRows.rows.map((p) => ({
+      date: p.proj_date instanceof Date ? p.proj_date.toISOString().slice(0, 10) : p.proj_date,
+      projectedSales: p.projected_amount !== null ? Number(p.projected_amount) : null,
+    }));
+
+    const contextBlock = JSON.stringify(
+      {
+        today: toDate(today),
+        staff: staffSummary,
+        openReplacementShifts: openShiftSummary,
+        weeklySchedule: scheduleSummary,
+        openJobPostings: postingSummary,
+        recentApplicants: appSummary,
+        projectedSales: projSummary,
+      },
+      null,
+      2
+    );
+
+    const systemPrompt = `You are a helpful operations assistant for a restaurant manager, built into their staff/scheduling/hiring app. Answer the manager's question using ONLY the restaurant data provided below — don't invent numbers or people that aren't in it. If the data doesn't cover what they're asking, say so plainly rather than guessing. Keep answers short and concrete (a few sentences), like a sharp assistant who already knows the business, not a generic chatbot. Dates are in YYYY-MM-DD format; "today" tells you the current date for relative reasoning.\n\nRESTAURANT DATA:\n${contextBlock}`;
+
+    const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-5",
+        max_tokens: 500,
+        system: systemPrompt,
+        messages: [{ role: "user", content: question.trim() }],
+      }),
+    });
+
+    if (!aiRes.ok) {
+      const errBody = await aiRes.text();
+      console.error("Anthropic API error:", aiRes.status, errBody);
+      return res.status(502).json({ error: "The AI agent couldn't respond right now — try again shortly." });
+    }
+
+    const aiData = await aiRes.json();
+    const textBlock = (aiData.content || []).find((b) => b.type === "text");
+    const answer = textBlock ? textBlock.text : "I couldn't generate a response for that.";
+
+    res.json({ answer });
+  } catch (e) {
+    console.error("AI agent error:", e.message);
+    res.status(500).json({ error: "Something went wrong answering that question." });
+  }
 });
 
 // ---------- health check ----------
