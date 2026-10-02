@@ -161,13 +161,15 @@
   .day-cell { min-width: 105px; background: var(--grid-bg); }
   .day-cell.drag-over { background: #EFE6C9; }
   .shift-chip {
-    background: var(--grid-alt); border: 1px solid var(--grid-border); border-radius: 5px; color: var(--grid-text);
-    padding: 5px 6px; font-size: 11.5px; margin-bottom: 4px; position: relative; cursor: grab;
+    background: var(--grid-alt); border: 1px solid var(--grid-border); border-left: 3px solid var(--role-color, var(--grid-border));
+    border-radius: 5px; color: var(--grid-text);
+    padding: 5px 6px; font-size: 11.5px; margin-bottom: 4px; cursor: grab;
   }
   .shift-chip.dragging { opacity: 0.4; }
-  .shift-chip .times { font-family: 'IBM Plex Mono', monospace; }
-  .shift-chip .role-tag { color: var(--grid-dim); font-size: 10.5px; }
-  .shift-chip .chip-actions { position: absolute; top: 2px; right: 3px; display: flex; gap: 3px; }
+  .chip-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+  .shift-chip .times { font-family: 'IBM Plex Mono', monospace; word-break: break-word; }
+  .shift-chip .role-tag { color: var(--role-color, var(--grid-dim)); font-size: 10.5px; font-weight: 600; margin-top: 2px; }
+  .shift-chip .chip-actions { display: flex; gap: 3px; flex-shrink: 0; }
   .shift-chip .chip-btn {
     background: none; border: none; color: var(--grid-dim);
     font-size: 11px; cursor: pointer; line-height: 1; padding: 1px;
@@ -346,6 +348,19 @@ let staff = [];
 const ROLES = ["Line Cook", "Server", "Host", "Bartender", "Busser", "Dishwasher", "Prep Cook", "Expo"];
 const FOH_ROLES = ["Server", "Host", "Bartender", "Busser"];
 const BOH_ROLES = ["Line Cook", "Dishwasher", "Prep Cook", "Expo"];
+const ROLE_COLORS = {
+  "Line Cook": "#C1623A",
+  "Server": "#4A7FB5",
+  "Host": "#8C6FA0",
+  "Bartender": "#4A9B95",
+  "Busser": "#5C8C6B",
+  "Dishwasher": "#8A8375",
+  "Prep Cook": "#B8954A",
+  "Expo": "#B5456B",
+};
+function roleColor(role) {
+  return ROLE_COLORS[role] || "#A8A296";
+}
 let weekStart = getMonday(new Date());
 let scheduleShifts = [];
 let salesProjections = {};
@@ -636,14 +651,16 @@ function renderDayCell(staffMember, dateStr) {
   const isAdding = addingCell && addingCell.staffId === staffMember.id && addingCell.dateStr === dateStr;
 
   let html = shiftsForCell.map(s => `
-    <div class="shift-chip" draggable="true"
+    <div class="shift-chip" draggable="true" style="--role-color:${roleColor(s.role)}"
       ondragstart="onDragStart(event,'${s.id}')" ondragend="onDragEnd(event)"
       data-start="${s.startTime}" data-end="${s.endTime}" data-role="${escapeHtml(s.role || '')}">
-      <div class="chip-actions">
-        <button class="chip-btn" onclick="copyShiftFromChip(this)" title="Copy">⧉</button>
-        <button class="chip-btn" onclick="deleteScheduleShift('${s.id}')" title="Delete">✕</button>
+      <div class="chip-top">
+        <div class="times">${formatTime(s.startTime)}–${formatTime(s.endTime)}</div>
+        <div class="chip-actions">
+          <button class="chip-btn" onclick="copyShiftFromChip(this)" title="Copy">⧉</button>
+          <button class="chip-btn" onclick="deleteScheduleShift('${s.id}')" title="Delete">✕</button>
+        </div>
       </div>
-      <div class="times">${formatTime(s.startTime)}–${formatTime(s.endTime)}</div>
       ${s.role ? `<div class="role-tag">${escapeHtml(s.role)}</div>` : ""}
     </div>
   `).join("");
@@ -713,7 +730,10 @@ function renderScheduleGrid() {
   }
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
-  const visibleStaff = staff.filter(p => (p.roles || []).some(r => activeRoles.includes(r)));
+  const visibleStaff = staff.filter(p => {
+    const primaryRole = (p.roles || [])[0];
+    return primaryRole && activeRoles.includes(primaryRole);
+  });
 
   const headerRow = document.getElementById("scheduleHeaderRow");
   headerRow.innerHTML = `<th style="text-align:left">Staff</th>` +
