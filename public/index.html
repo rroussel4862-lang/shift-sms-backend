@@ -426,6 +426,14 @@
   }
   #topbarNew h1 { font-size: 19px; margin: 0; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 600; }
   #topbarNew p { color: var(--text-dim); font-size: 11.5px; margin: 3px 0 0; }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .topbar-mark {
+    width: 30px; height: 30px; flex-shrink: 0;
+    border: 2px solid var(--amber); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    transform: rotate(-4deg);
+    font-family: 'Oswald', sans-serif; font-weight: 700; color: var(--amber); font-size: 10px;
+  }
   #logoutBtn {
     background: none; border: 1px solid var(--rail); color: var(--text-dim);
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-family: inherit;
@@ -527,9 +535,12 @@
 
   <div id="main">
     <div id="topbarNew">
-      <div>
-        <h1 id="topbarNewTitle">Overview</h1>
-        <p id="subtitle">loading…</p>
+      <div class="topbar-left">
+        <div class="topbar-mark">OSR</div>
+        <div>
+          <h1 id="topbarNewTitle">Overview</h1>
+          <p id="subtitle">loading…</p>
+        </div>
       </div>
       <a href="/backoffice.html" class="back-link" style="text-decoration:none;color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;border:1px solid var(--rail);padding:6px 10px;border-radius:4px;margin-right:8px">Back Office</a>
       <button id="logoutBtn" onclick="logout()">Log out</button>

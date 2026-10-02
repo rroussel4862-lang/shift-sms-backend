@@ -43,6 +43,14 @@
   }
   header h1 { font-size: 18px; margin: 0; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 600; }
   header .sub { color: var(--text-dim); font-size: 12px; margin-top: 2px; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .brand-mark {
+    width: 34px; height: 34px; flex-shrink: 0;
+    border: 2px solid var(--amber); border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    transform: rotate(-4deg);
+    font-family: 'Oswald', sans-serif; font-weight: 700; color: var(--amber); font-size: 12px;
+  }
   .back-link {
     font-size: 12px; color: var(--text-dim); text-decoration: none; border: 1px solid var(--rail);
     padding: 6px 12px; border-radius: 4px;
@@ -230,9 +238,12 @@
 
 <div id="app" style="display:none">
   <header>
-    <div>
-      <h1 id="restaurantHeading">Back Office</h1>
-      <div class="sub">Business data that keeps the app up to date — separate from day-to-day operations.</div>
+    <div class="header-left">
+      <div class="brand-mark">OSR</div>
+      <div>
+        <h1 id="restaurantHeading">Back Office</h1>
+        <div class="sub">Business data that keeps the app up to date — separate from day-to-day operations.</div>
+      </div>
     </div>
     <a class="back-link" href="/">← Back to main app</a>
   </header>

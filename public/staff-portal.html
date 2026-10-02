@@ -42,6 +42,14 @@
   /* ---------- app shell ---------- */
   #appShell { display: none; }
   header { background: var(--panel); border-bottom: 1px solid var(--rail); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .topbar-mark {
+    width: 30px; height: 30px; flex-shrink: 0;
+    border: 2px solid var(--amber); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    transform: rotate(-4deg);
+    font-family: 'Oswald', sans-serif; font-weight: 700; color: var(--amber); font-size: 10px;
+  }
   header h1 { font-size: 17px; margin: 0; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 600; }
   header p { color: var(--text-dim); font-size: 11px; margin: 2px 0 0; }
   #logoutBtn { background: none; border: 1px solid var(--rail); color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-family: inherit; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
@@ -98,9 +106,12 @@
 
 <div id="appShell">
   <header>
-    <div>
-      <h1 id="staffHeading">My Shifts</h1>
-      <p id="staffSub"></p>
+    <div class="topbar-left">
+      <div class="topbar-mark">OSR</div>
+      <div>
+        <h1 id="staffHeading">My Shifts</h1>
+        <p id="staffSub"></p>
+      </div>
     </div>
     <button id="logoutBtn" onclick="logout()">Log out</button>
   </header>
