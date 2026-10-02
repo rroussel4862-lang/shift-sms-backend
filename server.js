@@ -35,6 +35,7 @@ const {
   DATABASE_URL,
   JWT_SECRET,
   ANTHROPIC_API_KEY,
+  PLATFORM_SETUP_KEY,
   PORT = 3000,
   PUBLIC_URL = "",
   ALLOWED_ORIGINS = "",
@@ -177,12 +178,50 @@ async function initDb() {
       updated_at BIGINT NOT NULL
     );
   `);
+
+  // ---------- platform-owner layer (you / devs — not tied to any one restaurant) ----------
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS platform_admins (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at BIGINT NOT NULL
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT REFERENCES restaurants(id) ON DELETE SET NULL,
+      event_type TEXT NOT NULL,
+      level TEXT NOT NULL DEFAULT 'info',
+      detail TEXT,
+      duration_ms INTEGER,
+      created_at BIGINT NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS activity_log_restaurant_idx ON activity_log (restaurant_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS activity_log_created_idx ON activity_log (created_at DESC);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS activity_log_type_idx ON activity_log (event_type);`);
 }
 
 // ---------- helpers ----------
 
 function id() {
   return crypto.randomBytes(6).toString("hex");
+}
+
+// Lightweight activity/event logging for the platform-owner dashboard.
+// Never throws — a logging failure should never break the actual request.
+async function logActivity({ restaurantId = null, eventType, level = "info", detail = "", durationMs = null }) {
+  try {
+    await pool.query(
+      "INSERT INTO activity_log (id, restaurant_id, event_type, level, detail, duration_ms, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+      [id(), restaurantId, eventType, level, detail, durationMs, Date.now()]
+    );
+  } catch (e) {
+    console.error("logActivity failed:", e.message);
+  }
 }
 function shortCode(shiftId) {
   return shiftId.slice(0, 4).toUpperCase();
@@ -197,12 +236,17 @@ function normalizePhone(raw) {
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
-async function sendSms(to, body) {
+async function sendSms(to, body, restaurantId = null) {
+  const startedAt = Date.now();
   try {
     await smsClient.messages.create({ to, from: TWILIO_PHONE_NUMBER, body });
+    const durationMs = Date.now() - startedAt;
+    logActivity({ restaurantId, eventType: "sms_sent", level: "info", detail: `Texted ${to}`, durationMs });
     return { to, ok: true };
   } catch (e) {
     console.error(`SMS to ${to} failed:`, e.message);
+    const durationMs = Date.now() - startedAt;
+    logActivity({ restaurantId, eventType: "sms_failed", level: "error", detail: `${to}: ${e.message}`, durationMs });
     return { to, ok: false, error: e.message };
   }
 }
@@ -301,6 +345,19 @@ function requireStaffAuth(req, res, next) {
   }
 }
 
+function requirePlatformAuth(req, res, next) {
+  const token = req.cookies && req.cookies.platform_token;
+  if (!token) return res.status(401).json({ error: "not logged in" });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (!payload.platformAdminId) throw new Error("not a platform token");
+    req.platformAdminId = payload.platformAdminId;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: "session expired — please log in again" });
+  }
+}
+
 // ---------- app setup ----------
 
 const app = express();
@@ -337,6 +394,7 @@ app.post("/api/auth/signup", async (req, res) => {
 
   const token = signToken({ userId, restaurantId });
   res.cookie("token", token, COOKIE_OPTS);
+  logActivity({ restaurantId, eventType: "restaurant_signup", detail: `${restaurantName.trim()} (${email.toLowerCase()})` });
   res.status(201).json({ restaurant: { id: restaurantId, name: restaurantName.trim() }, email: email.toLowerCase() });
 });
 
@@ -351,13 +409,20 @@ app.post("/api/auth/login", async (req, res) => {
     [email.toLowerCase()]
   );
   const user = rows[0];
-  if (!user) return res.status(401).json({ error: "incorrect email or password" });
+  if (!user) {
+    logActivity({ eventType: "login_failed", level: "warn", detail: `manager login failed: ${email.toLowerCase()} (no such account)` });
+    return res.status(401).json({ error: "incorrect email or password" });
+  }
 
   const valid = await bcrypt.compare(password, user.password_hash);
-  if (!valid) return res.status(401).json({ error: "incorrect email or password" });
+  if (!valid) {
+    logActivity({ restaurantId: user.restaurant_id, eventType: "login_failed", level: "warn", detail: `manager login failed: ${email.toLowerCase()} (wrong password)` });
+    return res.status(401).json({ error: "incorrect email or password" });
+  }
 
   const token = signToken({ userId: user.id, restaurantId: user.restaurant_id });
   res.cookie("token", token, COOKIE_OPTS);
+  logActivity({ restaurantId: user.restaurant_id, eventType: "login_success", detail: `manager login: ${email.toLowerCase()}` });
   res.json({ restaurant: { id: user.restaurant_id, name: user.restaurant_name, address: user.restaurant_address || "" }, email: user.email });
 });
 
@@ -430,6 +495,7 @@ app.post("/api/staff", requireAuth, async (req, res) => {
     "INSERT INTO staff (id, restaurant_id, name, phone, roles, hourly_rate, hire_date, address) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
     [newId, req.restaurantId, name.trim(), normalized, JSON.stringify(roleList), rate, (hireDate || "").trim() || null, (address || "").trim() || null]
   );
+  logActivity({ restaurantId: req.restaurantId, eventType: "staff_created", detail: name.trim() });
   res.status(201).json(staffRowToJson(rows[0]));
 });
 
@@ -497,7 +563,7 @@ app.post("/api/staff/:id/send-login-setup", requireAuth, async (req, res) => {
   const link = `${baseUrl}/staff-claim.html?token=${token}`;
   const text = `Hi ${staffer.name.split(" ")[0]} — set up your ${restaurantName} staff login here: ${link}`;
 
-  const result = await sendSms(staffer.phone, text);
+  const result = await sendSms(staffer.phone, text, req.restaurantId);
   if (result.ok) {
     res.json({ sent: true });
   } else {
@@ -538,9 +604,10 @@ app.post("/api/shifts", requireAuth, async (req, res) => {
     [req.restaurantId, shift.role]
   );
   const recipients = recipientRows.map(staffRowToJson);
-  const results = await Promise.all(recipients.map((s) => sendSms(s.phone, text)));
+  const results = await Promise.all(recipients.map((s) => sendSms(s.phone, text, req.restaurantId)));
   const sent = results.filter((r) => r.ok).length;
 
+  logActivity({ restaurantId: req.restaurantId, eventType: "shift_posted", detail: `${shift.role}${shift.time ? " — " + shift.time : ""} (texted ${sent}/${recipients.length})` });
   res.status(201).json({ shift, sms: { sent, total: recipients.length, failures: results.filter((r) => !r.ok) } });
 });
 
@@ -588,8 +655,8 @@ app.post("/api/shifts/:id/assign", requireAuth, async (req, res) => {
   const filledText = `Heads up — the ${updated.role}${updated.time ? ` (${updated.time})` : ""} shift has been covered. Thanks for responding!`;
 
   const others = shift.responders.filter((r) => r.staffId !== staffId);
-  await sendSms(winner.phone, confirmText);
-  await Promise.all(others.map((r) => allStaff.find((s) => s.id === r.staffId)).filter(Boolean).map((s) => sendSms(s.phone, filledText)));
+  await sendSms(winner.phone, confirmText, req.restaurantId);
+  await Promise.all(others.map((r) => allStaff.find((s) => s.id === r.staffId)).filter(Boolean).map((s) => sendSms(s.phone, filledText, req.restaurantId)));
 
   res.json(updated);
 });
@@ -672,6 +739,7 @@ app.post("/api/staff-auth/claim", async (req, res) => {
 
   const sessionToken = signToken({ staffId: staffer.id, restaurantId: staffer.restaurant_id });
   res.cookie("staff_token", sessionToken, COOKIE_OPTS);
+  logActivity({ restaurantId: staffer.restaurant_id, eventType: "staff_account_setup", detail: `${staffer.name} (${email.toLowerCase()})` });
   res.status(201).json({ name: staffer.name });
 });
 
@@ -681,13 +749,20 @@ app.post("/api/staff-auth/login", async (req, res) => {
 
   const { rows } = await pool.query("SELECT * FROM staff WHERE email = $1", [email.toLowerCase()]);
   const staffer = rows[0];
-  if (!staffer || !staffer.password_hash) return res.status(401).json({ error: "incorrect email or password" });
+  if (!staffer || !staffer.password_hash) {
+    logActivity({ eventType: "login_failed", level: "warn", detail: `staff login failed: ${email.toLowerCase()} (no such account)` });
+    return res.status(401).json({ error: "incorrect email or password" });
+  }
 
   const valid = await bcrypt.compare(password, staffer.password_hash);
-  if (!valid) return res.status(401).json({ error: "incorrect email or password" });
+  if (!valid) {
+    logActivity({ restaurantId: staffer.restaurant_id, eventType: "login_failed", level: "warn", detail: `staff login failed: ${email.toLowerCase()} (wrong password)` });
+    return res.status(401).json({ error: "incorrect email or password" });
+  }
 
   const sessionToken = signToken({ staffId: staffer.id, restaurantId: staffer.restaurant_id });
   res.cookie("staff_token", sessionToken, COOKIE_OPTS);
+  logActivity({ restaurantId: staffer.restaurant_id, eventType: "login_success", detail: `staff login: ${email.toLowerCase()}` });
   res.json({ name: staffer.name });
 });
 
@@ -856,7 +931,7 @@ app.patch("/api/hiring/applications/:id", requireAuth, async (req, res) => {
       const postingTitle = postingRows.rows[0] ? postingRows.rows[0].title : "the position";
       const restaurantName = restaurantRows.rows[0] ? restaurantRows.rows[0].name : "the restaurant";
       const text = `Hi ${updated.name.split(" ")[0]}, your interview for ${postingTitle} at ${restaurantName} is scheduled: ${updated.interviewTime}. Reply if you have any questions.`;
-      const result = await sendSms(updated.phone, text);
+      const result = await sendSms(updated.phone, text, req.restaurantId);
       notified = { ok: result.ok, method: "sms", error: result.error };
     } else {
       notified = { ok: false, method: "none", error: "No phone number on file for this applicant" };
@@ -912,6 +987,7 @@ app.post("/api/public/applications", async (req, res) => {
      VALUES ($1,$2,$3,$4,$5,$6,$7,'applied',$8) RETURNING *`,
     [newId, posting.restaurant_id, postingId, name.trim(), (email || "").trim(), (phone || "").trim(), (note || "").trim(), Date.now()]
   );
+  logActivity({ restaurantId: posting.restaurant_id, eventType: "application_received", detail: `${name.trim()} applied for ${posting.title}` });
   res.status(201).json(applicationRowToJson(rows[0]));
 });
 
@@ -1084,6 +1160,7 @@ app.post("/api/ai/ask", requireAuth, async (req, res) => {
 
     const systemPrompt = `You are a helpful operations assistant for a restaurant manager, built into their staff/scheduling/hiring app. Answer the manager's question using ONLY the restaurant data provided below — don't invent numbers or people that aren't in it. If the data doesn't cover what they're asking, say so plainly rather than guessing. Keep answers short and concrete (a few sentences), like a sharp assistant who already knows the business, not a generic chatbot. Dates are in YYYY-MM-DD format; "today" tells you the current date for relative reasoning.\n\nRESTAURANT DATA:\n${contextBlock}`;
 
+    const aiStartedAt = Date.now();
     const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -1098,10 +1175,12 @@ app.post("/api/ai/ask", requireAuth, async (req, res) => {
         messages: [{ role: "user", content: question.trim() }],
       }),
     });
+    const aiDurationMs = Date.now() - aiStartedAt;
 
     if (!aiRes.ok) {
       const errBody = await aiRes.text();
       console.error("Anthropic API error:", aiRes.status, errBody);
+      logActivity({ restaurantId: req.restaurantId, eventType: "ai_failed", level: "error", detail: `HTTP ${aiRes.status}: ${errBody.slice(0, 300)}`, durationMs: aiDurationMs });
       return res.status(502).json({ error: "The AI agent couldn't respond right now — try again shortly." });
     }
 
@@ -1109,11 +1188,149 @@ app.post("/api/ai/ask", requireAuth, async (req, res) => {
     const textBlock = (aiData.content || []).find((b) => b.type === "text");
     const answer = textBlock ? textBlock.text : "I couldn't generate a response for that.";
 
+    logActivity({ restaurantId: req.restaurantId, eventType: "ai_answered", detail: question.trim().slice(0, 200), durationMs: aiDurationMs });
     res.json({ answer });
   } catch (e) {
     console.error("AI agent error:", e.message);
+    logActivity({ restaurantId: req.restaurantId, eventType: "ai_failed", level: "error", detail: e.message });
     res.status(500).json({ error: "Something went wrong answering that question." });
   }
+});
+
+// ---------- platform-owner auth (you / devs) ----------
+
+app.post("/api/platform-auth/signup", async (req, res) => {
+  const { email, password, setupKey } = req.body || {};
+  if (!PLATFORM_SETUP_KEY) return res.status(503).json({ error: "Platform account creation isn't configured — set PLATFORM_SETUP_KEY first." });
+  if (setupKey !== PLATFORM_SETUP_KEY) return res.status(403).json({ error: "Invalid setup key" });
+  if (!email || !isValidEmail(email)) return res.status(400).json({ error: "a valid email is required" });
+  if (!password || password.length < 8) return res.status(400).json({ error: "password must be at least 8 characters" });
+
+  const { rows: existing } = await pool.query("SELECT id FROM platform_admins WHERE email = $1", [email.toLowerCase()]);
+  if (existing.length > 0) return res.status(409).json({ error: "an account with that email already exists" });
+
+  const adminId = id();
+  const passwordHash = await bcrypt.hash(password, 10);
+  await pool.query("INSERT INTO platform_admins (id, email, password_hash, created_at) VALUES ($1,$2,$3,$4)", [adminId, email.toLowerCase(), passwordHash, Date.now()]);
+
+  const token = signToken({ platformAdminId: adminId });
+  res.cookie("platform_token", token, COOKIE_OPTS);
+  res.status(201).json({ email: email.toLowerCase() });
+});
+
+app.post("/api/platform-auth/login", async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: "email and password are required" });
+
+  const { rows } = await pool.query("SELECT * FROM platform_admins WHERE email = $1", [email.toLowerCase()]);
+  const admin = rows[0];
+  if (!admin) return res.status(401).json({ error: "incorrect email or password" });
+
+  const valid = await bcrypt.compare(password, admin.password_hash);
+  if (!valid) return res.status(401).json({ error: "incorrect email or password" });
+
+  const token = signToken({ platformAdminId: admin.id });
+  res.cookie("platform_token", token, COOKIE_OPTS);
+  res.json({ email: admin.email });
+});
+
+app.post("/api/platform-auth/logout", (req, res) => {
+  res.clearCookie("platform_token", { ...COOKIE_OPTS, maxAge: undefined });
+  res.status(204).end();
+});
+
+app.get("/api/platform-auth/me", requirePlatformAuth, async (req, res) => {
+  const { rows } = await pool.query("SELECT email FROM platform_admins WHERE id = $1", [req.platformAdminId]);
+  if (rows.length === 0) return res.status(401).json({ error: "not logged in" });
+  res.json({ email: rows[0].email });
+});
+
+// ---------- platform dashboard data (you / devs) ----------
+
+app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
+  const { rows } = await pool.query(`
+    SELECT
+      r.id, r.name, r.created_at,
+      (SELECT COUNT(*) FROM staff s WHERE s.restaurant_id = r.id) AS staff_count,
+      (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id) AS shift_count,
+      (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id AND sh.status = 'open') AS open_shift_count,
+      (SELECT COUNT(*) FROM job_postings jp WHERE jp.restaurant_id = r.id AND jp.status = 'open') AS open_posting_count,
+      (SELECT MAX(created_at) FROM activity_log a WHERE a.restaurant_id = r.id) AS last_activity_at,
+      (SELECT COUNT(*) FROM activity_log a WHERE a.restaurant_id = r.id AND a.created_at > $1) AS activity_last_7d
+    FROM restaurants r
+    ORDER BY r.created_at DESC
+  `, [Date.now() - 7 * 24 * 60 * 60 * 1000]);
+
+  res.json(rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    createdAt: Number(r.created_at),
+    staffCount: Number(r.staff_count),
+    shiftCount: Number(r.shift_count),
+    openShiftCount: Number(r.open_shift_count),
+    openPostingCount: Number(r.open_posting_count),
+    lastActivityAt: r.last_activity_at ? Number(r.last_activity_at) : null,
+    activityLast7d: Number(r.activity_last_7d),
+  })));
+});
+
+app.get("/api/platform/activity", requirePlatformAuth, async (req, res) => {
+  const { restaurantId, eventType, level, limit = 100 } = req.query;
+  const conditions = [];
+  const params = [];
+  if (restaurantId) { params.push(restaurantId); conditions.push(`a.restaurant_id = $${params.length}`); }
+  if (eventType) { params.push(eventType); conditions.push(`a.event_type = $${params.length}`); }
+  if (level) { params.push(level); conditions.push(`a.level = $${params.length}`); }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  params.push(Math.min(Number(limit) || 100, 500));
+
+  const { rows } = await pool.query(
+    `SELECT a.*, r.name AS restaurant_name FROM activity_log a LEFT JOIN restaurants r ON r.id = a.restaurant_id ${where} ORDER BY a.created_at DESC LIMIT $${params.length}`,
+    params
+  );
+  res.json(rows.map((r) => ({
+    id: r.id,
+    restaurantId: r.restaurant_id,
+    restaurantName: r.restaurant_name || "—",
+    eventType: r.event_type,
+    level: r.level,
+    detail: r.detail || "",
+    durationMs: r.duration_ms,
+    createdAt: Number(r.created_at),
+  })));
+});
+
+app.get("/api/platform/health", requirePlatformAuth, async (req, res) => {
+  const dbStart = Date.now();
+  let dbOk = true;
+  try {
+    await pool.query("SELECT 1");
+  } catch (e) {
+    dbOk = false;
+  }
+  const dbLatencyMs = Date.now() - dbStart;
+
+  const sinceHour = Date.now() - 60 * 60 * 1000;
+  const [smsStats, aiStats, failureCounts] = await Promise.all([
+    pool.query("SELECT COUNT(*) FILTER (WHERE event_type = 'sms_sent') AS sent, COUNT(*) FILTER (WHERE event_type = 'sms_failed') AS failed, AVG(duration_ms) FILTER (WHERE event_type = 'sms_sent') AS avg_ms FROM activity_log WHERE created_at > $1 AND event_type IN ('sms_sent','sms_failed')", [sinceHour]),
+    pool.query("SELECT COUNT(*) FILTER (WHERE event_type = 'ai_answered') AS answered, COUNT(*) FILTER (WHERE event_type = 'ai_failed') AS failed, AVG(duration_ms) FILTER (WHERE event_type = 'ai_answered') AS avg_ms FROM activity_log WHERE created_at > $1 AND event_type IN ('ai_answered','ai_failed')", [sinceHour]),
+    pool.query("SELECT event_type, COUNT(*) AS count FROM activity_log WHERE level = 'error' AND created_at > $1 GROUP BY event_type ORDER BY count DESC", [sinceHour]),
+  ]);
+
+  res.json({
+    database: { ok: dbOk, latencyMs: dbLatencyMs },
+    sms: {
+      sentLastHour: Number(smsStats.rows[0].sent || 0),
+      failedLastHour: Number(smsStats.rows[0].failed || 0),
+      avgLatencyMs: smsStats.rows[0].avg_ms ? Math.round(Number(smsStats.rows[0].avg_ms)) : null,
+    },
+    ai: {
+      answeredLastHour: Number(aiStats.rows[0].answered || 0),
+      failedLastHour: Number(aiStats.rows[0].failed || 0),
+      avgLatencyMs: aiStats.rows[0].avg_ms ? Math.round(Number(aiStats.rows[0].avg_ms)) : null,
+    },
+    errorsLastHour: failureCounts.rows.map((r) => ({ eventType: r.event_type, count: Number(r.count) })),
+  });
 });
 
 // ---------- health check ----------
@@ -1121,6 +1338,15 @@ app.post("/api/ai/ask", requireAuth, async (req, res) => {
 app.get("/api/health", async (req, res) => {
   const restaurantCount = await pool.query("SELECT COUNT(*) FROM restaurants");
   res.json({ ok: true, database: "connected", restaurants: Number(restaurantCount.rows[0].count) });
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection:", reason);
+  logActivity({ eventType: "server_error", level: "error", detail: `Unhandled rejection: ${reason && reason.message ? reason.message : String(reason)}` });
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+  logActivity({ eventType: "server_error", level: "error", detail: `Uncaught exception: ${err.message}` });
 });
 
 initDb()
