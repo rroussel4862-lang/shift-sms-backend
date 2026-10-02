@@ -165,6 +165,19 @@ async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS sales_projections_restaurant_idx ON sales_projections (restaurant_id);`);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS actual_sales (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      sale_date DATE NOT NULL,
+      amount NUMERIC,
+      source TEXT NOT NULL DEFAULT 'manual',
+      created_at BIGINT NOT NULL,
+      UNIQUE(restaurant_id, sale_date)
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS actual_sales_restaurant_idx ON actual_sales (restaurant_id);`);
+
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS password_hash TEXT;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS claim_token TEXT UNIQUE;`);
@@ -1086,6 +1099,49 @@ app.put("/api/sales-projections", requireAuth, async (req, res) => {
   res.json({
     date: rows[0].proj_date instanceof Date ? rows[0].proj_date.toISOString().slice(0, 10) : rows[0].proj_date,
     projectedAmount: rows[0].projected_amount !== null ? Number(rows[0].projected_amount) : null,
+  });
+});
+
+// ---------- actual sales (empty until a POS integration exists; this is the slot it will write into) ----------
+
+app.get("/api/actual-sales", requireAuth, async (req, res) => {
+  const { start, end } = req.query;
+  if (!start || !end) return res.status(400).json({ error: "start and end date query params are required (YYYY-MM-DD)" });
+  const { rows } = await pool.query(
+    "SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date >= $2 AND sale_date <= $3",
+    [req.restaurantId, start, end]
+  );
+  res.json(
+    rows.map((r) => ({
+      date: r.sale_date instanceof Date ? r.sale_date.toISOString().slice(0, 10) : r.sale_date,
+      amount: r.amount !== null ? Number(r.amount) : null,
+      source: r.source,
+    }))
+  );
+});
+
+// Not called by the UI yet — this is the endpoint a future POS sync integration
+// (Lightspeed, Veloce, Maître'D, etc.) would call to write real daily sales in.
+app.put("/api/actual-sales", requireAuth, async (req, res) => {
+  const { date, amount, source } = req.body || {};
+  if (!date) return res.status(400).json({ error: "date is required" });
+  let amt = null;
+  if (amount !== undefined && amount !== "" && amount !== null) {
+    amt = Number(amount);
+    if (isNaN(amt) || amt < 0) return res.status(400).json({ error: "amount must be a positive number" });
+  }
+  const newId = id();
+  const { rows } = await pool.query(
+    `INSERT INTO actual_sales (id, restaurant_id, sale_date, amount, source, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (restaurant_id, sale_date) DO UPDATE SET amount = EXCLUDED.amount, source = EXCLUDED.source
+     RETURNING *`,
+    [newId, req.restaurantId, date, amt, (source || "manual").trim(), Date.now()]
+  );
+  res.json({
+    date: rows[0].sale_date instanceof Date ? rows[0].sale_date.toISOString().slice(0, 10) : rows[0].sale_date,
+    amount: rows[0].amount !== null ? Number(rows[0].amount) : null,
+    source: rows[0].source,
   });
 });
 

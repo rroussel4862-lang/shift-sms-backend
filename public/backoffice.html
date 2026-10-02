@@ -328,6 +328,7 @@
               <th style="text-align:left">Staff</th>
             </tr>
             <tr class="ai-row" id="scheduleAiRow"></tr>
+            <tr class="proj-row" id="scheduleActualRow"></tr>
             <tr class="proj-row" id="scheduleProjRow"></tr>
             <tr class="index-row" id="scheduleIndexRow"></tr>
           </thead>
@@ -364,6 +365,7 @@ function roleColor(role) {
 let weekStart = getMonday(new Date());
 let scheduleShifts = [];
 let salesProjections = {};
+let actualSales = {};
 let addingCell = null;
 let houseView = "foh";
 let draggedShiftId = null;
@@ -539,15 +541,20 @@ async function loadSchedule() {
   endDate.setDate(endDate.getDate() + 6);
   document.getElementById("weekLabel").textContent = `${formatShort(weekStart)} – ${formatShort(endDate)}, ${endDate.getFullYear()}`;
   const startStr = toISODate(weekStart), endStr = toISODate(endDate);
-  const [shiftsResult, projResult] = await Promise.all([
+  const [shiftsResult, projResult, actualResult] = await Promise.all([
     api(`/api/schedule?start=${startStr}&end=${endStr}`),
     api(`/api/sales-projections?start=${startStr}&end=${endStr}`),
+    api(`/api/actual-sales?start=${startStr}&end=${endStr}`),
   ]);
   if (shiftsResult.ok) scheduleShifts = shiftsResult.data;
   else showBanner(shiftsResult.error, "warn");
   salesProjections = {};
   if (projResult.ok) {
     projResult.data.forEach(p => { salesProjections[p.date] = p.projectedAmount; });
+  }
+  actualSales = {};
+  if (actualResult.ok) {
+    actualResult.data.forEach(a => { actualSales[a.date] = a.amount; });
   }
   renderScheduleGrid();
 }
@@ -746,6 +753,18 @@ function renderScheduleGrid() {
     weekDates.map(() => `<td>—</td>`).join("") +
     `<td>not yet available</td>`;
 
+  // Actual sales row — read-only, populated automatically once a POS integration exists.
+  // Empty/placeholder until then; this is the slot that future integration writes into.
+  const actualRow = document.getElementById("scheduleActualRow");
+  let weekActualTotal = 0, anyActual = false;
+  const actualCells = weekDates.map(d => {
+    const dateStr = toISODate(d);
+    const val = actualSales[dateStr];
+    if (val !== undefined && val !== null) { weekActualTotal += val; anyActual = true; }
+    return `<td style="text-align:center">${val !== undefined && val !== null ? "$" + val.toFixed(2) : "—"}</td>`;
+  }).join("");
+  actualRow.innerHTML = `<td class="row-label">Actual sales</td>${actualCells}<td class="day-total">${anyActual ? "$" + weekActualTotal.toFixed(2) : "—"}</td>`;
+
   // Projected sales row (manual entry, shared across both house views)
   const projRow = document.getElementById("scheduleProjRow");
   let weekProjTotal = 0, anyProj = false;
@@ -806,18 +825,21 @@ function renderScheduleGrid() {
   }).join("");
   totalsRow.innerHTML = `<td style="text-align:left">Daily totals</td>${dayTotalsHtml}<td class="day-total">${grandHours.toFixed(1)}h<br>$${grandCost.toFixed(2)}</td>`;
 
-  // Labor cost index row — this house's labor cost against the day's projected sales
+  // Labor cost index row — uses real sales once a POS feeds them in, otherwise falls back to the manual projection
   const indexRow = document.getElementById("scheduleIndexRow");
+  let weekIndexBasis = 0, anyIndexBasis = false;
   const indexCells = weekDates.map(d => {
     const dateStr = toISODate(d);
-    const sales = salesProjections[dateStr];
+    const sales = actualSales[dateStr] !== undefined && actualSales[dateStr] !== null ? actualSales[dateStr] : salesProjections[dateStr];
     const cost = dayCostByDate[dateStr] || 0;
     if (sales === undefined || sales === null || sales === 0) return `<td>—</td>`;
+    weekIndexBasis += sales;
+    anyIndexBasis = true;
     const pct = (cost / sales) * 100;
     const cls = pct < 25 ? "index-ok" : pct < 35 ? "index-warn" : "index-bad";
     return `<td class="${cls}">${pct.toFixed(1)}%</td>`;
   }).join("");
-  const weekIndex = weekProjTotal > 0 ? (grandCost / weekProjTotal) * 100 : null;
+  const weekIndex = anyIndexBasis && weekIndexBasis > 0 ? (grandCost / weekIndexBasis) * 100 : null;
   const weekIndexCls = weekIndex === null ? "" : weekIndex < 25 ? "index-ok" : weekIndex < 35 ? "index-warn" : "index-bad";
   indexRow.innerHTML = `<td class="row-label">Labor cost index</td>${indexCells}<td class="${weekIndexCls}">${weekIndex !== null ? weekIndex.toFixed(1) + "%" : "—"}</td>`;
 
