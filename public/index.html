@@ -339,6 +339,7 @@
     justify-content: center;
     padding: 24px;
     text-align: center;
+    position: relative;
   }
   .landing-mark {
     width: 56px;
@@ -386,6 +387,14 @@
     cursor: pointer;
   }
   .enter-btn:active { transform: scale(0.98); }
+  .lang-switch { display: flex; gap: 4px; }
+  .lang-btn {
+    background: none; border: 1px solid var(--rail); color: var(--text-dim);
+    font-size: 11px; font-weight: 600; font-family: 'IBM Plex Mono', monospace;
+    padding: 5px 8px; border-radius: 4px; cursor: pointer;
+  }
+  .lang-btn.active { background: var(--amber); color: var(--ink); border-color: var(--amber); }
+  #landingLangSwitch { position: absolute; top: 16px; right: 16px; }
   #appShell { display: none; }
   /* ---------- sidebar shell (matches mockup) ---------- */
   #shell { display: block; }
@@ -485,26 +494,27 @@
 <body>
 
 <div id="landing">
+  <div id="landingLangSwitch" class="lang-switch"></div>
   <div class="landing-mark"><span>OSR</span></div>
-  <h1>Open Shift Rail</h1>
-  <p>Post a no-show. Text your staff. Fill the shift — all from here.</p>
+  <h1 data-i18n="landing.title">Open Shift Rail</h1>
+  <p data-i18n="landing.tagline">Post a no-show. Text your staff. Fill the shift — all from here.</p>
 
   <div id="authForms" style="width:100%;max-width:300px;text-align:left">
     <div class="tabs" style="max-width:none;margin:0 0 16px;padding:0">
-      <button type="button" class="tab-btn active" id="authTabLogin" onclick="setAuthMode('login')">Log in</button>
-      <button type="button" class="tab-btn" id="authTabSignup" onclick="setAuthMode('signup')">Sign up</button>
+      <button type="button" class="tab-btn active" id="authTabLogin" onclick="setAuthMode('login')" data-i18n="landing.loginTab">Log in</button>
+      <button type="button" class="tab-btn" id="authTabSignup" onclick="setAuthMode('signup')" data-i18n="landing.signupTab">Sign up</button>
     </div>
 
     <div id="signupFields" style="display:none">
-      <label>Restaurant name</label>
-      <input type="text" id="authRestaurantName" placeholder="e.g. Ferro" />
+      <label data-i18n="landing.restaurantNameLabel">Restaurant name</label>
+      <input type="text" id="authRestaurantName" placeholder="e.g. Ferro" data-i18n-ph="landing.restaurantNamePh" />
     </div>
-    <label>Email</label>
-    <input type="text" id="authEmail" placeholder="you@restaurant.com" />
-    <label>Password</label>
+    <label data-i18n="landing.emailLabel">Email</label>
+    <input type="text" id="authEmail" placeholder="you@restaurant.com" data-i18n-ph="landing.emailPh" />
+    <label data-i18n="landing.passwordLabel">Password</label>
     <input type="password" id="authPassword" placeholder="••••••••" />
 
-    <button class="enter-btn" style="width:100%;margin-top:16px" onclick="submitAuth()" id="authSubmitBtn">Log in</button>
+    <button class="enter-btn" style="width:100%;margin-top:16px" onclick="submitAuth()" id="authSubmitBtn" data-i18n="landing.loginTab">Log in</button>
     <div id="authError" style="color:var(--amber);font-size:12px;margin-top:10px;min-height:16px"></div>
   </div>
 </div>
@@ -517,19 +527,19 @@
       <div class="brand-name" id="sidebarRestaurantName">Open Shift Rail</div>
     </div>
     <button class="nav-stub active" id="tabBtnOverview" onclick="switchTab('overview')">
-      <span>Overview</span>
+      <span data-i18n="nav.overview">Overview</span>
     </button>
     <button class="nav-stub" id="tabBtnShifts" style="--dot-color:var(--scheduling)" onclick="switchTab('shifts')">
-      <span class="dot"></span><span>Scheduling</span>
+      <span class="dot"></span><span data-i18n="nav.shifts">Scheduling</span>
     </button>
     <button class="nav-stub" id="tabBtnStaff" style="--dot-color:var(--staffcolor)" onclick="switchTab('staff')">
-      <span class="dot"></span><span>Staff</span>
+      <span class="dot"></span><span data-i18n="nav.staff">Staff</span>
     </button>
     <button class="nav-stub" id="tabBtnHiring" style="--dot-color:var(--hiring)" onclick="switchTab('hiring')">
-      <span class="dot"></span><span>Hiring</span>
+      <span class="dot"></span><span data-i18n="nav.hiring">Hiring</span>
     </button>
     <button class="nav-stub" id="tabBtnComms" style="--dot-color:var(--comms)" onclick="switchTab('comms')">
-      <span class="dot"></span><span>Comms</span>
+      <span class="dot"></span><span data-i18n="nav.comms">Comms</span>
     </button>
   </nav>
 
@@ -542,8 +552,11 @@
           <p id="subtitle">loading…</p>
         </div>
       </div>
-      <a href="/backoffice.html" class="back-link" style="text-decoration:none;color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;border:1px solid var(--rail);padding:6px 10px;border-radius:4px;margin-right:8px">Back Office</a>
-      <button id="logoutBtn" onclick="logout()">Log out</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="lang-switch" id="appLangSwitch"></div>
+        <a href="/backoffice.html" class="back-link" style="text-decoration:none;color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;border:1px solid var(--rail);padding:6px 10px;border-radius:4px" data-i18n="topbar.backOffice">Back Office</a>
+        <button id="logoutBtn" onclick="logout()" data-i18n="topbar.logout">Log out</button>
+      </div>
     </div>
 
     <div id="banner"></div>
@@ -552,124 +565,124 @@
     <main>
       <div class="tab-panel active" id="panelOverview">
         <div class="module-header">
-          <div class="eyebrow">Overview</div>
-          <p>Every section feeds this dashboard — tap a card to jump in.</p>
+          <div class="eyebrow" data-i18n="overview.eyebrow">Overview</div>
+          <p data-i18n="overview.desc">Every section feeds this dashboard — tap a card to jump in.</p>
         </div>
         <div class="overview-grid" id="overviewGrid"></div>
       </div>
 
   <div class="tab-panel" id="panelShifts">
     <div class="module-header" style="--accent:var(--scheduling)">
-      <div class="eyebrow">Scheduling</div>
-      <p>When someone doesn't show, post it here — every matching staff member gets a real text within seconds.</p>
+      <div class="eyebrow" data-i18n="scheduling.eyebrow">Scheduling</div>
+      <p data-i18n="scheduling.desc">When someone doesn't show, post it here — every matching staff member gets a real text within seconds.</p>
     </div>
     <div class="card">
-      <h2>Post an open shift</h2>
-      <label>Position</label>
+      <h2 data-i18n="scheduling.postCard">Post an open shift</h2>
+      <label data-i18n="scheduling.position">Position</label>
       <select id="shiftRole"></select>
-      <label>When</label>
-      <input type="text" id="shiftTime" placeholder="e.g. Today, 5pm–close" />
-      <label>Note (optional)</label>
-      <input type="text" id="shiftNote" placeholder="e.g. Jordan called out sick" />
-      <button class="primary amber" onclick="postShift()">Send to staff now</button>
+      <label data-i18n="scheduling.when">When</label>
+      <input type="text" id="shiftTime" placeholder="e.g. Today, 5pm–close" data-i18n-ph="scheduling.whenPh" />
+      <label data-i18n="scheduling.note">Note (optional)</label>
+      <input type="text" id="shiftNote" placeholder="e.g. Jordan called out sick" data-i18n-ph="scheduling.notePh" />
+      <button class="primary amber" onclick="postShift()" data-i18n="scheduling.sendBtn">Send to staff now</button>
     </div>
 
     <div class="card">
-      <h2>Open shifts</h2>
-      <div id="openShifts"><p class="empty">No open shifts.</p></div>
+      <h2 data-i18n="scheduling.openShiftsCard">Open shifts</h2>
+      <div id="openShifts"><p class="empty" data-i18n="scheduling.noOpenShifts">No open shifts.</p></div>
     </div>
 
     <div class="card">
-      <h2>Recently filled</h2>
-      <div id="filledShifts"><p class="empty">Nothing filled yet.</p></div>
+      <h2 data-i18n="scheduling.filledCard">Recently filled</h2>
+      <div id="filledShifts"><p class="empty" data-i18n="scheduling.nothingFilled">Nothing filled yet.</p></div>
     </div>
   </div>
 
   <div class="tab-panel" id="panelStaff">
     <div class="module-header" style="--accent:var(--staffcolor)">
-      <div class="eyebrow">Staff</div>
-      <p>Your roster, their roles, and who's actually stepping up — add, edit, and see who responds most.</p>
+      <div class="eyebrow" data-i18n="staff.eyebrow">Staff</div>
+      <p data-i18n="staff.desc">Your roster, their roles, and who's actually stepping up — add, edit, and see who responds most.</p>
     </div>
     <div class="card">
-      <h2>Add new staff</h2>
-      <label>Name</label>
-      <input type="text" id="staffName" placeholder="Full name" />
-      <label>Phone</label>
+      <h2 data-i18n="staff.addCard">Add new staff</h2>
+      <label data-i18n="staff.name">Name</label>
+      <input type="text" id="staffName" placeholder="Full name" data-i18n-ph="staff.namePh" />
+      <label data-i18n="staff.phone">Phone</label>
       <input type="tel" id="staffPhone" placeholder="+15551234567" />
-      <label>Hourly rate (optional)</label>
-      <input type="text" inputmode="decimal" id="staffRate" placeholder="e.g. 19.50" />
-      <label>Hire date (optional)</label>
+      <label data-i18n="staff.rate">Hourly rate (optional)</label>
+      <input type="text" inputmode="decimal" id="staffRate" placeholder="e.g. 19.50" data-i18n-ph="staff.ratePh" />
+      <label data-i18n="staff.hireDate">Hire date (optional)</label>
       <input type="date" id="staffHireDate" />
-      <label>Role(s) — tap all that apply</label>
+      <label data-i18n="staff.roles">Role(s) — tap all that apply</label>
       <div class="roles" id="staffRoles"></div>
-      <button class="primary" onclick="addStaff()">Add staff</button>
+      <button class="primary" onclick="addStaff()" data-i18n="staff.addBtn">Add staff</button>
     </div>
 
     <div class="card">
-      <h2>Current staff</h2>
+      <h2 data-i18n="staff.currentCard">Current staff</h2>
       <div class="tabs" style="max-width:none;margin:0 0 10px;padding:0">
-        <button type="button" class="tab-btn active" id="modeBtnAll" onclick="setStaffFilterMode('all')">All</button>
-        <button type="button" class="tab-btn" id="modeBtnPosition" onclick="setStaffFilterMode('position')">By position</button>
-        <button type="button" class="tab-btn" id="modeBtnName" onclick="setStaffFilterMode('name')">By name</button>
+        <button type="button" class="tab-btn active" id="modeBtnAll" onclick="setStaffFilterMode('all')" data-i18n="staff.filterAll">All</button>
+        <button type="button" class="tab-btn" id="modeBtnPosition" onclick="setStaffFilterMode('position')" data-i18n="staff.filterPosition">By position</button>
+        <button type="button" class="tab-btn" id="modeBtnName" onclick="setStaffFilterMode('name')" data-i18n="staff.filterName">By name</button>
       </div>
       <div class="roles" id="staffRoleFilters"></div>
-      <input type="text" id="staffNameSearch" placeholder="Search by name…" style="display:none;margin-bottom:10px" oninput="staffNameQuery = this.value; render();" />
-      <div id="staffList"><p class="empty">No staff yet.</p></div>
+      <input type="text" id="staffNameSearch" placeholder="Search by name…" data-i18n-ph="staff.searchPh" style="display:none;margin-bottom:10px" oninput="staffNameQuery = this.value; render();" />
+      <div id="staffList"><p class="empty" data-i18n="staff.noStaff">No staff yet.</p></div>
     </div>
 
     <div class="card">
-      <h2>Most available</h2>
-      <div style="color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px">3 pts / covered · 1 pt / responded</div>
-      <div id="leaderboardList"><p class="empty">No staff yet.</p></div>
+      <h2 data-i18n="staff.mostAvailable">Most available</h2>
+      <div style="color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px" data-i18n="staff.pointsNote">3 pts / covered · 1 pt / responded</div>
+      <div id="leaderboardList"><p class="empty" data-i18n="staff.noStaff">No staff yet.</p></div>
     </div>
   </div>
 
   <div class="tab-panel" id="panelHiring">
     <div class="module-header" style="--accent:var(--hiring)">
-      <div class="eyebrow">Hiring</div>
-      <p>Post an opening, share it wherever candidates look, and track everyone through to an offer.</p>
+      <div class="eyebrow" data-i18n="hiring.eyebrow">Hiring</div>
+      <p data-i18n="hiring.desc">Post an opening, share it wherever candidates look, and track everyone through to an offer.</p>
     </div>
     <div class="card">
-      <h2>Restaurant info</h2>
-      <div style="color:var(--text-dim);font-size:12px;margin-bottom:10px;line-height:1.4">Used when sharing job postings externally (Indeed, Facebook, Craigslist).</div>
-      <label>Address</label>
-      <input type="text" id="restaurantAddress" placeholder="123 Main St, Your City" />
-      <button class="primary" onclick="saveRestaurantAddress()">Save</button>
+      <h2 data-i18n="hiring.infoCard">Restaurant info</h2>
+      <div style="color:var(--text-dim);font-size:12px;margin-bottom:10px;line-height:1.4" data-i18n="hiring.infoDesc">Used when sharing job postings externally (Indeed, Facebook, Craigslist).</div>
+      <label data-i18n="hiring.address">Address</label>
+      <input type="text" id="restaurantAddress" placeholder="123 Main St, Your City" data-i18n-ph="hiring.addressPh" />
+      <button class="primary" onclick="saveRestaurantAddress()" data-i18n="hiring.save">Save</button>
     </div>
 
     <div class="card">
-      <h2>Post a job opening</h2>
-      <label>Title</label>
-      <input type="text" id="postingTitle" placeholder="e.g. Line Cook — evenings" />
-      <label>Role</label>
+      <h2 data-i18n="hiring.postCard">Post a job opening</h2>
+      <label data-i18n="hiring.title">Title</label>
+      <input type="text" id="postingTitle" placeholder="e.g. Line Cook — evenings" data-i18n-ph="hiring.titlePh" />
+      <label data-i18n="hiring.role">Role</label>
       <select id="postingRole"></select>
-      <label>Description</label>
-      <textarea rows="3" id="postingDescription" placeholder="Hours, pay range, what the job involves…"></textarea>
-      <button class="primary" onclick="createPosting()">Post opening</button>
+      <label data-i18n="hiring.description">Description</label>
+      <textarea rows="3" id="postingDescription" placeholder="Hours, pay range, what the job involves…" data-i18n-ph="hiring.descriptionPh"></textarea>
+      <button class="primary" onclick="createPosting()" data-i18n="hiring.postBtn">Post opening</button>
     </div>
 
     <div class="card">
-      <h2>Open postings</h2>
-      <div id="postingsList"><p class="empty">No postings yet.</p></div>
+      <h2 data-i18n="hiring.postingsCard">Open postings</h2>
+      <div id="postingsList"><p class="empty" data-i18n="hiring.noPostings">No postings yet.</p></div>
     </div>
 
     <div class="card">
-      <h2>Applicants</h2>
+      <h2 data-i18n="hiring.applicantsCard">Applicants</h2>
       <div id="applicantFilter" style="margin-bottom:10px"></div>
-      <div id="applicantsList"><p class="empty">No applications yet.</p></div>
+      <div id="applicantsList"><p class="empty" data-i18n="hiring.noApplications">No applications yet.</p></div>
     </div>
   </div>
 
   <div class="tab-panel" id="panelComms">
     <div class="module-header" style="--accent:var(--comms)">
-      <div class="eyebrow">Communications</div>
-      <p>Ask about staffing, labor cost, hiring, or anything else — answered from your restaurant's real data, not a canned script.</p>
+      <div class="eyebrow" data-i18n="comms.eyebrow">Communications</div>
+      <p data-i18n="comms.desc">Ask about staffing, labor cost, hiring, or anything else — answered from your restaurant's real data, not a canned script.</p>
     </div>
     <div class="card">
       <div id="chatThread"></div>
       <div class="chat-input-row">
-        <input type="text" id="chatInput" placeholder="e.g. Which shift is understaffed this week?" onkeydown="if(event.key==='Enter') askAi()" />
-        <button class="primary" style="width:auto;padding:0 18px" onclick="askAi()">Ask</button>
+        <input type="text" id="chatInput" placeholder="e.g. Which shift is understaffed this week?" data-i18n-ph="comms.placeholder" onkeydown="if(event.key==='Enter') askAi()" />
+        <button class="primary" style="width:auto;padding:0 18px" onclick="askAi()" data-i18n="comms.ask">Ask</button>
       </div>
     </div>
   </div>
@@ -681,8 +694,6 @@
 </div>
 
 <script>
-const TAB_TITLES = { overview: "Overview", shifts: "Scheduling", staff: "Staff", hiring: "Hiring", comms: "Communications" };
-
 function switchTab(name) {
   document.getElementById("panelOverview").classList.toggle("active", name === "overview");
   document.getElementById("panelShifts").classList.toggle("active", name === "shifts");
@@ -694,12 +705,337 @@ function switchTab(name) {
   document.getElementById("tabBtnStaff").classList.toggle("active", name === "staff");
   document.getElementById("tabBtnHiring").classList.toggle("active", name === "hiring");
   document.getElementById("tabBtnComms").classList.toggle("active", name === "comms");
-  document.getElementById("topbarNewTitle").textContent = TAB_TITLES[name] || "Overview";
+  document.getElementById("topbarNewTitle").textContent = t("nav." + name);
 }
 
 </script>
 <script>
+/* ============================== i18n ============================== */
+let LANG = localStorage.getItem("osr-lang") || "en";
+const LANGS = [{ code: "en", label: "EN" }, { code: "fr", label: "FR" }, { code: "es", label: "ES" }];
+
+const T = {
+  en: {
+    common: { justNow: "just now", minAgo: m => `${m}m ago`, hourAgo: h => `${h}h ago` },
+    landing: {
+      title: "Open Shift Rail", tagline: "Post a no-show. Text your staff. Fill the shift — all from here.",
+      loginTab: "Log in", signupTab: "Sign up", restaurantNameLabel: "Restaurant name", restaurantNamePh: "e.g. Ferro",
+      emailLabel: "Email", emailPh: "you@restaurant.com", passwordLabel: "Password",
+      errRestaurantName: "Enter your restaurant's name", errEmail: "Enter an email",
+      errPassword: "Password must be at least 8 characters", errEmailPassword: "Enter your email and password",
+      createAccount: "Create account",
+    },
+    nav: { overview: "Overview", shifts: "Scheduling", staff: "Staff", hiring: "Hiring", comms: "Comms" },
+    topbar: { backOffice: "Back Office", logout: "Log out" },
+    overview: {
+      eyebrow: "Overview", desc: "Every section feeds this dashboard — tap a card to jump in.",
+      openShifts: "Open shifts", posted: n => `${n} posted`, nonePosted: "None posted yet",
+      staffLabel: "Staff", manageRoster: "Tap to manage roster",
+      openPostings: "Open postings", applicantsTotal: n => `${n} applicant${n === 1 ? "" : "s"} total`,
+      aiAgent: "AI agent", askLabel: "Ask", askSub: "Ask about staffing, cost, or hiring",
+    },
+    scheduling: {
+      eyebrow: "Scheduling", desc: "When someone doesn't show, post it here — every matching staff member gets a real text within seconds.",
+      postCard: "Post an open shift", position: "Position", when: "When", whenPh: "e.g. Today, 5pm–close",
+      note: "Note (optional)", notePh: "e.g. Jordan called out sick", sendBtn: "Send to staff now",
+      openShiftsCard: "Open shifts", noOpenShifts: "No open shifts.", filledCard: "Recently filled", nothingFilled: "Nothing filled yet.",
+      openStamp: "Open", filledStamp: "Filled", asap: "ASAP", postedAgo: t => `posted ${t}`,
+      noResponders: "No one's responded yet", respondedCount: n => `${n} staff responded`,
+      assignBtn: "Assign", removeTicket: "Remove ticket", coveredBy: name => `Covered by ${name}`, someone: "someone",
+      bannerTexted: (sent, total, role) => `Texted ${sent}/${total} ${role}${role.endsWith("s") ? "" : "s"}`,
+      bannerNoStaff: role => `Posted — no staff on file for ${role}`,
+      bannerPostedWarn: err => `Posted, but texts didn't send: ${err}`,
+      bannerAssignOk: name => `Texted ${name} to confirm`,
+      bannerAssignWarn: err => `Assigned, but confirmation text failed: ${err}`,
+      bannerAssignedConfirm: "Assigned — confirmation text sent",
+      confirmRemove: "Remove this ticket? Staff who already responded won't be notified.", bannerRemoved: "Ticket removed",
+    },
+    staff: {
+      eyebrow: "Staff", desc: "Your roster, their roles, and who's actually stepping up — add, edit, and see who responds most.",
+      addCard: "Add new staff", name: "Name", namePh: "Full name", phone: "Phone",
+      rate: "Hourly rate (optional)", ratePh: "e.g. 19.50", hireDate: "Hire date (optional)",
+      roles: "Role(s) — tap all that apply", addBtn: "Add staff",
+      currentCard: "Current staff", filterAll: "All", filterPosition: "By position", filterName: "By name",
+      searchPh: "Search by name…", noStaff: "No staff yet.", noRole: "no role",
+      sendLogin: "Send login", edit: "Edit", portalActive: "Staff portal: active", portalNotSetUp: "Staff portal: not set up",
+      mostAvailable: "Most available", pointsNote: "3 pts / covered · 1 pt / responded",
+      noRateSet: "no rate set", hiredOn: date => `hired ${date}`,
+      editRate: "Hourly rate", editHireDate: "Hire date", save: "Save", cancel: "Cancel",
+      bannerEnterName: "Enter a name first", bannerEnterPhone: "Enter a phone number first",
+      bannerAdded: name => `Added ${name}`, bannerPhoneRequired: "Phone number can't be empty", bannerUpdated: "Staff updated",
+      noStaffWithRole: role => `No staff with the "${role}" role.`, noStaffMatching: q => `No staff matching "${q}".`,
+      bannerLoginSent: "Login setup link texted",
+      rankMeta: (c, r) => `${c} covered · ${r} responded`,
+    },
+    hiring: {
+      eyebrow: "Hiring", desc: "Post an opening, share it wherever candidates look, and track everyone through to an offer.",
+      infoCard: "Restaurant info", infoDesc: "Used when sharing job postings externally (Indeed, Facebook, Craigslist).",
+      address: "Address", addressPh: "123 Main St, Your City", save: "Save",
+      postCard: "Post a job opening", title: "Title", titlePh: "e.g. Line Cook — evenings", role: "Role",
+      description: "Description", descriptionPh: "Hours, pay range, what the job involves…", postBtn: "Post opening",
+      postingsCard: "Open postings", noPostings: "No postings yet.", applicantsCard: "Applicants",
+      allPostings: "All postings", noApplications: "No applications yet.",
+      interviewTime: "Interview time", currently: t => `Currently: ${t}`, saveAndText: "Save & text",
+      copyLink: "Copy link", closePosting: "Close posting", reopen: "Reopen", delete: "Delete", shareExternally: "Share externally",
+      copyJobText: "Copy job text", openIndeed: "Open Indeed", openCraigslist: "Open Craigslist",
+      shareNote: "Paste the copied text into each site's own posting form. Facebook job posts can only be created from the Facebook phone app (Marketplace → Jobs), not a computer. Craigslist job posts are paid in most cities ($10–75).",
+      toApply: url => `To apply: ${url}`, openStamp: "Open", closedStamp: "Closed",
+      applicantCount: n => `${n} applicant${n === 1 ? "" : "s"}`,
+      bannerRestaurantSaved: "Restaurant info saved", bannerTitleRequired: "Enter a title for the posting",
+      bannerPostingCreated: "Posting created", confirmDeletePosting: "Delete this posting? Its applications will be removed too.",
+      bannerPickDateTime: "Pick a date and time first",
+      bannerTextedInterview: name => `Texted ${name} the interview time`,
+      bannerSavedNoText: (name, err) => `Saved, but couldn't text ${name}: ${err}`,
+      bannerLinkCopied: "Link copied", bannerCopyFail: "Couldn't copy — select and copy manually",
+      bannerJobTextCopied: "Job text copied", bannerJobCopyFail: "Couldn't copy — select the text manually",
+      stage: { applied: "Applied", screening: "Screening", interview: "Interview", offer: "Offer sent", rejected: "Rejected" },
+      reject: "Reject",
+    },
+    comms: {
+      eyebrow: "Communications",
+      desc: "Ask about staffing, labor cost, hiring, or anything else — answered from your restaurant's real data, not a canned script.",
+      placeholder: "e.g. Which shift is understaffed this week?", ask: "Ask",
+      emptyChat: "Ask anything about your staffing, schedule, costs, or hiring pipeline.",
+      thinking: "Thinking…", sorry: err => `Sorry — ${err}`, you: "You", ai: "AI",
+    },
+  },
+  fr: {
+    common: { justNow: "à l'instant", minAgo: m => `il y a ${m} min`, hourAgo: h => `il y a ${h} h` },
+    landing: {
+      title: "Open Shift Rail", tagline: "Signalez une absence. Textez votre personnel. Comblez le quart — tout ici.",
+      loginTab: "Connexion", signupTab: "Inscription", restaurantNameLabel: "Nom du restaurant", restaurantNamePh: "ex. Ferro",
+      emailLabel: "Courriel", emailPh: "vous@restaurant.com", passwordLabel: "Mot de passe",
+      errRestaurantName: "Entrez le nom de votre restaurant", errEmail: "Entrez un courriel",
+      errPassword: "Le mot de passe doit contenir au moins 8 caractères", errEmailPassword: "Entrez votre courriel et mot de passe",
+      createAccount: "Créer le compte",
+    },
+    nav: { overview: "Aperçu", shifts: "Horaire", staff: "Personnel", hiring: "Embauche", comms: "Comms" },
+    topbar: { backOffice: "Back Office", logout: "Déconnexion" },
+    overview: {
+      eyebrow: "Aperçu", desc: "Chaque section alimente ce tableau de bord — touchez une carte pour y accéder.",
+      openShifts: "Quarts ouverts", posted: n => `${n} publiés`, nonePosted: "Aucun publié",
+      staffLabel: "Personnel", manageRoster: "Touchez pour gérer l'équipe",
+      openPostings: "Postes ouverts", applicantsTotal: n => `${n} candidature${n === 1 ? "" : "s"} au total`,
+      aiAgent: "Agent IA", askLabel: "Demander", askSub: "Posez une question sur le personnel, les coûts ou l'embauche",
+    },
+    scheduling: {
+      eyebrow: "Horaire", desc: "Quand quelqu'un ne se présente pas, publiez-le ici — chaque employé correspondant reçoit un vrai texto en quelques secondes.",
+      postCard: "Publier un quart ouvert", position: "Poste", when: "Quand", whenPh: "ex. Aujourd'hui, 17h–fermeture",
+      note: "Note (optionnel)", notePh: "ex. Jordan a appelé pour maladie", sendBtn: "Envoyer au personnel maintenant",
+      openShiftsCard: "Quarts ouverts", noOpenShifts: "Aucun quart ouvert.", filledCard: "Récemment comblés", nothingFilled: "Rien de comblé pour l'instant.",
+      openStamp: "Ouvert", filledStamp: "Comblé", asap: "Dès que possible", postedAgo: t => `publié ${t}`,
+      noResponders: "Personne n'a encore répondu", respondedCount: n => `${n} employés ont répondu`,
+      assignBtn: "Assigner", removeTicket: "Retirer le billet", coveredBy: name => `Couvert par ${name}`, someone: "quelqu'un",
+      bannerTexted: (sent, total, role) => `${sent}/${total} ${role} contactés par texto`,
+      bannerNoStaff: role => `Publié — aucun employé enregistré pour ${role}`,
+      bannerPostedWarn: err => `Publié, mais les textos n'ont pas été envoyés : ${err}`,
+      bannerAssignOk: name => `Texto de confirmation envoyé à ${name}`,
+      bannerAssignWarn: err => `Assigné, mais le texto de confirmation a échoué : ${err}`,
+      bannerAssignedConfirm: "Assigné — texto de confirmation envoyé",
+      confirmRemove: "Retirer ce billet ? Les employés ayant déjà répondu ne seront pas avisés.", bannerRemoved: "Billet retiré",
+    },
+    staff: {
+      eyebrow: "Personnel", desc: "Votre équipe, leurs postes, et qui répond vraiment présent — ajoutez, modifiez, et voyez qui répond le plus.",
+      addCard: "Ajouter un employé", name: "Nom", namePh: "Nom complet", phone: "Téléphone",
+      rate: "Taux horaire (optionnel)", ratePh: "ex. 19,50", hireDate: "Date d'embauche (optionnel)",
+      roles: "Poste(s) — touchez tous ceux qui s'appliquent", addBtn: "Ajouter l'employé",
+      currentCard: "Personnel actuel", filterAll: "Tous", filterPosition: "Par poste", filterName: "Par nom",
+      searchPh: "Rechercher par nom…", noStaff: "Aucun employé pour l'instant.", noRole: "aucun poste",
+      sendLogin: "Envoyer l'accès", edit: "Modifier", portalActive: "Portail employé : actif", portalNotSetUp: "Portail employé : non configuré",
+      mostAvailable: "Les plus disponibles", pointsNote: "3 pts / quart couvert · 1 pt / réponse",
+      noRateSet: "aucun taux défini", hiredOn: date => `embauché le ${date}`,
+      editRate: "Taux horaire", editHireDate: "Date d'embauche", save: "Enregistrer", cancel: "Annuler",
+      bannerEnterName: "Entrez d'abord un nom", bannerEnterPhone: "Entrez d'abord un numéro de téléphone",
+      bannerAdded: name => `${name} ajouté(e)`, bannerPhoneRequired: "Le numéro de téléphone ne peut pas être vide", bannerUpdated: "Employé mis à jour",
+      noStaffWithRole: role => `Aucun employé avec le poste « ${role} ».`, noStaffMatching: q => `Aucun employé correspondant à « ${q} ».`,
+      bannerLoginSent: "Lien de configuration envoyé par texto",
+      rankMeta: (c, r) => `${c} couverts · ${r} réponses`,
+    },
+    hiring: {
+      eyebrow: "Embauche", desc: "Publiez un poste, partagez-le où les candidats cherchent, et suivez chacun jusqu'à l'offre.",
+      infoCard: "Infos du restaurant", infoDesc: "Utilisé lors du partage de postes à l'externe (Indeed, Facebook, Craigslist).",
+      address: "Adresse", addressPh: "123 rue Principale, Votre ville", save: "Enregistrer",
+      postCard: "Publier un poste", title: "Titre", titlePh: "ex. Cuisinier de ligne — soirs", role: "Poste",
+      description: "Description", descriptionPh: "Horaires, salaire, ce que le poste implique…", postBtn: "Publier le poste",
+      postingsCard: "Postes ouverts", noPostings: "Aucun poste publié.", applicantsCard: "Candidatures",
+      allPostings: "Tous les postes", noApplications: "Aucune candidature pour l'instant.",
+      interviewTime: "Heure d'entrevue", currently: t => `Actuellement : ${t}`, saveAndText: "Enregistrer et texter",
+      copyLink: "Copier le lien", closePosting: "Fermer le poste", reopen: "Rouvrir", delete: "Supprimer", shareExternally: "Partager à l'externe",
+      copyJobText: "Copier le texte", openIndeed: "Ouvrir Indeed", openCraigslist: "Ouvrir Craigslist",
+      shareNote: "Collez le texte copié dans le formulaire de publication de chaque site. Les offres Facebook ne peuvent être créées que depuis l'application mobile (Marketplace → Emplois), pas un ordinateur. Les offres Craigslist sont payantes dans la plupart des villes (10 à 75 $).",
+      toApply: url => `Pour postuler : ${url}`, openStamp: "Ouvert", closedStamp: "Fermé",
+      applicantCount: n => `${n} candidature${n === 1 ? "" : "s"}`,
+      bannerRestaurantSaved: "Infos du restaurant enregistrées", bannerTitleRequired: "Entrez un titre pour le poste",
+      bannerPostingCreated: "Poste publié", confirmDeletePosting: "Supprimer ce poste ? Ses candidatures seront aussi supprimées.",
+      bannerPickDateTime: "Choisissez d'abord une date et une heure",
+      bannerTextedInterview: name => `Heure d'entrevue texté à ${name}`,
+      bannerSavedNoText: (name, err) => `Enregistré, mais impossible de texter ${name} : ${err}`,
+      bannerLinkCopied: "Lien copié", bannerCopyFail: "Impossible de copier — sélectionnez et copiez manuellement",
+      bannerJobTextCopied: "Texte du poste copié", bannerJobCopyFail: "Impossible de copier — sélectionnez le texte manuellement",
+      stage: { applied: "Reçue", screening: "Présélection", interview: "Entrevue", offer: "Offre envoyée", rejected: "Refusée" },
+      reject: "Refuser",
+    },
+    comms: {
+      eyebrow: "Communications",
+      desc: "Posez des questions sur le personnel, les coûts, l'embauche ou autre — réponses basées sur les vraies données de votre restaurant, pas un script.",
+      placeholder: "ex. Quel quart manque de personnel cette semaine ?", ask: "Demander",
+      emptyChat: "Posez une question sur votre personnel, l'horaire, les coûts ou l'embauche.",
+      thinking: "Réflexion en cours…", sorry: err => `Désolé — ${err}`, you: "Vous", ai: "IA",
+    },
+  },
+  es: {
+    common: { justNow: "justo ahora", minAgo: m => `hace ${m} min`, hourAgo: h => `hace ${h} h` },
+    landing: {
+      title: "Open Shift Rail", tagline: "Reporta una ausencia. Envía mensajes a tu personal. Cubre el turno — todo aquí.",
+      loginTab: "Iniciar sesión", signupTab: "Registrarse", restaurantNameLabel: "Nombre del restaurante", restaurantNamePh: "ej. Ferro",
+      emailLabel: "Correo electrónico", emailPh: "tu@restaurante.com", passwordLabel: "Contraseña",
+      errRestaurantName: "Ingresa el nombre de tu restaurante", errEmail: "Ingresa un correo electrónico",
+      errPassword: "La contraseña debe tener al menos 8 caracteres", errEmailPassword: "Ingresa tu correo y contraseña",
+      createAccount: "Crear cuenta",
+    },
+    nav: { overview: "Resumen", shifts: "Horario", staff: "Personal", hiring: "Contratación", comms: "Comms" },
+    topbar: { backOffice: "Back Office", logout: "Cerrar sesión" },
+    overview: {
+      eyebrow: "Resumen", desc: "Cada sección alimenta este panel — toca una tarjeta para acceder.",
+      openShifts: "Turnos abiertos", posted: n => `${n} publicados`, nonePosted: "Ninguno publicado",
+      staffLabel: "Personal", manageRoster: "Toca para administrar el personal",
+      openPostings: "Vacantes abiertas", applicantsTotal: n => `${n} candidato${n === 1 ? "" : "s"} en total`,
+      aiAgent: "Agente IA", askLabel: "Preguntar", askSub: "Pregunta sobre personal, costos o contratación",
+    },
+    scheduling: {
+      eyebrow: "Horario", desc: "Cuando alguien no se presenta, publícalo aquí — cada empleado correspondiente recibe un mensaje de texto real en segundos.",
+      postCard: "Publicar un turno abierto", position: "Puesto", when: "Cuándo", whenPh: "ej. Hoy, 5pm–cierre",
+      note: "Nota (opcional)", notePh: "ej. Jordan llamó por enfermedad", sendBtn: "Enviar al personal ahora",
+      openShiftsCard: "Turnos abiertos", noOpenShifts: "No hay turnos abiertos.", filledCard: "Cubiertos recientemente", nothingFilled: "Nada cubierto todavía.",
+      openStamp: "Abierto", filledStamp: "Cubierto", asap: "Lo antes posible", postedAgo: t => `publicado ${t}`,
+      noResponders: "Nadie ha respondido todavía", respondedCount: n => `${n} empleados respondieron`,
+      assignBtn: "Asignar", removeTicket: "Eliminar ticket", coveredBy: name => `Cubierto por ${name}`, someone: "alguien",
+      bannerTexted: (sent, total, role) => `Se envió texto a ${sent}/${total} ${role}`,
+      bannerNoStaff: role => `Publicado — no hay personal registrado para ${role}`,
+      bannerPostedWarn: err => `Publicado, pero los mensajes no se enviaron: ${err}`,
+      bannerAssignOk: name => `Se envió confirmación por texto a ${name}`,
+      bannerAssignWarn: err => `Asignado, pero el mensaje de confirmación falló: ${err}`,
+      bannerAssignedConfirm: "Asignado — mensaje de confirmación enviado",
+      confirmRemove: "¿Eliminar este ticket? El personal que ya respondió no será notificado.", bannerRemoved: "Ticket eliminado",
+    },
+    staff: {
+      eyebrow: "Personal", desc: "Tu equipo, sus puestos, y quién realmente responde — agrega, edita y ve quién responde más.",
+      addCard: "Agregar personal", name: "Nombre", namePh: "Nombre completo", phone: "Teléfono",
+      rate: "Tarifa por hora (opcional)", ratePh: "ej. 19.50", hireDate: "Fecha de contratación (opcional)",
+      roles: "Puesto(s) — toca todos los que apliquen", addBtn: "Agregar personal",
+      currentCard: "Personal actual", filterAll: "Todos", filterPosition: "Por puesto", filterName: "Por nombre",
+      searchPh: "Buscar por nombre…", noStaff: "No hay personal todavía.", noRole: "sin puesto",
+      sendLogin: "Enviar acceso", edit: "Editar", portalActive: "Portal del personal: activo", portalNotSetUp: "Portal del personal: no configurado",
+      mostAvailable: "Más disponibles", pointsNote: "3 pts / turno cubierto · 1 pt / respuesta",
+      noRateSet: "sin tarifa definida", hiredOn: date => `contratado el ${date}`,
+      editRate: "Tarifa por hora", editHireDate: "Fecha de contratación", save: "Guardar", cancel: "Cancelar",
+      bannerEnterName: "Ingresa un nombre primero", bannerEnterPhone: "Ingresa un número de teléfono primero",
+      bannerAdded: name => `${name} agregado(a)`, bannerPhoneRequired: "El número de teléfono no puede estar vacío", bannerUpdated: "Personal actualizado",
+      noStaffWithRole: role => `No hay personal con el puesto "${role}".`, noStaffMatching: q => `No hay personal que coincida con "${q}".`,
+      bannerLoginSent: "Enlace de configuración enviado por texto",
+      rankMeta: (c, r) => `${c} cubiertos · ${r} respondidos`,
+    },
+    hiring: {
+      eyebrow: "Contratación", desc: "Publica una vacante, compártela donde los candidatos buscan, y da seguimiento a cada uno hasta la oferta.",
+      infoCard: "Información del restaurante", infoDesc: "Se usa al compartir vacantes externamente (Indeed, Facebook, Craigslist).",
+      address: "Dirección", addressPh: "Calle Principal 123, Tu ciudad", save: "Guardar",
+      postCard: "Publicar una vacante", title: "Título", titlePh: "ej. Cocinero de línea — noches", role: "Puesto",
+      description: "Descripción", descriptionPh: "Horario, salario, en qué consiste el trabajo…", postBtn: "Publicar vacante",
+      postingsCard: "Vacantes abiertas", noPostings: "No hay vacantes todavía.", applicantsCard: "Candidatos",
+      allPostings: "Todas las vacantes", noApplications: "No hay solicitudes todavía.",
+      interviewTime: "Hora de entrevista", currently: t => `Actualmente: ${t}`, saveAndText: "Guardar y enviar texto",
+      copyLink: "Copiar enlace", closePosting: "Cerrar vacante", reopen: "Reabrir", delete: "Eliminar", shareExternally: "Compartir externamente",
+      copyJobText: "Copiar texto de la vacante", openIndeed: "Abrir Indeed", openCraigslist: "Abrir Craigslist",
+      shareNote: "Pega el texto copiado en el formulario de publicación de cada sitio. Las vacantes de Facebook solo pueden crearse desde la app móvil (Marketplace → Empleos), no desde una computadora. Las vacantes de Craigslist tienen costo en la mayoría de ciudades ($10–75).",
+      toApply: url => `Para postularse: ${url}`, openStamp: "Abierto", closedStamp: "Cerrado",
+      applicantCount: n => `${n} candidato${n === 1 ? "" : "s"}`,
+      bannerRestaurantSaved: "Información del restaurante guardada", bannerTitleRequired: "Ingresa un título para la vacante",
+      bannerPostingCreated: "Vacante publicada", confirmDeletePosting: "¿Eliminar esta vacante? Sus solicitudes también se eliminarán.",
+      bannerPickDateTime: "Elige primero una fecha y hora",
+      bannerTextedInterview: name => `Hora de entrevista enviada por texto a ${name}`,
+      bannerSavedNoText: (name, err) => `Guardado, pero no se pudo enviar texto a ${name}: ${err}`,
+      bannerLinkCopied: "Enlace copiado", bannerCopyFail: "No se pudo copiar — selecciona y copia manualmente",
+      bannerJobTextCopied: "Texto de la vacante copiado", bannerJobCopyFail: "No se pudo copiar — selecciona el texto manualmente",
+      stage: { applied: "Recibida", screening: "Filtro", interview: "Entrevista", offer: "Oferta enviada", rejected: "Rechazada" },
+      reject: "Rechazar",
+    },
+    comms: {
+      eyebrow: "Comunicaciones",
+      desc: "Pregunta sobre personal, costos, contratación o cualquier otra cosa — respondido con los datos reales de tu restaurante, no un guion.",
+      placeholder: "ej. ¿Qué turno tiene poco personal esta semana?", ask: "Preguntar",
+      emptyChat: "Pregunta lo que sea sobre tu personal, horario, costos o contrataciones.",
+      thinking: "Pensando…", sorry: err => `Lo siento — ${err}`, you: "Tú", ai: "IA",
+    },
+  },
+};
+
+function t(path, ...args) {
+  const parts = path.split(".");
+  let node = T[LANG];
+  for (const p of parts) node = node && node[p];
+  if (node === undefined) {
+    node = T.en;
+    for (const p of parts) node = node && node[p];
+  }
+  if (typeof node === "function") return node(...args);
+  return node !== undefined ? node : path;
+}
+
+function applyStaticTranslations() {
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    el.textContent = t(el.getAttribute("data-i18n"));
+  });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => {
+    el.placeholder = t(el.getAttribute("data-i18n-ph"));
+  });
+}
+
+function renderLangSwitch(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = LANGS.map(l => `<button class="lang-btn${LANG === l.code ? " active" : ""}" onclick="setLang('${l.code}')">${l.label}</button>`).join("");
+}
+
+function setLang(code) {
+  LANG = code;
+  localStorage.setItem("osr-lang", code);
+  renderLangSwitch("landingLangSwitch");
+  renderLangSwitch("appLangSwitch");
+  applyStaticTranslations();
+  if (typeof authMode !== "undefined") {
+    document.getElementById("authSubmitBtn").textContent = authMode === "signup" ? t("landing.createAccount") : t("landing.loginTab");
+  }
+  if (typeof populateRoleSelect === "function") {
+    populateRoleSelect(document.getElementById("shiftRole"));
+    populateRoleSelect(document.getElementById("postingRole"));
+    populateRolePills();
+  }
+  if (typeof started !== "undefined" && started && typeof render === "function") render();
+  const activePanel = document.querySelector(".tab-panel.active");
+  if (activePanel && document.getElementById("appShell").style.display !== "none") {
+    const name = activePanel.id.replace("panel", "").toLowerCase();
+    document.getElementById("topbarNewTitle").textContent = t("nav." + (name === "overview" ? "overview" : name));
+  }
+}
+
+renderLangSwitch("landingLangSwitch");
+renderLangSwitch("appLangSwitch");
+applyStaticTranslations();
+
 const ROLES = ["Line Cook", "Server", "Host", "Bartender", "Busser", "Dishwasher", "Prep Cook", "Expo"];
+const ROLE_LABELS = {
+  "Line Cook": { en: "Line Cook", fr: "Cuisinier de ligne", es: "Cocinero de línea" },
+  "Server": { en: "Server", fr: "Serveur/Serveuse", es: "Mesero/a" },
+  "Host": { en: "Host", fr: "Hôte/Hôtesse", es: "Anfitrión/a" },
+  "Bartender": { en: "Bartender", fr: "Barman/Barmaid", es: "Bartender" },
+  "Busser": { en: "Busser", fr: "Aide-serveur", es: "Ayudante de mesero" },
+  "Dishwasher": { en: "Dishwasher", fr: "Plongeur/Plongeuse", es: "Lavaplatos" },
+  "Prep Cook": { en: "Prep Cook", fr: "Cuisinier de préparation", es: "Cocinero de preparación" },
+  "Expo": { en: "Expo", fr: "Expéditeur", es: "Expo" },
+};
+function roleLabel(role) {
+  return (ROLE_LABELS[role] && ROLE_LABELS[role][LANG]) || role;
+}
 let selectedRoles = [];
 let staff = [];
 let shifts = [];
@@ -709,37 +1045,39 @@ let staffRoleFilter = null;
 let staffFilterMode = "all";
 let staffNameQuery = "";
 
-const roleSelect = document.getElementById("shiftRole");
-ROLES.forEach(r => {
-  const opt = document.createElement("option");
-  opt.value = r; opt.textContent = r;
-  roleSelect.appendChild(opt);
-});
+function populateRoleSelect(select) {
+  select.innerHTML = "";
+  ROLES.forEach(r => {
+    const opt = document.createElement("option");
+    opt.value = r; opt.textContent = roleLabel(r);
+    select.appendChild(opt);
+  });
+}
 
-const postingRoleSelect = document.getElementById("postingRole");
-ROLES.forEach(r => {
-  const opt = document.createElement("option");
-  opt.value = r; opt.textContent = r;
-  postingRoleSelect.appendChild(opt);
-});
+function populateRolePills() {
+  const rolesDiv = document.getElementById("staffRoles");
+  rolesDiv.innerHTML = "";
+  ROLES.forEach(r => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "role-pill" + (selectedRoles.includes(r) ? " active" : "");
+    btn.textContent = roleLabel(r);
+    btn.onclick = () => {
+      if (selectedRoles.includes(r)) {
+        selectedRoles = selectedRoles.filter(x => x !== r);
+        btn.classList.remove("active");
+      } else {
+        selectedRoles.push(r);
+        btn.classList.add("active");
+      }
+    };
+    rolesDiv.appendChild(btn);
+  });
+}
 
-const rolesDiv = document.getElementById("staffRoles");
-ROLES.forEach(r => {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "role-pill";
-  btn.textContent = r;
-  btn.onclick = () => {
-    if (selectedRoles.includes(r)) {
-      selectedRoles = selectedRoles.filter(x => x !== r);
-      btn.classList.remove("active");
-    } else {
-      selectedRoles.push(r);
-      btn.classList.add("active");
-    }
-  };
-  rolesDiv.appendChild(btn);
-});
+populateRoleSelect(document.getElementById("shiftRole"));
+populateRoleSelect(document.getElementById("postingRole"));
+populateRolePills();
 
 function showBanner(text, tone) {
   const el = document.getElementById("banner");
@@ -816,17 +1154,21 @@ async function loadAll() {
   render();
 }
 
+function localeForLang() {
+  return LANG === "fr" ? "fr-CA" : LANG === "es" ? "es-ES" : "en-US";
+}
+
 function timeAgo(ts) {
   const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return "just now";
+  if (s < 60) return t("common.justNow");
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  return `${Math.floor(m / 60)}h ago`;
+  if (m < 60) return t("common.minAgo", m);
+  return t("common.hourAgo", Math.floor(m / 60));
 }
 
 function render() {
   document.getElementById("subtitle").textContent =
-    `${shifts.filter(s => s.status === "open").length} open · ${staff.length} staff`;
+    `${shifts.filter(s => s.status === "open").length} ${t("overview.openShifts").toLowerCase()} · ${staff.length} ${t("overview.staffLabel").toLowerCase()}`;
 
   // staff filter controls
   document.getElementById("modeBtnAll").classList.toggle("active", staffFilterMode === "all");
@@ -845,7 +1187,7 @@ function render() {
     }));
     filtersDiv.innerHTML = roleCounts.map(({ role, count }) => `
       <button type="button" class="role-pill${staffRoleFilter === role ? " active" : ""}"
-        onclick="toggleRoleFilter('${role}')">${escapeHtml(role)} (${count})</button>
+        onclick="toggleRoleFilter('${role}')">${escapeHtml(roleLabel(role))} (${count})</button>
     `).join("");
   } else if (staffFilterMode === "name") {
     filtersDiv.style.display = "none";
@@ -866,12 +1208,12 @@ function render() {
   }
   const emptyFilterMessage =
     staffFilterMode === "position" && staffRoleFilter
-      ? `No staff with the "${escapeHtml(staffRoleFilter)}" role.`
+      ? t("staff.noStaffWithRole", roleLabel(staffRoleFilter))
       : staffFilterMode === "name" && staffNameQuery.trim()
-      ? `No staff matching "${escapeHtml(staffNameQuery.trim())}".`
-      : "No staff yet.";
+      ? t("staff.noStaffMatching", escapeHtml(staffNameQuery.trim()))
+      : t("staff.noStaff");
   staffDiv.innerHTML = staff.length === 0
-    ? '<p class="empty">No staff yet.</p>'
+    ? `<p class="empty">${t("staff.noStaff")}</p>`
     : visibleStaff.length === 0
     ? `<p class="empty">${emptyFilterMessage}</p>`
     : visibleStaff.map(p => {
@@ -885,22 +1227,22 @@ function render() {
           return `
             <div class="staff-row" style="flex-direction:column;align-items:stretch">
               <div class="staff-name">${escapeHtml(p.name)}</div>
-              <label style="margin-top:8px">Phone</label>
+              <label style="margin-top:8px">${t("staff.phone")}</label>
               <input type="tel" id="editPhone-${p.id}" value="${escapeHtml(phoneValue)}" />
-              <label>Hourly rate</label>
+              <label>${t("staff.editRate")}</label>
               <input type="text" inputmode="decimal" id="editRate-${p.id}" value="${escapeHtml(rateValue)}" placeholder="e.g. 19.50" />
-              <label>Hire date</label>
+              <label>${t("staff.editHireDate")}</label>
               <input type="date" id="editHireDate-${p.id}" value="${escapeHtml(hireDateValue)}" />
-              <label>Role(s) — tap all that apply</label>
+              <label>${t("staff.roles")}</label>
               <div class="roles">
                 ${ROLES.map(r => `
                   <button type="button" class="role-pill${editDraftRoles.includes(r) ? " active" : ""}"
-                    onclick="toggleEditRole(this,'${r}')">${escapeHtml(r)}</button>
+                    onclick="toggleEditRole(this,'${r}')">${escapeHtml(roleLabel(r))}</button>
                 `).join("")}
               </div>
               <div class="btn-row">
-                <button class="primary" onclick="saveEdit('${p.id}')">Save</button>
-                <button class="secondary-btn" onclick="cancelEdit()">Cancel</button>
+                <button class="primary" onclick="saveEdit('${p.id}')">${t("staff.save")}</button>
+                <button class="secondary-btn" onclick="cancelEdit()">${t("staff.cancel")}</button>
               </div>
             </div>
           `;
@@ -910,18 +1252,18 @@ function render() {
             <div>
               <div class="staff-name">${escapeHtml(p.name)}</div>
               <div class="staff-roles">
-                ${(p.roles && p.roles.length) ? p.roles.map(r => `<span>${escapeHtml(r)}</span>`).join("") : '<span style="opacity:0.5">no role</span>'}
+                ${(p.roles && p.roles.length) ? p.roles.map(r => `<span>${escapeHtml(roleLabel(r))}</span>`).join("") : `<span style="opacity:0.5">${t("staff.noRole")}</span>`}
               </div>
               <div style="font-size:11px;color:var(--text-dim);margin-top:4px" class="num">
-                ${p.hourlyRate !== null ? `$${p.hourlyRate.toFixed(2)}/hr` : "no rate set"}${p.hireDate ? ` · hired ${formatHireDate(p.hireDate)}` : ""}
+                ${p.hourlyRate !== null ? `$${p.hourlyRate.toFixed(2)}/hr` : t("staff.noRateSet")}${p.hireDate ? ` · ${t("staff.hiredOn", formatHireDate(p.hireDate))}` : ""}
               </div>
               <div style="font-size:11px;margin-top:3px;color:${p.hasLogin ? "var(--green)" : "var(--text-dim)"}">
-                ${p.hasLogin ? "Staff portal: active" : "Staff portal: not set up"}
+                ${p.hasLogin ? t("staff.portalActive") : t("staff.portalNotSetUp")}
               </div>
             </div>
             <div class="row-actions">
-              ${p.hasLogin ? "" : `<button class="edit-btn" onclick="sendLoginSetup('${p.id}')">Send login</button>`}
-              <button class="edit-btn" onclick="startEdit('${p.id}')">Edit</button>
+              ${p.hasLogin ? "" : `<button class="edit-btn" onclick="sendLoginSetup('${p.id}')">${t("staff.sendLogin")}</button>`}
+              <button class="edit-btn" onclick="startEdit('${p.id}')">${t("staff.edit")}</button>
               <button class="del-btn" onclick="removeStaff('${p.id}')">✕</button>
             </div>
           </div>
@@ -932,14 +1274,14 @@ function render() {
   const leaderboardDiv = document.getElementById("leaderboardList");
   const ranked = computeStats(staff, shifts);
   leaderboardDiv.innerHTML = ranked.length === 0
-    ? '<p class="empty">No staff yet.</p>'
+    ? `<p class="empty">${t("staff.noStaff")}</p>`
     : ranked.map((p, i) => `
         <div class="rank-row">
           <div class="rank-left">
             <span class="rank-num${i < 3 && p.score > 0 ? " top" : ""}">${i + 1}</span>
             <div>
               <div class="staff-name">${escapeHtml(p.name)}</div>
-              <div class="rank-meta">${p.covered} covered · ${p.responses} responded</div>
+              <div class="rank-meta">${t("staff.rankMeta", p.covered, p.responses)}</div>
             </div>
           </div>
           <div class="rank-score">${p.score}</div>
@@ -950,22 +1292,22 @@ function render() {
   const open = shifts.filter(s => s.status === "open");
   const openDiv = document.getElementById("openShifts");
   openDiv.innerHTML = open.length === 0
-    ? '<p class="empty">No open shifts.</p>'
+    ? `<p class="empty">${t("scheduling.noOpenShifts")}</p>`
     : open.map(s => `
         <div class="ticket">
-          <div class="stamp">Open</div>
-          <div class="role">${escapeHtml(s.role)}</div>
-          <div class="meta">${escapeHtml(s.time || "ASAP")} · posted ${timeAgo(s.postedAt)}</div>
+          <div class="stamp">${t("scheduling.openStamp")}</div>
+          <div class="role">${escapeHtml(roleLabel(s.role))}</div>
+          <div class="meta">${escapeHtml(s.time || t("scheduling.asap"))} · ${t("scheduling.postedAgo", timeAgo(s.postedAt))}</div>
           ${s.note ? `<div class="note">${escapeHtml(s.note)}</div>` : ""}
           ${s.responders.length === 0
-            ? '<div class="meta" style="margin-top:10px">No one\'s responded yet</div>'
+            ? `<div class="meta" style="margin-top:10px">${t("scheduling.noResponders")}</div>`
             : s.responders.map(r => `
                 <div class="responder-row">
                   <span>${escapeHtml(r.name)} <span style="opacity:0.5;font-size:11px">· ${timeAgo(r.ts)}</span></span>
-                  <button class="assign-btn" onclick="assign('${s.id}','${r.staffId}')">Assign</button>
+                  <button class="assign-btn" onclick="assign('${s.id}','${r.staffId}')">${t("scheduling.assignBtn")}</button>
                 </div>
               `).join("")}
-          <button class="remove-btn" onclick="removeShift('${s.id}')">Remove ticket</button>
+          <button class="remove-btn" onclick="removeShift('${s.id}')">${t("scheduling.removeTicket")}</button>
         </div>
       `).join("");
 
@@ -973,16 +1315,16 @@ function render() {
   const filled = shifts.filter(s => s.status === "filled").slice(0, 6);
   const filledDiv = document.getElementById("filledShifts");
   filledDiv.innerHTML = filled.length === 0
-    ? '<p class="empty">Nothing filled yet.</p>'
+    ? `<p class="empty">${t("scheduling.nothingFilled")}</p>`
     : filled.map(s => {
         const assignee = staff.find(p => p.id === s.assignedTo);
         return `
           <div class="ticket">
-            <div class="stamp filled">Filled</div>
-            <div class="role">${escapeHtml(s.role)}</div>
-            <div class="meta">${escapeHtml(s.time || "ASAP")}</div>
-            <div class="note">Covered by ${assignee ? escapeHtml(assignee.name) : "someone"}</div>
-            <button class="remove-btn" onclick="removeShift('${s.id}')">Remove ticket</button>
+            <div class="stamp filled">${t("scheduling.filledStamp")}</div>
+            <div class="role">${escapeHtml(roleLabel(s.role))}</div>
+            <div class="meta">${escapeHtml(s.time || t("scheduling.asap"))}</div>
+            <div class="note">${t("scheduling.coveredBy", assignee ? escapeHtml(assignee.name) : t("scheduling.someone"))}</div>
+            <button class="remove-btn" onclick="removeShift('${s.id}')">${t("scheduling.removeTicket")}</button>
           </div>
         `;
       }).join("");
@@ -1001,10 +1343,10 @@ function renderOverview() {
   const openShiftCount = shifts.filter(s => s.status === "open").length;
   const openPostings = postings.filter(p => p.status === "open").length;
   const stats = [
-    { id: "shifts", accent: "var(--scheduling)", label: "Open shifts", value: openShiftCount, sub: shifts.length ? `${shifts.length} posted` : "None posted yet" },
-    { id: "staff", accent: "var(--staffcolor)", label: "Staff", value: staff.length, sub: "Tap to manage roster" },
-    { id: "hiring", accent: "var(--hiring)", label: "Open postings", value: openPostings, sub: `${applications.length} applicant${applications.length === 1 ? "" : "s"} total` },
-    { id: "comms", accent: "var(--comms)", label: "AI agent", value: "Ask", sub: "Ask about staffing, cost, or hiring" },
+    { id: "shifts", accent: "var(--scheduling)", label: t("overview.openShifts"), value: openShiftCount, sub: shifts.length ? t("overview.posted", shifts.length) : t("overview.nonePosted") },
+    { id: "staff", accent: "var(--staffcolor)", label: t("overview.staffLabel"), value: staff.length, sub: t("overview.manageRoster") },
+    { id: "hiring", accent: "var(--hiring)", label: t("overview.openPostings"), value: openPostings, sub: t("overview.applicantsTotal", applications.length) },
+    { id: "comms", accent: "var(--comms)", label: t("overview.aiAgent"), value: t("overview.askLabel"), sub: t("overview.askSub") },
   ];
   grid.innerHTML = stats.map(s => `
     <div class="overview-card" style="--accent:${s.accent}" onclick="switchTab('${s.id}')">
@@ -1019,7 +1361,7 @@ function renderOverview() {
 function formatHireDate(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
   if (isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return d.toLocaleDateString(localeForLang(), { year: "numeric", month: "short", day: "numeric" });
 }
 
 function escapeHtml(str) {
@@ -1049,14 +1391,14 @@ async function addStaff() {
   const phone = document.getElementById("staffPhone").value.trim();
   const hourlyRate = document.getElementById("staffRate").value.trim();
   const hireDate = document.getElementById("staffHireDate").value;
-  if (!name) return showBanner("Enter a name first", "warn");
-  if (!phone) return showBanner("Enter a phone number first", "warn");
+  if (!name) return showBanner(t("staff.bannerEnterName"), "warn");
+  if (!phone) return showBanner(t("staff.bannerEnterPhone"), "warn");
   const result = await api("/api/staff", {
     method: "POST",
     body: JSON.stringify({ name, phone, roles: selectedRoles, hourlyRate: hourlyRate || null, hireDate: hireDate || null }),
   });
   if (result.ok) {
-    showBanner(`Added ${name}`, "success");
+    showBanner(t("staff.bannerAdded", name), "success");
     document.getElementById("staffName").value = "";
     document.getElementById("staffPhone").value = "";
     document.getElementById("staffRate").value = "";
@@ -1076,7 +1418,7 @@ async function removeStaff(id) {
 
 async function sendLoginSetup(id) {
   const result = await api(`/api/staff/${id}/send-login-setup`, { method: "POST" });
-  if (result.ok) showBanner("Login setup link texted", "success");
+  if (result.ok) showBanner(t("staff.bannerLoginSent"), "success");
   else showBanner(result.error, "warn");
 }
 
@@ -1122,7 +1464,7 @@ function toggleEditRole(btn, r) {
 async function saveEdit(id) {
   const phoneInput = document.getElementById(`editPhone-${id}`);
   const phone = phoneInput ? phoneInput.value.trim() : "";
-  if (!phone) return showBanner("Phone number can't be empty", "warn");
+  if (!phone) return showBanner(t("staff.bannerPhoneRequired"), "warn");
   const rateInput = document.getElementById(`editRate-${id}`);
   const hourlyRate = rateInput ? rateInput.value.trim() : "";
   const hireDateInput = document.getElementById(`editHireDate-${id}`);
@@ -1132,7 +1474,7 @@ async function saveEdit(id) {
     body: JSON.stringify({ phone, roles: editDraftRoles, hourlyRate: hourlyRate || null, hireDate: hireDate || null }),
   });
   if (result.ok) {
-    showBanner("Staff updated", "success");
+    showBanner(t("staff.bannerUpdated"), "success");
     editingStaffId = null;
     loadAll();
   } else {
@@ -1151,7 +1493,7 @@ async function postShift() {
   if (result.ok) {
     const sms = result.data.sms || { sent: 0, total: 0 };
     showBanner(
-      sms.total ? `Texted ${sms.sent}/${sms.total} ${role}s` : `Posted — no staff on file for ${role}`,
+      sms.total ? t("scheduling.bannerTexted", sms.sent, sms.total, roleLabel(role)) : t("scheduling.bannerNoStaff", roleLabel(role)),
       sms.sent > 0 ? "success" : "warn"
     );
     document.getElementById("shiftTime").value = "";
@@ -1168,7 +1510,7 @@ async function assign(shiftId, staffId) {
     body: JSON.stringify({ staffId }),
   });
   if (result.ok) {
-    showBanner("Assigned — confirmation text sent", "success");
+    showBanner(t("scheduling.bannerAssignedConfirm"), "success");
     loadAll();
   } else {
     showBanner(result.error, "warn");
@@ -1176,10 +1518,10 @@ async function assign(shiftId, staffId) {
 }
 
 async function removeShift(shiftId) {
-  if (!confirm("Remove this ticket? Staff who already responded won't be notified.")) return;
+  if (!confirm(t("scheduling.confirmRemove"))) return;
   const result = await api(`/api/shifts/${shiftId}`, { method: "DELETE" });
   if (result.ok) {
-    showBanner("Ticket removed", "success");
+    showBanner(t("scheduling.bannerRemoved"), "success");
     loadAll();
   } else {
     showBanner(result.error, "warn");
@@ -1327,7 +1669,7 @@ async function deletePosting(id) {
 function formatInterviewTime(isoLocal) {
   const d = new Date(isoLocal);
   if (isNaN(d.getTime())) return isoLocal;
-  return d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return d.toLocaleString(localeForLang(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 async function submitInterviewTime(id) {
