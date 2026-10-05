@@ -27,6 +27,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const twilio = require("twilio");
 const { Pool } = require("pg");
+const rateLimit = require("express-rate-limit");
 
 const {
   TWILIO_ACCOUNT_SID,
@@ -68,6 +69,7 @@ async function initDb() {
     );
   `);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS address TEXT;`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS twilio_phone_number TEXT UNIQUE;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -251,10 +253,19 @@ function isValidEmail(email) {
 }
 async function sendSms(to, body, restaurantId = null) {
   const startedAt = Date.now();
+  let fromNumber = TWILIO_PHONE_NUMBER;
+  if (restaurantId) {
+    try {
+      const { rows } = await pool.query("SELECT twilio_phone_number FROM restaurants WHERE id = $1", [restaurantId]);
+      if (rows[0] && rows[0].twilio_phone_number) fromNumber = rows[0].twilio_phone_number;
+    } catch (e) {
+      console.error("Couldn't look up restaurant's dedicated number, using shared default:", e.message);
+    }
+  }
   try {
-    await smsClient.messages.create({ to, from: TWILIO_PHONE_NUMBER, body });
+    await smsClient.messages.create({ to, from: fromNumber, body });
     const durationMs = Date.now() - startedAt;
-    logActivity({ restaurantId, eventType: "sms_sent", level: "info", detail: `Texted ${to}`, durationMs });
+    logActivity({ restaurantId, eventType: "sms_sent", level: "info", detail: `Texted ${to} from ${fromNumber}`, durationMs });
     return { to, ok: true };
   } catch (e) {
     console.error(`SMS to ${to} failed:`, e.message);
@@ -374,6 +385,7 @@ function requirePlatformAuth(req, res, next) {
 // ---------- app setup ----------
 
 const app = express();
+app.set("trust proxy", 1); // Render sits in front of this app — without this, every visitor looks like the same IP to rate limiting
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -383,9 +395,44 @@ app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : true, credential
 
 app.use(express.static(path.join(__dirname, "public")));
 
+// ---------- rate limiting ----------
+// Login endpoints: a real person mistypes their password once or twice; a brute-force
+// attempt tries hundreds of times per minute. This gap is wide enough that a tight limit
+// never bothers a real user while making guessing attacks impractically slow.
+const loginLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please wait a few minutes and try again." },
+});
+
+// Signup/account-setup endpoints: looser than login (legitimate retries happen here —
+// mistyped email, chosen password rejected for length, etc.) but still capped against
+// automated account-creation spam.
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please wait a bit and try again." },
+});
+
+// AI agent: each question costs real money (Anthropic API usage). This caps the worst case
+// per restaurant rather than per visitor, so one restaurant's heavy use — or a bug firing
+// repeated requests — can't run up unbounded costs or affect other restaurants.
+const aiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.restaurantId || req.ip,
+  message: { error: "This restaurant has reached the hourly limit for AI questions. Please try again later." },
+});
+
 // ---------- auth endpoints ----------
 
-app.post("/api/auth/signup", async (req, res) => {
+app.post("/api/auth/signup", signupLimiter, async (req, res) => {
   const { restaurantName, email, password } = req.body || {};
   if (!restaurantName || !restaurantName.trim()) return res.status(400).json({ error: "restaurant name is required" });
   if (!email || !isValidEmail(email)) return res.status(400).json({ error: "a valid email is required" });
@@ -411,7 +458,7 @@ app.post("/api/auth/signup", async (req, res) => {
   res.status(201).json({ restaurant: { id: restaurantId, name: restaurantName.trim() }, email: email.toLowerCase() });
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: "email and password are required" });
 
@@ -568,7 +615,7 @@ app.post("/api/staff/:id/send-login-setup", requireAuth, async (req, res) => {
   const staffer = rows[0];
 
   const token = id() + id(); // longer, single-use token
-  await pool.query("UPDATE staff SET claim_token = $1 WHERE id = $2", [token, staffer.id]);
+  await pool.query("UPDATE staff SET claim_token = $1 WHERE id = $2 AND restaurant_id = $3", [token, staffer.id, req.restaurantId]);
 
   const restaurantRows = await pool.query("SELECT name FROM restaurants WHERE id = $1", [req.restaurantId]);
   const restaurantName = restaurantRows.rows[0] ? restaurantRows.rows[0].name : "your restaurant";
@@ -685,12 +732,34 @@ app.delete("/api/shifts/:id", requireAuth, async (req, res) => {
 
 app.post("/api/sms/inbound", async (req, res) => {
   const from = req.body.From;
+  const to = req.body.To;
   const body = (req.body.Body || "").trim();
   const twiml = new twilio.twiml.MessagingResponse();
 
-  const { rows: staffRows } = await pool.query("SELECT * FROM staff WHERE phone = $1 LIMIT 1", [from]);
-  const staffer = staffRows[0] ? staffRowToJson(staffRows[0]) : null;
-  const restaurantId = staffRows[0] ? staffRows[0].restaurant_id : null;
+  // Resolve the restaurant by which dedicated number received this text — unambiguous
+  // once a restaurant has its own number, since Twilio tells us exactly which number
+  // the message came in on. Falls back to a phone-only lookup for any restaurant still
+  // on the shared default number (safe during the transition to dedicated numbers).
+  let staffer = null;
+  let restaurantId = null;
+
+  if (to) {
+    const { rows: restRows } = await pool.query("SELECT id FROM restaurants WHERE twilio_phone_number = $1", [to]);
+    if (restRows.length > 0) {
+      restaurantId = restRows[0].id;
+      const { rows: staffRows } = await pool.query("SELECT * FROM staff WHERE phone = $1 AND restaurant_id = $2 LIMIT 1", [from, restaurantId]);
+      if (staffRows[0]) staffer = staffRowToJson(staffRows[0]);
+    }
+  }
+
+  if (!staffer) {
+    // Fallback: shared default number, or no dedicated-number match — best-effort phone lookup.
+    const { rows: staffRows } = await pool.query("SELECT * FROM staff WHERE phone = $1 LIMIT 1", [from]);
+    if (staffRows[0]) {
+      staffer = staffRowToJson(staffRows[0]);
+      restaurantId = staffRows[0].restaurant_id;
+    }
+  }
 
   if (!staffer) {
     twiml.message("This number isn't on any staff list — ask your manager to add you.");
@@ -719,7 +788,7 @@ app.post("/api/sms/inbound", async (req, res) => {
   const already = shift.responders.some((r) => r.staffId === staffer.id);
   if (!already) {
     const responders = [...shift.responders, { staffId: staffer.id, name: staffer.name, ts: Date.now() }];
-    await pool.query("UPDATE shifts SET responders = $1 WHERE id = $2", [JSON.stringify(responders), shift.id]);
+    await pool.query("UPDATE shifts SET responders = $1 WHERE id = $2 AND restaurant_id = $3", [JSON.stringify(responders), shift.id, restaurantId]);
   }
 
   twiml.message(`Got it, ${staffer.name.split(" ")[0]} — you're down for ${shift.role}. Your manager will confirm shortly.`);
@@ -734,7 +803,7 @@ app.get("/api/staff-auth/claim/:token", async (req, res) => {
   res.json({ name: rows[0].name, restaurantName: rows[0].restaurant_name });
 });
 
-app.post("/api/staff-auth/claim", async (req, res) => {
+app.post("/api/staff-auth/claim", signupLimiter, async (req, res) => {
   const { token, email, password } = req.body || {};
   if (!token) return res.status(400).json({ error: "token is required" });
   if (!email || !isValidEmail(email)) return res.status(400).json({ error: "a valid email is required" });
@@ -756,7 +825,7 @@ app.post("/api/staff-auth/claim", async (req, res) => {
   res.status(201).json({ name: staffer.name });
 });
 
-app.post("/api/staff-auth/login", async (req, res) => {
+app.post("/api/staff-auth/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: "email and password are required" });
 
@@ -1147,7 +1216,7 @@ app.put("/api/actual-sales", requireAuth, async (req, res) => {
 
 // ---------- AI agent (Communications) ----------
 
-app.post("/api/ai/ask", requireAuth, async (req, res) => {
+app.post("/api/ai/ask", requireAuth, aiLimiter, async (req, res) => {
   if (!ANTHROPIC_API_KEY) {
     return res.status(503).json({ error: "The AI agent isn't configured yet — ask your developer to set ANTHROPIC_API_KEY." });
   }
@@ -1255,7 +1324,7 @@ app.post("/api/ai/ask", requireAuth, async (req, res) => {
 
 // ---------- platform-owner auth (you / devs) ----------
 
-app.post("/api/platform-auth/signup", async (req, res) => {
+app.post("/api/platform-auth/signup", signupLimiter, async (req, res) => {
   const { email, password, setupKey } = req.body || {};
   if (!PLATFORM_SETUP_KEY) return res.status(503).json({ error: "Platform account creation isn't configured — set PLATFORM_SETUP_KEY first." });
   if (setupKey !== PLATFORM_SETUP_KEY) return res.status(403).json({ error: "Invalid setup key" });
@@ -1274,7 +1343,7 @@ app.post("/api/platform-auth/signup", async (req, res) => {
   res.status(201).json({ email: email.toLowerCase() });
 });
 
-app.post("/api/platform-auth/login", async (req, res) => {
+app.post("/api/platform-auth/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: "email and password are required" });
 
@@ -1306,7 +1375,7 @@ app.get("/api/platform-auth/me", requirePlatformAuth, async (req, res) => {
 app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
   const { rows } = await pool.query(`
     SELECT
-      r.id, r.name, r.created_at,
+      r.id, r.name, r.created_at, r.twilio_phone_number,
       (SELECT COUNT(*) FROM staff s WHERE s.restaurant_id = r.id) AS staff_count,
       (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id) AS shift_count,
       (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id AND sh.status = 'open') AS open_shift_count,
@@ -1321,6 +1390,7 @@ app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
     id: r.id,
     name: r.name,
     createdAt: Number(r.created_at),
+    twilioPhoneNumber: r.twilio_phone_number || "",
     staffCount: Number(r.staff_count),
     shiftCount: Number(r.shift_count),
     openShiftCount: Number(r.open_shift_count),
@@ -1328,6 +1398,27 @@ app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
     lastActivityAt: r.last_activity_at ? Number(r.last_activity_at) : null,
     activityLast7d: Number(r.activity_last_7d),
   })));
+});
+
+app.patch("/api/platform/restaurants/:id/twilio-number", requirePlatformAuth, async (req, res) => {
+  const { twilioPhoneNumber } = req.body || {};
+  const normalized = twilioPhoneNumber ? normalizePhone(twilioPhoneNumber) : null;
+  if (twilioPhoneNumber && !normalized) {
+    return res.status(400).json({ error: "that doesn't look like a valid phone number — include country code, e.g. +15145551234" });
+  }
+  try {
+    const { rows } = await pool.query(
+      "UPDATE restaurants SET twilio_phone_number = $1 WHERE id = $2 RETURNING id, twilio_phone_number",
+      [normalized, req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: "restaurant not found" });
+    logActivity({ restaurantId: req.params.id, eventType: "twilio_number_assigned", detail: normalized ? `Assigned dedicated number ${normalized}` : "Dedicated number removed — back to shared default" });
+    res.json({ id: rows[0].id, twilioPhoneNumber: rows[0].twilio_phone_number || "" });
+  } catch (e) {
+    if (e.code === "23505") return res.status(409).json({ error: "that number is already assigned to another restaurant" });
+    console.error("Error assigning Twilio number:", e.message);
+    res.status(500).json({ error: "Something went wrong saving that number." });
+  }
 });
 
 app.get("/api/platform/activity", requirePlatformAuth, async (req, res) => {
