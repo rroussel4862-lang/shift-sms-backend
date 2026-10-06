@@ -118,6 +118,8 @@
     background: var(--panel-light); border: 1px solid var(--rail); color: var(--text-dim);
     padding: 2px 7px; border-radius: 10px;
   }
+  .row-actions { white-space: nowrap; }
+  .row-actions button { margin-right: 4px; }
   .del-cell-btn { background: none; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; }
   .del-cell-btn:hover { color: var(--red); }
   .add-row td { background: var(--panel-light); }
@@ -272,13 +274,13 @@
       <table>
         <thead>
           <tr>
-            <th style="width:13%">Name</th>
-            <th style="width:13%">Phone</th>
-            <th style="width:17%">Roles (comma-separated)</th>
-            <th style="width:10%">Rate ($/hr)</th>
-            <th style="width:12%">Hire date</th>
-            <th style="width:20%">Address</th>
-            <th style="width:5%"></th>
+            <th style="width:12%">Name</th>
+            <th style="width:12%">Phone</th>
+            <th style="width:14%">Roles (comma-separated)</th>
+            <th style="width:8%">Rate ($/hr)</th>
+            <th style="width:11%">Hire date</th>
+            <th style="width:17%">Address</th>
+            <th style="width:26%"></th>
           </tr>
         </thead>
         <tbody id="staffTableBody"></tbody>
@@ -422,9 +424,45 @@ function renderStaffTable() {
       <td data-label="Rate"><input type="text" class="rate-input num" value="${p.hourlyRate !== null ? p.hourlyRate : ''}" placeholder="—" onblur="updateField('${p.id}','hourlyRate',this.value)" /></td>
       <td data-label="Hire date"><input type="date" value="${escapeHtml(p.hireDate || '')}" onblur="updateField('${p.id}','hireDate',this.value)" /></td>
       <td data-label="Address"><input type="text" value="${escapeHtml(p.address || '')}" placeholder="—" onblur="updateField('${p.id}','address',this.value)" /></td>
-      <td><button class="del-cell-btn" onclick="deleteStaff('${p.id}')" title="Delete">✕</button></td>
+      <td class="row-actions">
+        <button class="action" style="padding:7px 10px" onclick="saveStaffRow('${p.id}')">Save</button>
+        <button class="ghost" style="padding:7px 10px" onclick="sendLoginSetup('${p.id}')" ${p.hasLogin ? 'title="Already has a login — sends a fresh setup link"' : ""}>${p.hasLogin ? "Resend login" : "Send login"}</button>
+        <button class="del-cell-btn" onclick="deleteStaff('${p.id}')" title="Delete">✕</button>
+      </td>
     </tr>
   `).join("");
+}
+
+// Saves every field in the row in a single request.
+async function saveStaffRow(id) {
+  const row = document.querySelector(`#staffTableBody tr[data-id="${id}"]`);
+  if (!row) return;
+  const [nameI, phoneI, rolesI, rateI, hireI, addrI] = row.querySelectorAll("input");
+  const orNull = v => (v.trim() === "" ? null : v.trim());
+  const body = {
+    name: nameI.value.trim(),
+    phone: phoneI.value.trim(),
+    roles: rolesI.value.split(",").map(r => r.trim()).filter(Boolean),
+    hourlyRate: orNull(rateI.value),
+    hireDate: orNull(hireI.value),
+    address: orNull(addrI.value),
+  };
+  if (!body.name || !body.phone) return showBanner("Name and phone are required", "warn");
+  const result = await api(`/api/staff/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+  if (result.ok) {
+    showBanner(`Saved ${body.name}`, "success");
+    const idx = staff.findIndex(s => s.id === id);
+    if (idx !== -1) staff[idx] = result.data;
+  } else {
+    showBanner(result.error, "warn");
+  }
+}
+
+async function sendLoginSetup(id) {
+  const person = staff.find(s => s.id === id);
+  const result = await api(`/api/staff/${id}/send-login-setup`, { method: "POST" });
+  if (result.ok) showBanner(`Login link texted to ${person ? person.name : "staff member"}`, "success");
+  else showBanner(result.error, "warn");
 }
 
 async function loadStaff() {

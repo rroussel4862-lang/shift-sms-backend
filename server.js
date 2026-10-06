@@ -251,6 +251,11 @@ function normalizePhone(raw) {
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
+// Every SMS goes out in French first, then English, separated by a blank line.
+function bilingual(fr, en) {
+  return `${fr}\n\n${en}`;
+}
+
 async function sendSms(to, body, restaurantId = null) {
   const startedAt = Date.now();
   let fromNumber = TWILIO_PHONE_NUMBER;
@@ -625,7 +630,11 @@ app.post("/api/staff/:id/send-login-setup", requireAuth, async (req, res) => {
   const restaurantName = restaurantRows.rows[0] ? restaurantRows.rows[0].name : "your restaurant";
   const baseUrl = PUBLIC_URL || `${req.protocol}://${req.get("host")}`;
   const link = `${baseUrl}/staff-claim.html?token=${token}`;
-  const text = `Hi ${staffer.name.split(" ")[0]} — set up your ${restaurantName} staff login here: ${link}`;
+  const firstName = staffer.name.split(" ")[0];
+  const text = bilingual(
+    `Bonjour ${firstName} — configurez votre accès employé ${restaurantName} ici : ${link}`,
+    `Hi ${firstName} — set up your ${restaurantName} staff login here: ${link}`
+  );
 
   const result = await sendSms(staffer.phone, text, req.restaurantId);
   if (result.ok) {
@@ -656,11 +665,18 @@ app.post("/api/shifts", requireAuth, async (req, res) => {
   const shift = shiftRowToJson(rows[0]);
 
   const code = shortCode(shift.id);
-  const text = [
-    `Open shift: ${shift.role}${shift.time ? ` — ${shift.time}` : ""}.`,
-    shift.note ? shift.note : null,
-    `Can cover it? Reply YES ${code} to claim.`,
-  ].filter(Boolean).join(" ");
+  const text = bilingual(
+    [
+      `Quart ouvert : ${shift.role}${shift.time ? ` — ${shift.time}` : ""}.`,
+      shift.note ? shift.note : null,
+      `Vous pouvez le couvrir ? Répondez OUI ${code} pour le prendre.`,
+    ].filter(Boolean).join(" "),
+    [
+      `Open shift: ${shift.role}${shift.time ? ` — ${shift.time}` : ""}.`,
+      shift.note ? shift.note : null,
+      `Can cover it? Reply YES ${code} to claim.`,
+    ].filter(Boolean).join(" ")
+  );
 
   const { rows: recipientRows } = await pool.query(
     `SELECT * FROM staff WHERE restaurant_id = $1
@@ -715,8 +731,14 @@ app.post("/api/shifts/:id/assign", requireAuth, async (req, res) => {
   );
   const updated = shiftRowToJson(rows[0]);
 
-  const confirmText = `You're confirmed: ${updated.role}${updated.time ? ` — ${updated.time}` : ""}. Thanks for covering!`;
-  const filledText = `Heads up — the ${updated.role}${updated.time ? ` (${updated.time})` : ""} shift has been covered. Thanks for responding!`;
+  const confirmText = bilingual(
+    `C'est confirmé : ${updated.role}${updated.time ? ` — ${updated.time}` : ""}. Merci de couvrir le quart !`,
+    `You're confirmed: ${updated.role}${updated.time ? ` — ${updated.time}` : ""}. Thanks for covering!`
+  );
+  const filledText = bilingual(
+    `Info — le quart de ${updated.role}${updated.time ? ` (${updated.time})` : ""} est déjà comblé. Merci d'avoir répondu !`,
+    `Heads up — the ${updated.role}${updated.time ? ` (${updated.time})` : ""} shift has been covered. Thanks for responding!`
+  );
 
   const others = shift.responders.filter((r) => r.staffId !== staffId);
   await sendSms(winner.phone, confirmText, req.restaurantId);
@@ -766,14 +788,20 @@ app.post("/api/sms/inbound", async (req, res) => {
   }
 
   if (!staffer) {
-    twiml.message("This number isn't on any staff list — ask your manager to add you.");
+    twiml.message(bilingual(
+      "Ce numéro n'est sur aucune liste d'employés — demandez à votre gestionnaire de vous ajouter.",
+      "This number isn't on any staff list — ask your manager to add you."
+    ));
     res.type("text/xml").send(twiml.toString());
     return;
   }
 
-  const match = body.match(/YES\s*([A-Z0-9]{4})/i);
+  const match = body.match(/(?:YES|OUI)\s*([A-Z0-9]{4})/i);
   if (!match) {
-    twiml.message('To claim an open shift, reply "YES" followed by the 4-character code from the shift text.');
+    twiml.message(bilingual(
+      'Pour prendre un quart ouvert, répondez « OUI » suivi du code de 4 caractères du message.',
+      'To claim an open shift, reply "YES" followed by the 4-character code from the shift text.'
+    ));
     res.type("text/xml").send(twiml.toString());
     return;
   }
@@ -783,7 +811,10 @@ app.post("/api/sms/inbound", async (req, res) => {
   const shiftRow = openShiftRows.find((r) => shortCode(r.id) === code);
 
   if (!shiftRow) {
-    twiml.message("That shift's already filled or the code doesn't match an open shift. Sorry!");
+    twiml.message(bilingual(
+      "Ce quart est déjà comblé ou le code ne correspond à aucun quart ouvert. Désolé !",
+      "That shift's already filled or the code doesn't match an open shift. Sorry!"
+    ));
     res.type("text/xml").send(twiml.toString());
     return;
   }
@@ -795,7 +826,11 @@ app.post("/api/sms/inbound", async (req, res) => {
     await pool.query("UPDATE shifts SET responders = $1 WHERE id = $2 AND restaurant_id = $3", [JSON.stringify(responders), shift.id, restaurantId]);
   }
 
-  twiml.message(`Got it, ${staffer.name.split(" ")[0]} — you're down for ${shift.role}. Your manager will confirm shortly.`);
+  const replyName = staffer.name.split(" ")[0];
+  twiml.message(bilingual(
+    `Reçu, ${replyName} — vous êtes inscrit pour ${shift.role}. Votre gestionnaire confirmera sous peu.`,
+    `Got it, ${replyName} — you're down for ${shift.role}. Your manager will confirm shortly.`
+  ));
   res.type("text/xml").send(twiml.toString());
 });
 
@@ -1016,7 +1051,11 @@ app.patch("/api/hiring/applications/:id", requireAuth, async (req, res) => {
       ]);
       const postingTitle = postingRows.rows[0] ? postingRows.rows[0].title : "the position";
       const restaurantName = restaurantRows.rows[0] ? restaurantRows.rows[0].name : "the restaurant";
-      const text = `Hi ${updated.name.split(" ")[0]}, your interview for ${postingTitle} at ${restaurantName} is scheduled: ${updated.interviewTime}. Reply if you have any questions.`;
+      const applicantFirst = updated.name.split(" ")[0];
+      const text = bilingual(
+        `Bonjour ${applicantFirst}, votre entrevue pour ${postingTitle} chez ${restaurantName} est prévue : ${updated.interviewTime}. Répondez si vous avez des questions.`,
+        `Hi ${applicantFirst}, your interview for ${postingTitle} at ${restaurantName} is scheduled: ${updated.interviewTime}. Reply if you have any questions.`
+      );
       const result = await sendSms(updated.phone, text, req.restaurantId);
       notified = { ok: result.ok, method: "sms", error: result.error };
     } else {
