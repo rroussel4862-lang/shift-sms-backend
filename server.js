@@ -180,6 +180,31 @@ async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS actual_sales_restaurant_idx ON actual_sales (restaurant_id);`);
 
+  // Food / beverage cost as a percent of sales (entered by the manager until a POS/inventory integration exists)
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS food_cost_pct NUMERIC;`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS bev_cost_pct NUMERIC;`);
+
+  // Training: courses, manuals and contracts, each assigned to staff with per-person completion
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS training_items (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      minutes INTEGER,
+      created_at BIGINT NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS training_items_restaurant_idx ON training_items (restaurant_id);`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS training_assignments (
+      item_id TEXT NOT NULL REFERENCES training_items(id) ON DELETE CASCADE,
+      staff_id TEXT NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+      completed_at BIGINT,
+      PRIMARY KEY (item_id, staff_id)
+    );
+  `);
+
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS password_hash TEXT;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS claim_token TEXT UNIQUE;`);
@@ -516,10 +541,108 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
 
 // ---------- restaurant settings ----------
 
+function costPctOrNull(v) {
+  return v !== null && v !== undefined ? Number(v) : null;
+}
+
 app.get("/api/restaurant", requireAuth, async (req, res) => {
-  const { rows } = await pool.query("SELECT id, name, address FROM restaurants WHERE id = $1", [req.restaurantId]);
+  const { rows } = await pool.query("SELECT id, name, address, food_cost_pct, bev_cost_pct FROM restaurants WHERE id = $1", [req.restaurantId]);
   if (rows.length === 0) return res.status(404).json({ error: "restaurant not found" });
-  res.json({ id: rows[0].id, name: rows[0].name, address: rows[0].address || "" });
+  res.json({
+    id: rows[0].id, name: rows[0].name, address: rows[0].address || "",
+    foodCostPct: costPctOrNull(rows[0].food_cost_pct), bevCostPct: costPctOrNull(rows[0].bev_cost_pct),
+  });
+});
+
+// Food / beverage cost percentages used by the Payroll & Sales tab.
+app.put("/api/restaurant/costs", requireAuth, async (req, res) => {
+  const parsed = {};
+  for (const [key, col] of [["foodCostPct", "food_cost_pct"], ["bevCostPct", "bev_cost_pct"]]) {
+    const raw = (req.body || {})[key];
+    if (raw === undefined) continue;
+    if (raw === null || raw === "") { parsed[col] = null; continue; }
+    const n = Number(raw);
+    if (isNaN(n) || n < 0 || n > 100) return res.status(400).json({ error: `${key} must be between 0 and 100` });
+    parsed[col] = n;
+  }
+  const { rows: existing } = await pool.query("SELECT food_cost_pct, bev_cost_pct FROM restaurants WHERE id = $1", [req.restaurantId]);
+  if (existing.length === 0) return res.status(404).json({ error: "restaurant not found" });
+  const food = "food_cost_pct" in parsed ? parsed.food_cost_pct : existing[0].food_cost_pct;
+  const bev = "bev_cost_pct" in parsed ? parsed.bev_cost_pct : existing[0].bev_cost_pct;
+  await pool.query("UPDATE restaurants SET food_cost_pct = $1, bev_cost_pct = $2 WHERE id = $3", [food, bev, req.restaurantId]);
+  res.json({ foodCostPct: costPctOrNull(food), bevCostPct: costPctOrNull(bev) });
+});
+
+// ---------- training: courses, manuals, contracts (scoped to the logged-in restaurant) ----------
+
+const TRAINING_KINDS = ["course", "manual", "contract"];
+
+async function loadTrainingItems(restaurantId) {
+  const { rows: items } = await pool.query("SELECT * FROM training_items WHERE restaurant_id = $1 ORDER BY created_at DESC", [restaurantId]);
+  if (items.length === 0) return [];
+  const { rows: assigns } = await pool.query(
+    `SELECT a.item_id, a.staff_id, a.completed_at FROM training_assignments a
+     JOIN training_items i ON i.id = a.item_id WHERE i.restaurant_id = $1`,
+    [restaurantId]
+  );
+  return items.map((it) => ({
+    id: it.id,
+    kind: it.kind,
+    title: it.title,
+    minutes: it.minutes,
+    createdAt: Number(it.created_at),
+    assignments: assigns
+      .filter((a) => a.item_id === it.id)
+      .map((a) => ({ staffId: a.staff_id, done: !!a.completed_at })),
+  }));
+}
+
+app.get("/api/training", requireAuth, async (req, res) => {
+  res.json(await loadTrainingItems(req.restaurantId));
+});
+
+app.post("/api/training", requireAuth, async (req, res) => {
+  const { kind, title, minutes, staffIds } = req.body || {};
+  if (!TRAINING_KINDS.includes(kind)) return res.status(400).json({ error: "kind must be course, manual or contract" });
+  if (!title || !String(title).trim()) return res.status(400).json({ error: "title is required" });
+  let mins = null;
+  if (kind === "course" && minutes !== undefined && minutes !== null && minutes !== "") {
+    mins = Math.round(Number(minutes));
+    if (isNaN(mins) || mins < 0) return res.status(400).json({ error: "minutes must be a positive number" });
+  }
+
+  // Only staff belonging to this restaurant can be assigned. Omitting staffIds assigns everyone.
+  const { rows: staffRows } = await pool.query("SELECT id FROM staff WHERE restaurant_id = $1", [req.restaurantId]);
+  const validIds = new Set(staffRows.map((s) => s.id));
+  const targets = Array.isArray(staffIds) ? staffIds.filter((sid) => validIds.has(sid)) : [...validIds];
+
+  const newId = id();
+  await pool.query(
+    "INSERT INTO training_items (id, restaurant_id, kind, title, minutes, created_at) VALUES ($1,$2,$3,$4,$5,$6)",
+    [newId, req.restaurantId, kind, String(title).trim(), mins, Date.now()]
+  );
+  await Promise.all(targets.map((sid) =>
+    pool.query("INSERT INTO training_assignments (item_id, staff_id) VALUES ($1,$2) ON CONFLICT DO NOTHING", [newId, sid])
+  ));
+  const items = await loadTrainingItems(req.restaurantId);
+  res.status(201).json(items.find((i) => i.id === newId));
+});
+
+app.patch("/api/training/:id/assignments/:staffId", requireAuth, async (req, res) => {
+  const { done } = req.body || {};
+  const { rows: item } = await pool.query("SELECT id FROM training_items WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  if (item.length === 0) return res.status(404).json({ error: "item not found" });
+  const { rows } = await pool.query(
+    "UPDATE training_assignments SET completed_at = $1 WHERE item_id = $2 AND staff_id = $3 RETURNING staff_id, completed_at",
+    [done ? Date.now() : null, req.params.id, req.params.staffId]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: "assignment not found" });
+  res.json({ staffId: rows[0].staff_id, done: !!rows[0].completed_at });
+});
+
+app.delete("/api/training/:id", requireAuth, async (req, res) => {
+  await pool.query("DELETE FROM training_items WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  res.json({ ok: true });
 });
 
 app.patch("/api/restaurant", requireAuth, async (req, res) => {

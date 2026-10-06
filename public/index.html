@@ -19,9 +19,11 @@
     --text-dim: #9BA39C;
     --text-bright: #F2EFE6;
     --hiring: #6E8FAE;
-    --staffcolor: #4A9B95;
+    --staffcolor: #B08A5B;
     --scheduling: #E2A33B;
-    --comms: #8C6FA0;
+    --training: #8C6FA0;
+    --payroll: #5C8C6B;
+    --comms: #4A9B95;
   }
   * { box-sizing: border-box; }
   body {
@@ -484,9 +486,53 @@
   .chat-input-row input { flex: 1; }
   .chat-thinking { color: var(--text-dim); font-size: 12.5px; font-style: italic; padding: 4px 0; }
 
+  /* ---------- Training + Payroll & Sales (paper "stub" cards, per mockup) ---------- */
+  #sidebar { overflow-x: auto; }
+  .nav-stub { flex: 1 0 auto; padding-left: 12px; padding-right: 12px; white-space: nowrap; }
+  .stub {
+    position: relative;
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 4px;
+    padding: 16px 16px 14px;
+    margin-bottom: 14px;
+    background-image: repeating-linear-gradient(to right, transparent 0 6px, rgba(0,0,0,0.07) 6px 7px);
+    background-size: 13px 100%;
+    background-position: top;
+    background-repeat: repeat-x;
+  }
+  .stub .tag {
+    position: absolute; top: 12px; right: 14px;
+    border: 2px solid var(--accent); color: var(--accent);
+    font-family: 'Oswald', sans-serif; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.07em;
+    padding: 1px 7px; border-radius: 3px; transform: rotate(-6deg);
+  }
+  .stub h3 { font-family: 'Oswald', sans-serif; font-size: 16px; margin: 0 0 4px; padding-right: 76px; }
+  .stub .meta { font-size: 11.5px; opacity: 0.65; margin-bottom: 8px; }
+  .stub.clickable { cursor: pointer; }
+  .progress-track { background: rgba(35,38,31,0.12); border-radius: 20px; height: 6px; overflow: hidden; margin-top: 8px; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 20px; }
+  .video-thumb { width: 54px; height: 38px; border-radius: 4px; background: var(--accent); opacity: 0.35; flex-shrink: 0; }
+  .pay-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px dashed rgba(35,38,31,0.2); font-size: 13.5px; }
+  .pay-row:last-child { border-bottom: none; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 10px; height: 120px; margin: 6px 0 4px; }
+  .bar-chart .bar-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; height: 100%; }
+  .bar-chart .bar { width: 100%; max-width: 34px; background: var(--accent); border-radius: 3px 3px 0 0; opacity: 0.85; min-height: 2px; }
+  .bar-chart .bar-label { font-size: 10.5px; color: rgba(35,38,31,0.6); }
+  button.primary-action { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 11px 18px; font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; cursor: pointer; }
+  .stub input, .stub select { background: #fff; color: var(--ink); border: 1px solid rgba(35,38,31,0.25); }
+  .stub input::placeholder { color: rgba(35,38,31,0.45); }
+  .stub label { color: rgba(35,38,31,0.6); }
+  .stub .mini { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 600; padding: 6px 11px; border-radius: 4px; border: none; cursor: pointer; background: var(--accent); color: #fff; }
+  .stub .mini.outline { background: transparent; border: 1px solid rgba(35,38,31,0.3); color: var(--ink); }
+  .assign-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px dashed rgba(35,38,31,0.2); font-size: 13px; }
+  .cost-inputs { display: flex; gap: 10px; }
+  .cost-inputs > div { flex: 1; }
+
   @media (max-width: 760px) {
     #sidebar { padding: 10px 12px; gap: 5px; }
-    .nav-stub { font-size: 10.5px; padding: 9px 3px; }
+    .nav-stub { font-size: 10.5px; padding: 9px 10px; }
     #contentWrap { padding: 16px 16px 50px; }
   }
 </style>
@@ -529,14 +575,20 @@
     <button class="nav-stub active" id="tabBtnOverview" onclick="switchTab('overview')">
       <span data-i18n="nav.overview">Overview</span>
     </button>
+    <button class="nav-stub" id="tabBtnHiring" style="--dot-color:var(--hiring)" onclick="switchTab('hiring')">
+      <span class="dot"></span><span data-i18n="nav.hiring">Hiring</span>
+    </button>
+    <button class="nav-stub" id="tabBtnTraining" style="--dot-color:var(--training)" onclick="switchTab('training')">
+      <span class="dot"></span><span data-i18n="nav.training">Training</span>
+    </button>
     <button class="nav-stub" id="tabBtnShifts" style="--dot-color:var(--scheduling)" onclick="switchTab('shifts')">
       <span class="dot"></span><span data-i18n="nav.shifts">Scheduling</span>
     </button>
     <button class="nav-stub" id="tabBtnStaff" style="--dot-color:var(--staffcolor)" onclick="switchTab('staff')">
       <span class="dot"></span><span data-i18n="nav.staff">Staff</span>
     </button>
-    <button class="nav-stub" id="tabBtnHiring" style="--dot-color:var(--hiring)" onclick="switchTab('hiring')">
-      <span class="dot"></span><span data-i18n="nav.hiring">Hiring</span>
+    <button class="nav-stub" id="tabBtnPayroll" style="--dot-color:var(--payroll)" onclick="switchTab('payroll')">
+      <span class="dot"></span><span data-i18n="nav.payroll">Payroll & Sales</span>
     </button>
     <button class="nav-stub" id="tabBtnComms" style="--dot-color:var(--comms)" onclick="switchTab('comms')">
       <span class="dot"></span><span data-i18n="nav.comms">Comms</span>
@@ -673,6 +725,9 @@
     </div>
   </div>
 
+  <div class="tab-panel" id="panelTraining"></div>
+  <div class="tab-panel" id="panelPayroll"></div>
+
   <div class="tab-panel" id="panelComms">
     <div class="module-header" style="--accent:var(--comms)">
       <div class="eyebrow" data-i18n="comms.eyebrow">Communications</div>
@@ -694,18 +749,17 @@
 </div>
 
 <script>
+const TAB_NAMES = ["overview", "shifts", "staff", "hiring", "training", "payroll", "comms"];
+let currentTab = "overview";
 function switchTab(name) {
-  document.getElementById("panelOverview").classList.toggle("active", name === "overview");
-  document.getElementById("panelShifts").classList.toggle("active", name === "shifts");
-  document.getElementById("panelStaff").classList.toggle("active", name === "staff");
-  document.getElementById("panelHiring").classList.toggle("active", name === "hiring");
-  document.getElementById("panelComms").classList.toggle("active", name === "comms");
-  document.getElementById("tabBtnOverview").classList.toggle("active", name === "overview");
-  document.getElementById("tabBtnShifts").classList.toggle("active", name === "shifts");
-  document.getElementById("tabBtnStaff").classList.toggle("active", name === "staff");
-  document.getElementById("tabBtnHiring").classList.toggle("active", name === "hiring");
-  document.getElementById("tabBtnComms").classList.toggle("active", name === "comms");
+  currentTab = name;
+  TAB_NAMES.forEach(n => {
+    document.getElementById("panel" + n.charAt(0).toUpperCase() + n.slice(1)).classList.toggle("active", name === n);
+    document.getElementById("tabBtn" + n.charAt(0).toUpperCase() + n.slice(1)).classList.toggle("active", name === n);
+  });
   document.getElementById("topbarNewTitle").textContent = t("nav." + name);
+  if (name === "training" && typeof loadTraining === "function") loadTraining();
+  if (name === "payroll" && typeof loadPayroll === "function") loadPayroll();
 }
 
 </script>
@@ -725,7 +779,35 @@ const T = {
       errPassword: "Password must be at least 8 characters", errEmailPassword: "Enter your email and password",
       createAccount: "Create account",
     },
-    nav: { overview: "Overview", shifts: "Scheduling", staff: "Staff", hiring: "Hiring", comms: "Comms" },
+    nav: { overview: "Overview", shifts: "Scheduling", staff: "Staff", hiring: "Hiring", training: "Training", payroll: "Payroll & Sales", comms: "Comms" },
+    days: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+    training: {
+      eyebrow: "Training", h2: "Onboarding & courses",
+      p: "Video courses, onboarding manuals, and contracts to sign — all in one place, with completion tracked per person.",
+      createCourse: "Create a course", addDoc: "Add manual or contract", cancel: "Cancel", create: "Create",
+      kindLabel: "Type", kindCourse: "Course", kindManual: "Manual", kindContract: "Contract",
+      titleLabel: "Title", titlePh: "e.g. Food Safety Certification", minutesLabel: "Length (minutes)", assignLabel: "Assign to",
+      assignAll: "All staff", doneCount: (c,a) => `${c}/${a} done`, minAssigned: (m,a) => `${m} min · assigned to ${a} staff`,
+      assignedTo: a => `assigned to ${a} staff`, manualsHeader: "Manuals & contracts", typeManual: "Manual", typeContract: "Contract",
+      acknowledged: (c,a) => `Acknowledged by ${c}/${a}`, signed: "Signed", pendingSignature: "Pending signature",
+      noItems: "Nothing here yet — create your first course.", noStaffYet: "Add staff first, then assign training.",
+      tapToTrack: "Tap to mark who's done", markDone: "Done", markUndone: "Undo", delete: "Delete",
+      confirmDelete: "Delete this item and its progress?", bannerCreated: "Created", bannerTitleRequired: "Enter a title first",
+    },
+    payroll: {
+      eyebrow: "Payroll & Sales", h2: "This week's numbers",
+      p: "Real-time labor, food, and beverage cost against sales — plus payroll that's already forecasted for next period.",
+      liveTag: "Live", salesLine: (total, labor) => labor === null ? `$${total} total` : `$${total} total · ${labor}% labor cost`,
+      noSales: "No sales entered yet — add this week's daily sales below.", enterSales: "Daily sales", saveSales: "Save sales",
+      pnlTag: "P&L snapshot", costBreakdown: "Cost breakdown", pctOfSales: "Percent of this week's sales",
+      foodCost: "Food cost", bevCost: "Beverage cost", laborCost: "Labor cost", netMargin: "Net margin",
+      foodCostPct: "Food cost %", bevCostPct: "Beverage cost %", saveCosts: "Save costs", needSales: "—",
+      forecastTag: "Forecast", nextPeriod: "Next pay period estimate", forecastNote: "Based on scheduled hours × hourly rate, next 14 days",
+      hoursTag: "Hours", staffPayHeader: "Staff pay this week", hoursBasis: "Based on scheduled hours × hourly rate",
+      noHours: "No scheduled shifts this week yet.", noRate: "no rate set",
+      bannerSalesSaved: "Sales saved", bannerCostsSaved: "Costs saved",
+    },
+    ovExtra: { coursesInProgress: "Courses in progress", coursesSub: n => `${n} course${n === 1 ? "" : "s"} total`, salesWeek: "Sales this week", laborPct: p => `${p}% labor cost`, laborUnknown: "Tap to add sales", },
     topbar: { backOffice: "Back Office", logout: "Log out" },
     overview: {
       eyebrow: "Overview", desc: "Every section feeds this dashboard — tap a card to jump in.",
@@ -809,7 +891,35 @@ const T = {
       errPassword: "Le mot de passe doit contenir au moins 8 caractères", errEmailPassword: "Entrez votre courriel et mot de passe",
       createAccount: "Créer le compte",
     },
-    nav: { overview: "Aperçu", shifts: "Horaire", staff: "Personnel", hiring: "Embauche", comms: "Comms" },
+    nav: { overview: "Aperçu", shifts: "Horaire", staff: "Personnel", hiring: "Embauche", training: "Formation", payroll: "Paie & Ventes", comms: "Comms" },
+    days: ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"],
+    training: {
+      eyebrow: "Formation", h2: "Intégration et cours",
+      p: "Cours vidéo, guides d'intégration et contrats à signer — tout au même endroit, avec le suivi d'achèvement par personne.",
+      createCourse: "Créer un cours", addDoc: "Ajouter un guide ou contrat", cancel: "Annuler", create: "Créer",
+      kindLabel: "Type", kindCourse: "Cours", kindManual: "Guide", kindContract: "Contrat",
+      titleLabel: "Titre", titlePh: "ex. Certification en salubrité alimentaire", minutesLabel: "Durée (minutes)", assignLabel: "Assigner à",
+      assignAll: "Tout le personnel", doneCount: (c,a) => `${c}/${a} terminés`, minAssigned: (m,a) => `${m} min · assigné à ${a} employés`,
+      assignedTo: a => `assigné à ${a} employés`, manualsHeader: "Guides et contrats", typeManual: "Guide", typeContract: "Contrat",
+      acknowledged: (c,a) => `Confirmé par ${c}/${a}`, signed: "Signé", pendingSignature: "Signature en attente",
+      noItems: "Rien ici pour l'instant — créez votre premier cours.", noStaffYet: "Ajoutez d'abord du personnel, puis assignez la formation.",
+      tapToTrack: "Touchez pour marquer qui a terminé", markDone: "Terminé", markUndone: "Annuler", delete: "Supprimer",
+      confirmDelete: "Supprimer cet élément et sa progression ?", bannerCreated: "Créé", bannerTitleRequired: "Entrez d'abord un titre",
+    },
+    payroll: {
+      eyebrow: "Paie & Ventes", h2: "Les chiffres de la semaine",
+      p: "Coûts de main-d'œuvre, de nourriture et de boissons en temps réel par rapport aux ventes — plus une paie déjà prévue pour la prochaine période.",
+      liveTag: "En direct", salesLine: (total, labor) => labor === null ? `${total} $ au total` : `${total} $ au total · ${labor}% coût de main-d'œuvre`,
+      noSales: "Aucune vente saisie — ajoutez les ventes quotidiennes de la semaine ci-dessous.", enterSales: "Ventes quotidiennes", saveSales: "Enregistrer les ventes",
+      pnlTag: "Aperçu du bilan", costBreakdown: "Répartition des coûts", pctOfSales: "Pourcentage des ventes de la semaine",
+      foodCost: "Coût de la nourriture", bevCost: "Coût des boissons", laborCost: "Coût de main-d'œuvre", netMargin: "Marge nette",
+      foodCostPct: "Coût nourriture %", bevCostPct: "Coût boissons %", saveCosts: "Enregistrer les coûts", needSales: "—",
+      forecastTag: "Prévision", nextPeriod: "Estimation de la prochaine paie", forecastNote: "Basé sur les heures prévues × taux horaire, 14 prochains jours",
+      hoursTag: "Heures", staffPayHeader: "Paie du personnel cette semaine", hoursBasis: "Basé sur les heures prévues × taux horaire",
+      noHours: "Aucun quart prévu cette semaine pour l'instant.", noRate: "aucun taux",
+      bannerSalesSaved: "Ventes enregistrées", bannerCostsSaved: "Coûts enregistrés",
+    },
+    ovExtra: { coursesInProgress: "Cours en cours", coursesSub: n => `${n} cours au total`, salesWeek: "Ventes cette semaine", laborPct: p => `${p}% coût de main-d'œuvre`, laborUnknown: "Touchez pour ajouter des ventes", },
     topbar: { backOffice: "Back Office", logout: "Déconnexion" },
     overview: {
       eyebrow: "Aperçu", desc: "Chaque section alimente ce tableau de bord — touchez une carte pour y accéder.",
@@ -893,7 +1003,35 @@ const T = {
       errPassword: "La contraseña debe tener al menos 8 caracteres", errEmailPassword: "Ingresa tu correo y contraseña",
       createAccount: "Crear cuenta",
     },
-    nav: { overview: "Resumen", shifts: "Horario", staff: "Personal", hiring: "Contratación", comms: "Comms" },
+    nav: { overview: "Resumen", shifts: "Horario", staff: "Personal", hiring: "Contratación", training: "Capacitación", payroll: "Nómina y Ventas", comms: "Comms" },
+    days: ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"],
+    training: {
+      eyebrow: "Capacitación", h2: "Incorporación y cursos",
+      p: "Cursos en video, manuales de incorporación y contratos por firmar — todo en un solo lugar, con el progreso registrado por persona.",
+      createCourse: "Crear un curso", addDoc: "Agregar manual o contrato", cancel: "Cancelar", create: "Crear",
+      kindLabel: "Tipo", kindCourse: "Curso", kindManual: "Manual", kindContract: "Contrato",
+      titleLabel: "Título", titlePh: "ej. Certificación de seguridad alimentaria", minutesLabel: "Duración (minutos)", assignLabel: "Asignar a",
+      assignAll: "Todo el personal", doneCount: (c,a) => `${c}/${a} completado`, minAssigned: (m,a) => `${m} min · asignado a ${a} empleados`,
+      assignedTo: a => `asignado a ${a} empleados`, manualsHeader: "Manuales y contratos", typeManual: "Manual", typeContract: "Contrato",
+      acknowledged: (c,a) => `Confirmado por ${c}/${a}`, signed: "Firmado", pendingSignature: "Firma pendiente",
+      noItems: "Nada aquí todavía — crea tu primer curso.", noStaffYet: "Primero agrega personal y luego asigna la capacitación.",
+      tapToTrack: "Toca para marcar quién terminó", markDone: "Listo", markUndone: "Deshacer", delete: "Eliminar",
+      confirmDelete: "¿Eliminar este elemento y su progreso?", bannerCreated: "Creado", bannerTitleRequired: "Escribe primero un título",
+    },
+    payroll: {
+      eyebrow: "Nómina y Ventas", h2: "Los números de esta semana",
+      p: "Costo de mano de obra, comida y bebida en tiempo real frente a las ventas — además de una nómina ya pronosticada para el próximo período.",
+      liveTag: "En vivo", salesLine: (total, labor) => labor === null ? `$${total} total` : `$${total} total · ${labor}% costo de mano de obra`,
+      noSales: "Aún no hay ventas — agrega las ventas diarias de esta semana abajo.", enterSales: "Ventas diarias", saveSales: "Guardar ventas",
+      pnlTag: "Resumen financiero", costBreakdown: "Desglose de costos", pctOfSales: "Porcentaje de las ventas de esta semana",
+      foodCost: "Costo de comida", bevCost: "Costo de bebidas", laborCost: "Costo de mano de obra", netMargin: "Margen neto",
+      foodCostPct: "Costo comida %", bevCostPct: "Costo bebidas %", saveCosts: "Guardar costos", needSales: "—",
+      forecastTag: "Pronóstico", nextPeriod: "Estimado del próximo período de pago", forecastNote: "Basado en horas programadas × tarifa por hora, próximos 14 días",
+      hoursTag: "Horas", staffPayHeader: "Pago del personal esta semana", hoursBasis: "Basado en horas programadas × tarifa por hora",
+      noHours: "Aún no hay turnos programados esta semana.", noRate: "sin tarifa",
+      bannerSalesSaved: "Ventas guardadas", bannerCostsSaved: "Costos guardados",
+    },
+    ovExtra: { coursesInProgress: "Cursos en progreso", coursesSub: n => `${n} curso${n === 1 ? "" : "s"} en total`, salesWeek: "Ventas esta semana", laborPct: p => `${p}% costo de mano de obra`, laborUnknown: "Toca para agregar ventas", },
     topbar: { backOffice: "Back Office", logout: "Cerrar sesión" },
     overview: {
       eyebrow: "Resumen", desc: "Cada sección alimenta este panel — toca una tarjeta para acceder.",
@@ -1151,7 +1289,10 @@ async function loadAll() {
   if (sh.ok) shifts = sh.data;
   if (po.ok) postings = po.data;
   if (ap.ok) applications = ap.data;
+  const tr = await api("/api/training");
+  if (tr.ok) trainingItems = tr.data;
   render();
+  if (!payroll || currentTab === "payroll") loadPayroll();
 }
 
 function localeForLang() {
@@ -1335,6 +1476,8 @@ function render() {
 
   // overview
   renderOverview();
+  renderTraining();
+  renderPayroll();
 }
 
 function renderOverview() {
@@ -1346,6 +1489,8 @@ function renderOverview() {
     { id: "shifts", accent: "var(--scheduling)", label: t("overview.openShifts"), value: openShiftCount, sub: shifts.length ? t("overview.posted", shifts.length) : t("overview.nonePosted") },
     { id: "staff", accent: "var(--staffcolor)", label: t("overview.staffLabel"), value: staff.length, sub: t("overview.manageRoster") },
     { id: "hiring", accent: "var(--hiring)", label: t("overview.openPostings"), value: openPostings, sub: t("overview.applicantsTotal", applications.length) },
+    { id: "training", accent: "var(--training)", label: t("ovExtra.coursesInProgress"), value: trainingItems.filter(i => i.kind === "course" && i.assignments.some(a => !a.done)).length, sub: t("ovExtra.coursesSub", trainingItems.filter(i => i.kind === "course").length) },
+    { id: "payroll", accent: "var(--payroll)", label: t("ovExtra.salesWeek"), value: payroll && payrollNumbers().totalSales > 0 ? "$" + money(payrollNumbers().totalSales) : "—", sub: payroll && payrollNumbers().laborPct !== null ? t("ovExtra.laborPct", payrollNumbers().laborPct) : t("ovExtra.laborUnknown") },
     { id: "comms", accent: "var(--comms)", label: t("overview.aiAgent"), value: t("overview.askLabel"), sub: t("overview.askSub") },
   ];
   grid.innerHTML = stats.map(s => `
@@ -1356,6 +1501,360 @@ function renderOverview() {
       <div class="sub">${s.sub}</div>
     </div>
   `).join("");
+}
+
+/* ============================== Training ============================== */
+let trainingItems = [];
+let trainingExpanded = new Set();
+let trainingFormOpen = false;
+let trainingDraft = { kind: "course", title: "", minutes: "", assignTo: "all" };
+
+function panelHasFocus(panelId) {
+  const a = document.activeElement;
+  const panel = document.getElementById(panelId);
+  return !!(a && panel && panel.contains(a) && (a.tagName === "INPUT" || a.tagName === "SELECT"));
+}
+
+async function loadTraining() {
+  const result = await api("/api/training");
+  if (result.ok) {
+    trainingItems = result.data;
+    renderTraining();
+    renderOverview();
+  }
+}
+
+function staffNameById(sid) {
+  const p = staff.find(s => s.id === sid);
+  return p ? p.name : "—";
+}
+
+function trainingFormHtml() {
+  const d = trainingDraft;
+  const staffOpts = staff.map(p => `<option value="${escapeHtml(p.id)}"${d.assignTo === p.id ? " selected" : ""}>${escapeHtml(p.name)}</option>`).join("");
+  return `
+    <div class="stub" style="--accent:var(--training)">
+      <label>${t("training.kindLabel")}</label>
+      <select onchange="trainingDraft.kind=this.value; renderTraining(true)">
+        <option value="course"${d.kind === "course" ? " selected" : ""}>${t("training.kindCourse")}</option>
+        <option value="manual"${d.kind === "manual" ? " selected" : ""}>${t("training.kindManual")}</option>
+        <option value="contract"${d.kind === "contract" ? " selected" : ""}>${t("training.kindContract")}</option>
+      </select>
+      <label>${t("training.titleLabel")}</label>
+      <input type="text" value="${escapeHtml(d.title)}" placeholder="${escapeHtml(t("training.titlePh"))}" oninput="trainingDraft.title=this.value" />
+      ${d.kind === "course" ? `
+        <label>${t("training.minutesLabel")}</label>
+        <input type="text" inputmode="numeric" value="${escapeHtml(d.minutes)}" placeholder="20" oninput="trainingDraft.minutes=this.value" />` : ""}
+      <label>${t("training.assignLabel")}</label>
+      <select onchange="trainingDraft.assignTo=this.value">
+        <option value="all"${d.assignTo === "all" ? " selected" : ""}>${t("training.assignAll")}</option>
+        ${staffOpts}
+      </select>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="mini" onclick="createTraining()">${t("training.create")}</button>
+        <button class="mini outline" onclick="trainingFormOpen=false; renderTraining(true)">${t("training.cancel")}</button>
+      </div>
+    </div>`;
+}
+
+function trainingItemHtml(it) {
+  const assigned = it.assignments.length;
+  const done = it.assignments.filter(a => a.done).length;
+  const open = trainingExpanded.has(it.id);
+  let tag, meta, extra = "";
+  if (it.kind === "course") {
+    tag = t("training.doneCount", done, assigned);
+    meta = it.minutes ? t("training.minAssigned", it.minutes, assigned) : t("training.assignedTo", assigned);
+    extra = `<div class="progress-track"><div class="progress-fill" style="width:${assigned ? Math.round(done / assigned * 100) : 0}%"></div></div>`;
+  } else if (it.kind === "manual") {
+    tag = t("training.typeManual");
+    meta = t("training.acknowledged", done, assigned);
+  } else {
+    tag = t("training.typeContract");
+    meta = assigned > 0 && done === assigned ? t("training.signed") : t("training.pendingSignature");
+  }
+  const thumb = it.kind === "course" ? `<span class="video-thumb"></span>` : "";
+  const rows = open ? `
+    <div style="margin-top:12px">
+      ${assigned === 0 ? `<div class="meta">${t("training.noStaffYet")}</div>` : it.assignments.map(a => `
+        <div class="assign-row">
+          <span>${escapeHtml(staffNameById(a.staffId))}</span>
+          <button class="mini${a.done ? " outline" : ""}" onclick="event.stopPropagation(); toggleAssignment('${it.id}','${a.staffId}',${!a.done})">${a.done ? t("training.markUndone") : t("training.markDone")}</button>
+        </div>`).join("")}
+      <div style="margin-top:10px"><button class="mini outline" onclick="event.stopPropagation(); deleteTraining('${it.id}')">${t("training.delete")}</button></div>
+    </div>` : "";
+  return `
+    <div class="stub clickable" style="--accent:var(--training)" onclick="toggleTrainingItem('${it.id}')">
+      <div class="tag">${escapeHtml(tag)}</div>
+      <h3 style="display:flex;align-items:center;gap:10px">${thumb}${escapeHtml(it.title)}</h3>
+      <div class="meta">${escapeHtml(meta)}${open ? "" : ` · ${t("training.tapToTrack")}`}</div>
+      ${extra}
+      ${rows}
+    </div>`;
+}
+
+function renderTraining(force) {
+  const el = document.getElementById("panelTraining");
+  if (!el) return;
+  if (!force && panelHasFocus("panelTraining")) return; // don't wipe what the manager is typing
+  const courses = trainingItems.filter(i => i.kind === "course");
+  const docs = trainingItems.filter(i => i.kind !== "course");
+  el.innerHTML = `
+    <div class="module-header" style="--accent:var(--training)">
+      <div class="eyebrow">${t("training.eyebrow")}</div>
+      <h2 style="font-family:'Oswald',sans-serif;font-size:22px;margin:0 0 6px">${t("training.h2")}</h2>
+      <p>${t("training.p")}</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+      <button class="primary-action" style="--accent:var(--training)" onclick="openTrainingForm('course')">${t("training.createCourse")}</button>
+      <button class="primary-action" style="--accent:var(--rail)" onclick="openTrainingForm('manual')">${t("training.addDoc")}</button>
+    </div>
+    ${trainingFormOpen ? trainingFormHtml() : ""}
+    ${courses.map(trainingItemHtml).join("")}
+    ${docs.length ? `<h3 style="margin:24px 0 12px;font-size:15px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;font-family:'Oswald',sans-serif">${t("training.manualsHeader")}</h3>${docs.map(trainingItemHtml).join("")}` : ""}
+    ${trainingItems.length === 0 && !trainingFormOpen ? `<p class="empty">${t("training.noItems")}</p>` : ""}
+  `;
+}
+
+function openTrainingForm(kind) {
+  trainingDraft = { kind, title: "", minutes: "", assignTo: "all" };
+  trainingFormOpen = true;
+  renderTraining(true);
+}
+
+function toggleTrainingItem(itemId) {
+  if (trainingExpanded.has(itemId)) trainingExpanded.delete(itemId); else trainingExpanded.add(itemId);
+  renderTraining(true);
+}
+
+async function createTraining() {
+  const d = trainingDraft;
+  if (!d.title.trim()) return showBanner(t("training.bannerTitleRequired"), "warn");
+  const body = { kind: d.kind, title: d.title.trim(), minutes: d.kind === "course" ? d.minutes : null };
+  if (d.assignTo !== "all") body.staffIds = [d.assignTo];
+  const result = await api("/api/training", { method: "POST", body: JSON.stringify(body) });
+  if (result.ok) {
+    trainingFormOpen = false;
+    showBanner(t("training.bannerCreated"), "success");
+    trainingItems = [result.data, ...trainingItems];
+    renderTraining(true);
+    renderOverview();
+  } else {
+    showBanner(result.error, "warn");
+  }
+}
+
+async function toggleAssignment(itemId, staffId, done) {
+  const result = await api(`/api/training/${itemId}/assignments/${staffId}`, { method: "PATCH", body: JSON.stringify({ done }) });
+  if (!result.ok) return showBanner(result.error, "warn");
+  const it = trainingItems.find(i => i.id === itemId);
+  const a = it && it.assignments.find(x => x.staffId === staffId);
+  if (a) a.done = result.data.done;
+  renderTraining(true);
+  renderOverview();
+}
+
+async function deleteTraining(itemId) {
+  if (!confirm(t("training.confirmDelete"))) return;
+  const result = await api(`/api/training/${itemId}`, { method: "DELETE" });
+  if (!result.ok) return showBanner(result.error, "warn");
+  trainingItems = trainingItems.filter(i => i.id !== itemId);
+  trainingExpanded.delete(itemId);
+  renderTraining(true);
+  renderOverview();
+}
+
+/* ============================== Payroll & Sales ============================== */
+let payroll = null; // { weekStart, sales:{date:amount}, shifts:[], foodCostPct, bevCostPct }
+
+function isoLocal(d) {
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function addDaysLocal(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function mondayOf(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+}
+function hoursBetween(start, end) {
+  const toMin = s => { const [h, m] = String(s || "0:0").split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+  let diff = toMin(end) - toMin(start);
+  if (diff <= 0) diff += 24 * 60; // overnight shift
+  return diff / 60;
+}
+
+async function loadPayroll() {
+  const mon = mondayOf(new Date());
+  const start = isoLocal(mon);
+  const sunday = isoLocal(addDaysLocal(mon, 6));
+  const lastDay = isoLocal(addDaysLocal(mon, 20)); // this week + the next 14-day pay period
+  const [sch, sal, rest] = await Promise.all([
+    api(`/api/schedule?start=${start}&end=${lastDay}`),
+    api(`/api/actual-sales?start=${start}&end=${sunday}`),
+    api("/api/restaurant"),
+  ]);
+  if (!sch.ok || !sal.ok) return;
+  const sales = {};
+  sal.data.forEach(r => { sales[r.date] = r.amount; });
+  payroll = {
+    weekStart: start,
+    sales,
+    shifts: sch.data,
+    foodCostPct: rest.ok ? rest.data.foodCostPct : null,
+    bevCostPct: rest.ok ? rest.data.bevCostPct : null,
+  };
+  renderPayroll();
+  renderOverview();
+}
+
+function payrollNumbers() {
+  const mon = mondayOf(new Date());
+  const weekDates = Array.from({ length: 7 }, (_, i) => isoLocal(addDaysLocal(mon, i)));
+  const nextStart = isoLocal(addDaysLocal(mon, 7));
+  const nextEnd = isoLocal(addDaysLocal(mon, 20));
+  const rateOf = sid => { const p = staff.find(s => s.id === sid); return p && p.hourlyRate != null ? p.hourlyRate : null; };
+  const perStaff = {};
+  let laborCost = 0, nextPeriod = 0;
+  const shifts = payroll ? payroll.shifts : [];
+  shifts.forEach(s => {
+    const hrs = hoursBetween(s.startTime, s.endTime);
+    const rate = rateOf(s.staffId) || 0;
+    if (weekDates.includes(s.date)) {
+      laborCost += hrs * rate;
+      const e = perStaff[s.staffId] || (perStaff[s.staffId] = { hours: 0 });
+      e.hours += hrs;
+    } else if (s.date >= nextStart && s.date <= nextEnd) {
+      nextPeriod += hrs * rate;
+    }
+  });
+  const daily = weekDates.map(dt => (payroll && payroll.sales[dt]) || 0);
+  const totalSales = daily.reduce((a, b) => a + b, 0);
+  const laborPct = totalSales > 0 ? Math.round(laborCost / totalSales * 100) : null;
+  const food = payroll ? payroll.foodCostPct : null;
+  const bev = payroll ? payroll.bevCostPct : null;
+  const net = laborPct !== null && food !== null && bev !== null ? Math.round((100 - food - bev - laborPct) * 10) / 10 : null;
+  return { weekDates, daily, totalSales, laborCost, laborPct, food, bev, net, nextPeriod, perStaff };
+}
+
+function money(n) { return Math.round(n).toLocaleString(localeForLang()); }
+
+// Keeps unsaved edits in the sales / cost boxes alive across the 5-second refresh.
+let payrollDraft = {};
+function dv(inputId, saved) {
+  return escapeHtml(inputId in payrollDraft ? payrollDraft[inputId] : saved);
+}
+
+function renderPayroll(force) {
+  const el = document.getElementById("panelPayroll");
+  if (!el) return;
+  if (!force && panelHasFocus("panelPayroll")) return;
+  el.querySelectorAll("input[id]").forEach(i => { if (i.value !== i.defaultValue) payrollDraft[i.id] = i.value; });
+  const n = payrollNumbers();
+  const max = Math.max(...n.daily, 1);
+  const days = t("days");
+  const pct = v => (v === null ? t("payroll.needSales") : `${v}%`);
+  const staffRows = Object.entries(n.perStaff).map(([sid, e]) => {
+    const p = staff.find(s => s.id === sid);
+    if (!p) return "";
+    const role = p.roles && p.roles[0] ? ` <span style="opacity:0.6">· ${escapeHtml(roleLabel(p.roles[0]))}</span>` : "";
+    const hrs = Math.round(e.hours * 10) / 10;
+    const right = p.hourlyRate != null
+      ? `${hrs}h × $${p.hourlyRate} = $${money(hrs * p.hourlyRate)}`
+      : `${hrs}h · ${t("payroll.noRate")}`;
+    return `<div class="pay-row"><span>${escapeHtml(p.name)}${role}</span><span class="num">${right}</span></div>`;
+  }).join("");
+  const salesInputs = n.weekDates.map((dt, i) => `
+    <div style="flex:1;min-width:70px">
+      <label>${days[i]} ${Number(dt.slice(8))}</label>
+      <input type="text" inputmode="decimal" id="salesInput-${dt}" value="${dv("salesInput-" + dt, payroll && payroll.sales[dt] != null ? payroll.sales[dt] : "")}" placeholder="0" />
+    </div>`).join("");
+  el.innerHTML = `
+    <div class="module-header" style="--accent:var(--payroll)">
+      <div class="eyebrow">${t("payroll.eyebrow")}</div>
+      <h2 style="font-family:'Oswald',sans-serif;font-size:22px;margin:0 0 6px">${t("payroll.h2")}</h2>
+      <p>${t("payroll.p")}</p>
+    </div>
+    <div class="stub" style="--accent:var(--payroll)">
+      <div class="tag">${t("payroll.liveTag")}</div>
+      <h3>${t("payroll.salesLine", money(n.totalSales), n.laborPct)}</h3>
+      ${n.totalSales === 0 ? `<div class="meta">${t("payroll.noSales")}</div>` : ""}
+      <div class="bar-chart">
+        ${n.daily.map((v, i) => `
+          <div class="bar-col">
+            <div class="bar" style="height:${Math.round(v / max * 100)}%"></div>
+            <div class="bar-label">${days[i]}</div>
+          </div>`).join("")}
+      </div>
+    </div>
+    <div class="stub" style="--accent:var(--payroll)">
+      <h3>${t("payroll.enterSales")}</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">${salesInputs}</div>
+      <div style="margin-top:12px"><button class="mini" onclick="saveWeekSales()">${t("payroll.saveSales")}</button></div>
+    </div>
+    <div class="stub" style="--accent:var(--payroll)">
+      <div class="tag">${t("payroll.pnlTag")}</div>
+      <h3>${t("payroll.costBreakdown")}</h3>
+      <div class="meta">${t("payroll.pctOfSales")}</div>
+      <div class="pay-row"><span>${t("payroll.foodCost")}</span><span class="num">${pct(n.food)}</span></div>
+      <div class="pay-row"><span>${t("payroll.bevCost")}</span><span class="num">${pct(n.bev)}</span></div>
+      <div class="pay-row"><span>${t("payroll.laborCost")}</span><span class="num">${pct(n.laborPct)}</span></div>
+      <div class="pay-row"><span><strong>${t("payroll.netMargin")}</strong></span><span class="num"><strong>${pct(n.net)}</strong></span></div>
+      <div class="cost-inputs" style="margin-top:10px">
+        <div><label>${t("payroll.foodCostPct")}</label><input type="text" inputmode="decimal" id="foodCostInput" value="${dv("foodCostInput", n.food !== null ? n.food : "")}" placeholder="30" /></div>
+        <div><label>${t("payroll.bevCostPct")}</label><input type="text" inputmode="decimal" id="bevCostInput" value="${dv("bevCostInput", n.bev !== null ? n.bev : "")}" placeholder="20" /></div>
+      </div>
+      <div style="margin-top:12px"><button class="mini" onclick="saveCostPcts()">${t("payroll.saveCosts")}</button></div>
+    </div>
+    <div class="stub" style="--accent:var(--payroll)">
+      <div class="tag">${t("payroll.forecastTag")}</div>
+      <h3>${t("payroll.nextPeriod")}</h3>
+      <div class="meta">${t("payroll.forecastNote")}</div>
+      <div class="num" style="font-size:22px;margin-top:6px">$${money(n.nextPeriod)}</div>
+    </div>
+    <div class="stub" style="--accent:var(--payroll)">
+      <div class="tag">${t("payroll.hoursTag")}</div>
+      <h3>${t("payroll.staffPayHeader")}</h3>
+      <div class="meta">${t("payroll.hoursBasis")}</div>
+      ${staffRows || `<div class="meta">${t("payroll.noHours")}</div>`}
+    </div>
+  `;
+}
+
+async function saveWeekSales() {
+  const mon = mondayOf(new Date());
+  const dates = Array.from({ length: 7 }, (_, i) => isoLocal(addDaysLocal(mon, i)));
+  const writes = [];
+  for (const dt of dates) {
+    const raw = document.getElementById(`salesInput-${dt}`).value.trim().replace(/[$,\s]/g, "");
+    const prev = payroll && payroll.sales[dt] != null ? String(payroll.sales[dt]) : "";
+    if (raw === prev) continue;
+    writes.push(api("/api/actual-sales", { method: "PUT", body: JSON.stringify({ date: dt, amount: raw === "" ? null : raw, source: "manual" }) }));
+  }
+  const results = await Promise.all(writes);
+  const failed = results.find(r => !r.ok);
+  if (failed) return showBanner(failed.error, "warn");
+  showBanner(t("payroll.bannerSalesSaved"), "success");
+  payrollDraft = {};
+  await loadPayroll();
+  renderPayroll(true);
+}
+
+async function saveCostPcts() {
+  const result = await api("/api/restaurant/costs", {
+    method: "PUT",
+    body: JSON.stringify({
+      foodCostPct: document.getElementById("foodCostInput").value.trim(),
+      bevCostPct: document.getElementById("bevCostInput").value.trim(),
+    }),
+  });
+  if (!result.ok) return showBanner(result.error, "warn");
+  showBanner(t("payroll.bannerCostsSaved"), "success");
+  payrollDraft = {};
+  payroll.foodCostPct = result.data.foodCostPct;
+  payroll.bevCostPct = result.data.bevCostPct;
+  renderPayroll(true);
+  renderOverview();
 }
 
 function formatHireDate(dateStr) {
