@@ -338,7 +338,11 @@ function signToken(payload) {
 }
 const COOKIE_OPTS = {
   httpOnly: true,
-  secure: true,
+  // Defaults to true (required for real HTTPS traffic on Render) — only ever
+  // turned off by an explicit COOKIE_SECURE=false in .env.test, since test runs
+  // happen over plain HTTP with no real TLS. Production behavior is unchanged
+  // unless this is deliberately set.
+  secure: process.env.COOKIE_SECURE !== "false",
   sameSite: "lax",
   maxAge: 30 * 24 * 60 * 60 * 1000,
 };
@@ -1496,19 +1500,26 @@ process.on("uncaughtException", (err) => {
   logActivity({ eventType: "server_error", level: "error", detail: `Uncaught exception: ${err.message}` });
 });
 
-initDb()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Shift SMS backend running on port ${PORT}`);
-      console.log(`Database: connected · multi-tenant auth: enabled`);
-      if (PUBLIC_URL) {
-        console.log(`Set your Twilio number's inbound webhook to: ${PUBLIC_URL}/api/sms/inbound`);
-      } else {
-        console.log(`Once deployed, set your Twilio number's inbound webhook to: <your-url>/api/sms/inbound`);
-      }
+// Only auto-connect and bind a port when this file is run directly (`node server.js`),
+// not when it's `require()`'d by the test suite — tests manage their own DB connection
+// and never bind a real port.
+if (require.main === module) {
+  initDb()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`Shift SMS backend running on port ${PORT}`);
+        console.log(`Database: connected · multi-tenant auth: enabled`);
+        if (PUBLIC_URL) {
+          console.log(`Set your Twilio number's inbound webhook to: ${PUBLIC_URL}/api/sms/inbound`);
+        } else {
+          console.log(`Once deployed, set your Twilio number's inbound webhook to: <your-url>/api/sms/inbound`);
+        }
+      });
+    })
+    .catch((e) => {
+      console.error("Failed to initialize database:", e.message);
+      process.exit(1);
     });
-  })
-  .catch((e) => {
-    console.error("Failed to initialize database:", e.message);
-    process.exit(1);
-  });
+}
+
+module.exports = { app, pool, initDb };
