@@ -129,6 +129,7 @@
     <button class="tab-btn" id="tabBtnAvailability" onclick="switchStaffTab('availability')" data-i18n="tabs.availability">Availability</button>
     <button class="tab-btn" id="tabBtnOpen" onclick="switchStaffTab('open')" data-i18n="tabs.open">Open Shifts</button>
     <button class="tab-btn" id="tabBtnBoard" onclick="switchStaffTab('board')"><span data-i18n="tabs.board">Board</span><span class="tab-badge" id="boardBadge"></span></button>
+    <button class="tab-btn" id="tabBtnTraining" onclick="switchStaffTab('training')"><span data-i18n="tabs.training">Training</span><span class="tab-badge" id="trainingBadge"></span></button>
   </div>
 
   <main>
@@ -155,6 +156,13 @@
       </div>
     </div>
 
+    <div class="tab-panel" id="panelTraining">
+      <div class="card">
+        <h2 data-i18n="training.h2">My training</h2>
+        <div id="trainingList"><p class="empty" data-i18n="schedule.loading">Loading…</p></div>
+      </div>
+    </div>
+
     <div class="tab-panel" id="panelOpen">
       <div class="card">
         <h2 data-i18n="open.h2">Open shifts you can take</h2>
@@ -170,6 +178,10 @@ I18N.add({
     title: "My Shifts — Open Shift Rail",
     "tabs.board": "Board", "board.h2": "Team board", "board.empty": "Nothing posted yet.", "board.pinned": "Pinned", "board.new": "New",
     "board.gotIt": "Got it", "board.gotItDone": "✓ Got it", "board.edited": "edited",
+    "tabs.training": "Training", "training.h2": "My training", "training.empty": "Nothing assigned to you yet.",
+    "training.course": "Course", "training.manual": "Manual", "training.contract": "Contract", "training.min": m => `${m} min`,
+    "training.open": "Open", "training.download": "Download", "training.noFile": "No file attached yet",
+    "training.markDone": "Mark as done", "training.markRead": "I've read this", "training.done": "✓ Done", "training.undo": "Undo",
     "role.Line Cook": "Line Cook", "role.Server": "Server", "role.Host": "Host", "role.Bartender": "Bartender", "role.Busser": "Busser", "role.Dishwasher": "Dishwasher", "role.Prep Cook": "Prep Cook", "role.Expo": "Expo",
     "landing.title": "My Shifts", "landing.sub": "Your schedule, your availability, and open shifts you can pick up — log in to get started.",
     "landing.email": "Email", "landing.password": "Password", "landing.login": "Log in",
@@ -191,6 +203,10 @@ I18N.add({
     title: "Mes quarts — Open Shift Rail",
     "tabs.board": "Babillard", "board.h2": "Babillard d'équipe", "board.empty": "Rien de publié pour l'instant.", "board.pinned": "Épinglé", "board.new": "Nouveau",
     "board.gotIt": "C'est lu", "board.gotItDone": "✓ C'est lu", "board.edited": "modifié",
+    "tabs.training": "Formation", "training.h2": "Ma formation", "training.empty": "Rien ne vous est assigné pour l'instant.",
+    "training.course": "Cours", "training.manual": "Guide", "training.contract": "Contrat", "training.min": m => `${m} min`,
+    "training.open": "Ouvrir", "training.download": "Télécharger", "training.noFile": "Aucun fichier joint pour l'instant",
+    "training.markDone": "Marquer comme terminé", "training.markRead": "J'ai lu ceci", "training.done": "✓ Terminé", "training.undo": "Annuler",
     "role.Line Cook": "Cuisinier de ligne", "role.Server": "Serveur/Serveuse", "role.Host": "Hôte/Hôtesse", "role.Bartender": "Barman/Barmaid", "role.Busser": "Aide-serveur", "role.Dishwasher": "Plongeur/Plongeuse", "role.Prep Cook": "Cuisinier de préparation", "role.Expo": "Expéditeur",
     "landing.title": "Mes quarts", "landing.sub": "Votre horaire, vos disponibilités et les quarts ouverts que vous pouvez prendre — connectez-vous pour commencer.",
     "landing.email": "Courriel", "landing.password": "Mot de passe", "landing.login": "Se connecter",
@@ -212,6 +228,10 @@ I18N.add({
     title: "Mis turnos — Open Shift Rail",
     "tabs.board": "Tablero", "board.h2": "Tablero del equipo", "board.empty": "Aún no hay publicaciones.", "board.pinned": "Fijado", "board.new": "Nuevo",
     "board.gotIt": "Enterado", "board.gotItDone": "✓ Enterado", "board.edited": "editado",
+    "tabs.training": "Capacitación", "training.h2": "Mi capacitación", "training.empty": "Aún no tienes nada asignado.",
+    "training.course": "Curso", "training.manual": "Manual", "training.contract": "Contrato", "training.min": m => `${m} min`,
+    "training.open": "Abrir", "training.download": "Descargar", "training.noFile": "Aún no hay archivo adjunto",
+    "training.markDone": "Marcar como hecho", "training.markRead": "Lo leí", "training.done": "✓ Hecho", "training.undo": "Deshacer",
     "role.Line Cook": "Cocinero de línea", "role.Server": "Mesero/a", "role.Host": "Anfitrión/a", "role.Bartender": "Bartender", "role.Busser": "Ayudante de mesero", "role.Dishwasher": "Lavaplatos", "role.Prep Cook": "Cocinero de preparación", "role.Expo": "Expo",
     "landing.title": "Mis turnos", "landing.sub": "Tu horario, tu disponibilidad y los turnos abiertos que puedes tomar — inicia sesión para empezar.",
     "landing.email": "Correo", "landing.password": "Contraseña", "landing.login": "Iniciar sesión",
@@ -283,13 +303,14 @@ async function logout() {
 }
 
 function switchStaffTab(name) {
-  ["schedule", "availability", "open", "board"].forEach(n => {
+  ["schedule", "availability", "open", "board", "training"].forEach(n => {
     const cap = n.charAt(0).toUpperCase() + n.slice(1);
     document.getElementById("panel" + cap).classList.toggle("active", name === n);
     document.getElementById("tabBtn" + cap).classList.toggle("active", name === n);
   });
   currentStaffTab = name;
   if (name === "board") openBoard(); else boardNewIds = new Set();
+  if (name === "training") loadTraining();
 }
 
 function enterApp(name) {
@@ -301,6 +322,7 @@ function enterApp(name) {
   loadAvailability();
   loadOpenShifts();
   loadBoard();
+  loadTraining();
   if (!window.__boardTimer) window.__boardTimer = setInterval(loadBoard, 30000);
 }
 
@@ -444,6 +466,63 @@ async function loadBoard() {
   renderBoardBadge(result.data.unreadCount);
 }
 
+/* ---------- training assigned to me ---------- */
+let trainingItems = [];
+
+function renderTrainingBadge(n) {
+  document.getElementById("trainingBadge").textContent = n > 0 ? String(n) : "";
+}
+
+function fmtFileSize(bytes) {
+  if (!bytes) return "";
+  return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(bytes / 1024)) + " KB";
+}
+
+function renderTraining() {
+  const list = document.getElementById("trainingList");
+  list.innerHTML = trainingItems.length === 0
+    ? `<p class="empty">${tr("training.empty")}</p>`
+    : trainingItems.map(it => {
+        const kind = tr("training." + it.kind);
+        const doneLabel = it.kind === "course" ? tr("training.markDone") : tr("training.markRead");
+        const file = it.file
+          ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0">
+               ${it.file.viewable ? `<button class="claim-btn" style="width:auto;padding:7px 14px" onclick="openTrainingFile('${it.id}', true)">${tr("training.open")}</button>` : ""}
+               <button class="claim-btn" style="width:auto;padding:7px 14px;${it.file.viewable ? "background:none;color:var(--ink);border:1px solid var(--ink)" : ""}" onclick="openTrainingFile('${it.id}', false)">${tr("training.download")}</button>
+             </div>
+             <div class="meta">${escapeHtml(it.file.name)} · ${fmtFileSize(it.file.size)}</div>`
+          : `<div class="meta">${tr("training.noFile")}</div>`;
+        return `
+          <div class="ticket">
+            <div class="stamp">${escapeHtml(kind)}</div>
+            <h3>${escapeHtml(it.title)}</h3>
+            ${it.minutes ? `<div class="meta">${escapeHtml(tr("training.min", it.minutes))}</div>` : ""}
+            ${file}
+            ${it.done
+              ? `<button class="claim-btn" disabled>${tr("training.done")}</button> <button class="claim-btn" style="width:auto;padding:7px 14px;background:none;color:var(--ink);border:1px solid var(--ink)" onclick="setTrainingDone('${it.id}', false)">${tr("training.undo")}</button>`
+              : `<button class="claim-btn" onclick="setTrainingDone('${it.id}', true)">${escapeHtml(doneLabel)}</button>`}
+          </div>`;
+      }).join("");
+}
+
+async function loadTraining() {
+  const result = await api("/api/staff-auth/training");
+  if (!result.ok) return;
+  trainingItems = result.data.items;
+  renderTraining();
+  renderTrainingBadge(result.data.todoCount);
+}
+
+function openTrainingFile(id, view) {
+  window.open(`/api/staff-auth/training/${id}/file${view ? "?view=1" : ""}`, "_blank", "noopener");
+}
+
+async function setTrainingDone(id, done) {
+  const result = await api(`/api/staff-auth/training/${id}/done`, { method: "POST", body: JSON.stringify({ done }) });
+  if (!result.ok) return showBanner(result.error, "warn");
+  await loadTraining();
+}
+
 async function openBoard() {
   document.getElementById("boardBadge").textContent = "";
   await loadBoard(); // marks anything new as seen once the tab is open
@@ -460,7 +539,7 @@ I18N.onChange(() => {
   if (document.getElementById("appShell").style.display === "block") {
     const h = document.getElementById("staffHeading");
     h.textContent = window.__myName ? tr("app.hi", window.__myName.split(" ")[0]) : tr("app.myShifts");
-    loadSchedule(); renderAvailability(); loadOpenShifts(); renderBoard();
+    loadSchedule(); renderAvailability(); loadOpenShifts(); renderBoard(); renderTraining();
   }
 });
 I18N.apply();

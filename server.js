@@ -1739,6 +1739,61 @@ app.post("/api/staff-auth/board/:id/ack", requireStaffAuth, async (req, res) => 
   res.json({ ok: true, acked: true });
 });
 
+// ---------- staff portal: my training (items assigned to me, file download, mark done) ----------
+
+const INLINE_VIEW_TYPES = /^(application\/pdf|image\/(png|jpeg)|video\/(mp4|quicktime|webm))$/;
+
+app.get("/api/staff-auth/training", requireStaffAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT i.id, i.kind, i.title, i.minutes, i.created_at, i.file_name, i.file_type, i.file_size, a.completed_at
+       FROM training_assignments a JOIN training_items i ON i.id = a.item_id
+      WHERE a.staff_id = $1 AND i.restaurant_id = $2
+      ORDER BY (a.completed_at IS NOT NULL) ASC, i.created_at DESC`,
+    [req.staffId, req.restaurantId]
+  );
+  const items = rows.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    title: r.title,
+    minutes: r.minutes,
+    file: r.file_name ? { name: r.file_name, type: r.file_type, size: r.file_size, viewable: INLINE_VIEW_TYPES.test(r.file_type || "") } : null,
+    done: !!r.completed_at,
+  }));
+  res.json({ items, todoCount: items.filter((i) => !i.done).length });
+});
+
+// Only items actually assigned to this person can be downloaded.
+app.get("/api/staff-auth/training/:id/file", requireStaffAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT i.file_name, i.file_type, i.file_data FROM training_items i
+       JOIN training_assignments a ON a.item_id = i.id
+      WHERE i.id = $1 AND i.restaurant_id = $2 AND a.staff_id = $3`,
+    [req.params.id, req.restaurantId, req.staffId]
+  );
+  if (rows.length === 0 || !rows[0].file_data) return res.status(404).json({ error: "no file attached" });
+  const inline = req.query.view === "1" && INLINE_VIEW_TYPES.test(rows[0].file_type || "");
+  res.set({
+    "Content-Type": rows[0].file_type || "application/octet-stream",
+    "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${rows[0].file_name.replace(/[^\x20-\x7e]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(rows[0].file_name)}`,
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "sandbox",
+  });
+  res.send(rows[0].file_data);
+});
+
+app.post("/api/staff-auth/training/:id/done", requireStaffAuth, async (req, res) => {
+  const done = !(req.body && req.body.done === false);
+  const { rows } = await pool.query(
+    `UPDATE training_assignments a SET completed_at = $1
+       FROM training_items i
+      WHERE a.item_id = i.id AND i.id = $2 AND i.restaurant_id = $3 AND a.staff_id = $4
+      RETURNING a.completed_at`,
+    [done ? Date.now() : null, req.params.id, req.restaurantId, req.staffId]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: "training item not found" });
+  res.json({ done: !!rows[0].completed_at });
+});
+
 // ---------- AI agent (Communications) ----------
 
 app.post("/api/ai/ask", requireAuth, aiLimiter, async (req, res) => {
