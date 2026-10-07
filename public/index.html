@@ -565,7 +565,8 @@
   }
   .ticket .role { font-size: 16px; text-transform: none; }
   #panelHiring .stamp:not(.filled) { border-color: var(--hiring); color: var(--hiring); }
-  .stub input[type="date"] { width: 100%; padding: 10px 12px; border-radius: 5px; font-family: inherit; font-size: 14px; }
+  .stub input[type="date"] { display: block; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; -webkit-appearance: none; appearance: none; min-height: 42px; padding: 10px 12px; border-radius: 5px; font-family: inherit; font-size: 14px; text-align: left; }
+  .stub input[type="date"]::-webkit-date-and-time-value { text-align: left; }
   .chat-input-row .primary { margin-top: 0; }
   .stub.plain h3 { padding-right: 0; margin-bottom: 10px; }
   .stub.plain > label:first-of-type { margin-top: 0; }
@@ -2145,7 +2146,7 @@ function payrollNumbers() {
   const foodSales = weekDates.reduce((a, dt) => a + (day(dt).food || 0), 0);
   const bevSales = weekDates.reduce((a, dt) => a + (day(dt).bev || 0), 0);
   const unsplit = Math.max(0, Math.round((totalSales - foodSales - bevSales) * 100) / 100); // days entered as one total (e.g. from a POS)
-  const laborPct = totalSales > 0 ? Math.round(laborCost / totalSales * 100) : null;
+  const laborPct = totalSales > 0 ? Math.round(laborCost / totalSales * 1000) / 10 : null; // % of sales, one decimal
   const afterLabor = totalSales > 0 ? totalSales - laborCost : null;
   return { weekDates, daily, totalSales, foodSales, bevSales, unsplit, laborCost, laborPct, afterLabor, nextPeriod, perStaff };
 }
@@ -2218,7 +2219,7 @@ function renderPayroll(force) {
       <div class="pay-row"><span>${t("payroll.bevSales")}</span><span class="num">$${money(n.bevSales)}${share(n.bevSales)}</span></div>
       ${n.unsplit > 0 ? `<div class="pay-row"><span style="opacity:0.7">${t("payroll.notSplit")}</span><span class="num">$${money(n.unsplit)}${share(n.unsplit)}</span></div>` : ""}
       <div class="pay-row"><span><strong>${t("payroll.totalSales")}</strong></span><span class="num"><strong>$${money(n.totalSales)}</strong></span></div>
-      <div class="pay-row"><span>${t("payroll.laborCost")}</span><span class="num">$${money(n.laborCost)}${n.laborPct !== null ? ` · ${n.laborPct}%` : ""}</span></div>
+      <div class="pay-row"><span>${t("payroll.laborCost")}</span><span class="num">${n.laborPct !== null ? `${n.laborPct}%` : "—"}</span></div>
       <div class="pay-row"><span><strong>${t("payroll.afterLabor")}</strong></span><span class="num"><strong>${n.afterLabor !== null ? "$" + money(n.afterLabor) : t("payroll.needSales")}</strong></span></div>
     </div>
     <div class="stub" style="--accent:var(--payroll)">
