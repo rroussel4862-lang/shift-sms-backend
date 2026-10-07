@@ -487,6 +487,9 @@
   .chat-thinking { color: var(--text-dim); font-size: 12.5px; font-style: italic; padding: 4px 0; }
 
   /* ---------- Training + Payroll & Sales (paper "stub" cards, per mockup) ---------- */
+  .file-pick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .stub label.file-btn { cursor: pointer; display: inline-block; text-transform: none; letter-spacing: 0; margin: 0; font-size: 12px; }
+  .file-line a { color: inherit; text-decoration: underline; word-break: break-all; }
   #sidebar { overflow-x: auto; }
   .nav-stub { flex: 1 0 auto; padding-left: 12px; padding-right: 12px; white-space: nowrap; }
   .stub {
@@ -810,7 +813,7 @@ const LANGS = [{ code: "en", label: "EN" }, { code: "fr", label: "FR" }, { code:
 
 const T = {
   en: {
-    common: { justNow: "just now", minAgo: m => `${m}m ago`, hourAgo: h => `${h}h ago` },
+    common: { networkError: "Network error — is the server running?", justNow: "just now", minAgo: m => `${m}m ago`, hourAgo: h => `${h}h ago` },
     landing: {
       title: "Open Shift Rail", tagline: "Post a no-show. Text your staff. Fill the shift — all from here.",
       loginTab: "Log in", signupTab: "Sign up", restaurantNameLabel: "Restaurant name", restaurantNamePh: "e.g. Ferro",
@@ -833,6 +836,10 @@ const T = {
       noItems: "Nothing here yet — create your first course.", noStaffYet: "Add staff first, then assign training.",
       tapToTrack: "Tap to mark who's done", markDone: "Done", markUndone: "Undo", delete: "Delete",
       confirmDelete: "Delete this item and its progress?", bannerCreated: "Created", bannerTitleRequired: "Enter a title first",
+      fileLabel: "Attach a file (optional)", chooseFile: "Choose file", noFileChosen: "No file chosen", fileHint: "PDF, Word, Excel, PowerPoint, image or video (mp4/mov/webm) — up to 25 MB",
+      attachFile: "Attach file", replaceFile: "Replace file", removeFile: "Remove file", download: "Download", noFile: "No file attached",
+      fileTooBig: "That file is over 25 MB", fileBadType: "That file type isn't allowed", uploading: "Uploading…", bannerUploaded: "File uploaded", bannerFileRemoved: "File removed",
+      bannerCreatedUploadFailed: err => `Created, but the file didn't upload: ${err}`, confirmRemoveFile: "Remove the attached file?",
     },
     payroll: {
       eyebrow: "Payroll & Sales", h2: "This week's numbers",
@@ -922,7 +929,7 @@ const T = {
     },
   },
   fr: {
-    common: { justNow: "à l'instant", minAgo: m => `il y a ${m} min`, hourAgo: h => `il y a ${h} h` },
+    common: { networkError: "Erreur réseau — le serveur est-il en marche ?", justNow: "à l'instant", minAgo: m => `il y a ${m} min`, hourAgo: h => `il y a ${h} h` },
     landing: {
       title: "Open Shift Rail", tagline: "Signalez une absence. Textez votre personnel. Comblez le quart — tout ici.",
       loginTab: "Connexion", signupTab: "Inscription", restaurantNameLabel: "Nom du restaurant", restaurantNamePh: "ex. Ferro",
@@ -945,6 +952,10 @@ const T = {
       noItems: "Rien ici pour l'instant — créez votre premier cours.", noStaffYet: "Ajoutez d'abord du personnel, puis assignez la formation.",
       tapToTrack: "Touchez pour marquer qui a terminé", markDone: "Terminé", markUndone: "Annuler", delete: "Supprimer",
       confirmDelete: "Supprimer cet élément et sa progression ?", bannerCreated: "Créé", bannerTitleRequired: "Entrez d'abord un titre",
+      fileLabel: "Joindre un fichier (facultatif)", chooseFile: "Choisir un fichier", noFileChosen: "Aucun fichier choisi", fileHint: "PDF, Word, Excel, PowerPoint, image ou vidéo (mp4/mov/webm) — jusqu'à 25 Mo",
+      attachFile: "Joindre un fichier", replaceFile: "Remplacer le fichier", removeFile: "Retirer le fichier", download: "Télécharger", noFile: "Aucun fichier joint",
+      fileTooBig: "Ce fichier dépasse 25 Mo", fileBadType: "Ce type de fichier n'est pas permis", uploading: "Téléversement…", bannerUploaded: "Fichier téléversé", bannerFileRemoved: "Fichier retiré",
+      bannerCreatedUploadFailed: err => `Créé, mais le fichier n'a pas été téléversé : ${err}`, confirmRemoveFile: "Retirer le fichier joint ?",
     },
     payroll: {
       eyebrow: "Paie & Ventes", h2: "Les chiffres de la semaine",
@@ -1034,7 +1045,7 @@ const T = {
     },
   },
   es: {
-    common: { justNow: "justo ahora", minAgo: m => `hace ${m} min`, hourAgo: h => `hace ${h} h` },
+    common: { networkError: "Error de red — ¿está el servidor en marcha?", justNow: "justo ahora", minAgo: m => `hace ${m} min`, hourAgo: h => `hace ${h} h` },
     landing: {
       title: "Open Shift Rail", tagline: "Reporta una ausencia. Envía mensajes a tu personal. Cubre el turno — todo aquí.",
       loginTab: "Iniciar sesión", signupTab: "Registrarse", restaurantNameLabel: "Nombre del restaurante", restaurantNamePh: "ej. Ferro",
@@ -1057,6 +1068,10 @@ const T = {
       noItems: "Nada aquí todavía — crea tu primer curso.", noStaffYet: "Primero agrega personal y luego asigna la capacitación.",
       tapToTrack: "Toca para marcar quién terminó", markDone: "Listo", markUndone: "Deshacer", delete: "Eliminar",
       confirmDelete: "¿Eliminar este elemento y su progreso?", bannerCreated: "Creado", bannerTitleRequired: "Escribe primero un título",
+      fileLabel: "Adjuntar un archivo (opcional)", chooseFile: "Elegir archivo", noFileChosen: "Ningún archivo elegido", fileHint: "PDF, Word, Excel, PowerPoint, imagen o video (mp4/mov/webm) — hasta 25 MB",
+      attachFile: "Adjuntar archivo", replaceFile: "Reemplazar archivo", removeFile: "Quitar archivo", download: "Descargar", noFile: "Sin archivo adjunto",
+      fileTooBig: "Ese archivo supera los 25 MB", fileBadType: "Ese tipo de archivo no está permitido", uploading: "Subiendo…", bannerUploaded: "Archivo subido", bannerFileRemoved: "Archivo quitado",
+      bannerCreatedUploadFailed: err => `Creado, pero el archivo no se subió: ${err}`, confirmRemoveFile: "¿Quitar el archivo adjunto?",
     },
     payroll: {
       eyebrow: "Nómina y Ventas", h2: "Los números de esta semana",
@@ -1547,7 +1562,57 @@ function renderOverview() {
 let trainingItems = [];
 let trainingExpanded = new Set();
 let trainingFormOpen = false;
-let trainingDraft = { kind: "course", title: "", minutes: "", assignTo: "all" };
+let trainingDraft = { kind: "course", title: "", minutes: "", assignTo: "all", file: null };
+const TRAINING_EXTS = ["pdf","doc","docx","xls","xlsx","ppt","pptx","txt","png","jpg","jpeg","mp4","mov","webm"];
+const TRAINING_MAX_BYTES = 25 * 1024 * 1024;
+function fmtSize(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB"; }
+function checkTrainingFile(f) {
+  const ext = (f.name.split(".").pop() || "").toLowerCase();
+  if (!TRAINING_EXTS.includes(ext)) return t("training.fileBadType");
+  if (f.size > TRAINING_MAX_BYTES) return t("training.fileTooBig");
+  return null;
+}
+async function uploadTrainingFile(itemId, file) {
+  try {
+    const res = await fetch(`/api/training/${itemId}/file?name=${encodeURIComponent(file.name)}`, {
+      method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/octet-stream" }, body: file,
+    });
+    let body = null; try { body = await res.json(); } catch (e) {}
+    if (!res.ok) return { ok: false, error: (body && body.error) || (res.status === 413 ? t("training.fileTooBig") : `HTTP ${res.status}`) };
+    return { ok: true, data: body };
+  } catch (e) { return { ok: false, error: t("common.networkError") }; }
+}
+function pickDraftFile(input) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  const err = checkTrainingFile(f);
+  if (err) { input.value = ""; return showBanner(err, "warn"); }
+  trainingDraft.file = f;
+  renderTraining(true);
+}
+async function pickItemFile(itemId, input) {
+  const f = input.files && input.files[0];
+  input.value = "";
+  if (!f) return;
+  const err = checkTrainingFile(f);
+  if (err) return showBanner(err, "warn");
+  showBanner(t("training.uploading"), "success");
+  const r = await uploadTrainingFile(itemId, f);
+  if (!r.ok) return showBanner(r.error, "warn");
+  const it = trainingItems.find(i => i.id === itemId);
+  if (it) it.file = r.data;
+  showBanner(t("training.bannerUploaded"), "success");
+  renderTraining(true);
+}
+async function removeItemFile(itemId) {
+  if (!confirm(t("training.confirmRemoveFile"))) return;
+  const r = await api(`/api/training/${itemId}/file`, { method: "DELETE" });
+  if (!r.ok) return showBanner(r.error, "warn");
+  const it = trainingItems.find(i => i.id === itemId);
+  if (it) it.file = null;
+  showBanner(t("training.bannerFileRemoved"), "success");
+  renderTraining(true);
+}
 
 function panelHasFocus(panelId) {
   const a = document.activeElement;
@@ -1585,6 +1650,12 @@ function trainingFormHtml() {
       ${d.kind === "course" ? `
         <label>${t("training.minutesLabel")}</label>
         <input type="text" inputmode="numeric" value="${escapeHtml(d.minutes)}" placeholder="20" oninput="trainingDraft.minutes=this.value" />` : ""}
+      <label>${t("training.fileLabel")}</label>
+      <div class="file-pick">
+        <label class="mini outline file-btn">${t("training.chooseFile")}<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.mp4,.mov,.webm" onchange="pickDraftFile(this)" style="display:none" /></label>
+        <span class="meta">${d.file ? escapeHtml(d.file.name) + " · " + fmtSize(d.file.size) : t("training.noFileChosen")}</span>
+      </div>
+      <div class="meta" style="margin-top:4px">${t("training.fileHint")}</div>
       <label>${t("training.assignLabel")}</label>
       <select onchange="trainingDraft.assignTo=this.value">
         <option value="all"${d.assignTo === "all" ? " selected" : ""}>${t("training.assignAll")}</option>
@@ -1614,6 +1685,9 @@ function trainingItemHtml(it) {
     meta = assigned > 0 && done === assigned ? t("training.signed") : t("training.pendingSignature");
   }
   const thumb = it.kind === "course" ? `<span class="video-thumb"></span>` : "";
+  const fileLine = it.file
+    ? `<div class="meta file-line">📎 <a href="/api/training/${it.id}/file" onclick="event.stopPropagation()" download>${escapeHtml(it.file.name)}</a> · ${fmtSize(it.file.size)}</div>`
+    : "";
   const rows = open ? `
     <div style="margin-top:12px">
       ${assigned === 0 ? `<div class="meta">${t("training.noStaffYet")}</div>` : it.assignments.map(a => `
@@ -1621,13 +1695,18 @@ function trainingItemHtml(it) {
           <span>${escapeHtml(staffNameById(a.staffId))}</span>
           <button class="mini${a.done ? " outline" : ""}" onclick="event.stopPropagation(); toggleAssignment('${it.id}','${a.staffId}',${!a.done})">${a.done ? t("training.markUndone") : t("training.markDone")}</button>
         </div>`).join("")}
-      <div style="margin-top:10px"><button class="mini outline" onclick="event.stopPropagation(); deleteTraining('${it.id}')">${t("training.delete")}</button></div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <label class="mini file-btn" onclick="event.stopPropagation()">${it.file ? t("training.replaceFile") : t("training.attachFile")}<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.mp4,.mov,.webm" onchange="pickItemFile('${it.id}', this)" style="display:none" /></label>
+        ${it.file ? `<button class="mini outline" onclick="event.stopPropagation(); removeItemFile('${it.id}')">${t("training.removeFile")}</button>` : ""}
+        <button class="mini outline" onclick="event.stopPropagation(); deleteTraining('${it.id}')">${t("training.delete")}</button>
+      </div>
     </div>` : "";
   return `
     <div class="stub clickable" style="--accent:var(--training)" onclick="toggleTrainingItem('${it.id}')">
       <div class="tag">${escapeHtml(tag)}</div>
       <h3 style="display:flex;align-items:center;gap:10px">${thumb}${escapeHtml(it.title)}</h3>
       <div class="meta">${escapeHtml(meta)}${open ? "" : ` · ${t("training.tapToTrack")}`}</div>
+      ${fileLine}
       ${extra}
       ${rows}
     </div>`;
@@ -1657,7 +1736,7 @@ function renderTraining(force) {
 }
 
 function openTrainingForm(kind) {
-  trainingDraft = { kind, title: "", minutes: "", assignTo: "all" };
+  trainingDraft = { kind, title: "", minutes: "", assignTo: "all", file: null };
   trainingFormOpen = true;
   renderTraining(true);
 }
@@ -1675,8 +1754,15 @@ async function createTraining() {
   const result = await api("/api/training", { method: "POST", body: JSON.stringify(body) });
   if (result.ok) {
     trainingFormOpen = false;
-    showBanner(t("training.bannerCreated"), "success");
-    trainingItems = [result.data, ...trainingItems];
+    let created = result.data;
+    if (d.file) {
+      const up = await uploadTrainingFile(created.id, d.file);
+      if (up.ok) { created.file = up.data; showBanner(t("training.bannerCreated"), "success"); }
+      else showBanner(t("training.bannerCreatedUploadFailed", up.error), "warn");
+    } else {
+      showBanner(t("training.bannerCreated"), "success");
+    }
+    trainingItems = [created, ...trainingItems];
     renderTraining(true);
     renderOverview();
   } else {

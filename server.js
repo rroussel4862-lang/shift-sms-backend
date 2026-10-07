@@ -196,6 +196,11 @@ async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS training_items_restaurant_idx ON training_items (restaurant_id);`);
+  // Optional attached file (course video, manual PDF, contract...) stored in the database so it survives Render redeploys
+  await pool.query(`ALTER TABLE training_items ADD COLUMN IF NOT EXISTS file_name TEXT;`);
+  await pool.query(`ALTER TABLE training_items ADD COLUMN IF NOT EXISTS file_type TEXT;`);
+  await pool.query(`ALTER TABLE training_items ADD COLUMN IF NOT EXISTS file_size INTEGER;`);
+  await pool.query(`ALTER TABLE training_items ADD COLUMN IF NOT EXISTS file_data BYTEA;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS training_assignments (
       item_id TEXT NOT NULL REFERENCES training_items(id) ON DELETE CASCADE,
@@ -578,7 +583,7 @@ app.put("/api/restaurant/costs", requireAuth, async (req, res) => {
 const TRAINING_KINDS = ["course", "manual", "contract"];
 
 async function loadTrainingItems(restaurantId) {
-  const { rows: items } = await pool.query("SELECT * FROM training_items WHERE restaurant_id = $1 ORDER BY created_at DESC", [restaurantId]);
+  const { rows: items } = await pool.query("SELECT id, kind, title, minutes, created_at, file_name, file_type, file_size FROM training_items WHERE restaurant_id = $1 ORDER BY created_at DESC", [restaurantId]);
   if (items.length === 0) return [];
   const { rows: assigns } = await pool.query(
     `SELECT a.item_id, a.staff_id, a.completed_at FROM training_assignments a
@@ -591,6 +596,7 @@ async function loadTrainingItems(restaurantId) {
     title: it.title,
     minutes: it.minutes,
     createdAt: Number(it.created_at),
+    file: it.file_name ? { name: it.file_name, type: it.file_type, size: it.file_size } : null,
     assignments: assigns
       .filter((a) => a.item_id === it.id)
       .map((a) => ({ staffId: a.staff_id, done: !!a.completed_at })),
@@ -626,6 +632,61 @@ app.post("/api/training", requireAuth, async (req, res) => {
   ));
   const items = await loadTrainingItems(req.restaurantId);
   res.status(201).json(items.find((i) => i.id === newId));
+});
+
+// ----- attached files -----
+const TRAINING_FILE_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
+const TRAINING_FILE_TYPES = {
+  pdf: "application/pdf", doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  txt: "text/plain", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+  mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm",
+};
+
+app.put(
+  "/api/training/:id/file",
+  requireAuth,
+  express.raw({ type: () => true, limit: TRAINING_FILE_MAX_BYTES }),
+  async (req, res) => {
+    const { rows: item } = await pool.query("SELECT id FROM training_items WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+    if (item.length === 0) return res.status(404).json({ error: "item not found" });
+    const name = String(req.query.name || "").replace(/[\\/\r\n"]/g, "_").slice(0, 150).trim();
+    const ext = (name.split(".").pop() || "").toLowerCase();
+    if (!name || !TRAINING_FILE_TYPES[ext]) {
+      return res.status(400).json({ error: "File type not allowed. Use PDF, Word, Excel, PowerPoint, text, image or video (mp4/mov/webm)." });
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "file is empty" });
+    await pool.query(
+      "UPDATE training_items SET file_name = $1, file_type = $2, file_size = $3, file_data = $4 WHERE id = $5 AND restaurant_id = $6",
+      [name, TRAINING_FILE_TYPES[ext], req.body.length, req.body, req.params.id, req.restaurantId]
+    );
+    res.json({ name, type: TRAINING_FILE_TYPES[ext], size: req.body.length });
+  }
+);
+
+app.get("/api/training/:id/file", requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    "SELECT file_name, file_type, file_data FROM training_items WHERE id = $1 AND restaurant_id = $2",
+    [req.params.id, req.restaurantId]
+  );
+  if (rows.length === 0 || !rows[0].file_data) return res.status(404).json({ error: "no file attached" });
+  res.set({
+    "Content-Type": rows[0].file_type || "application/octet-stream",
+    "Content-Disposition": `attachment; filename="${rows[0].file_name.replace(/[^\x20-\x7e]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(rows[0].file_name)}`,
+    "X-Content-Type-Options": "nosniff",
+  });
+  res.send(rows[0].file_data);
+});
+
+app.delete("/api/training/:id/file", requireAuth, async (req, res) => {
+  const result = await pool.query(
+    "UPDATE training_items SET file_name = NULL, file_type = NULL, file_size = NULL, file_data = NULL WHERE id = $1 AND restaurant_id = $2",
+    [req.params.id, req.restaurantId]
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: "item not found" });
+  res.json({ ok: true });
 });
 
 app.patch("/api/training/:id/assignments/:staffId", requireAuth, async (req, res) => {
