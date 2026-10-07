@@ -2077,6 +2077,71 @@ function mondayOfIso(dateStr) {
   return addDaysIso(dateStr, -((dow + 6) % 7));
 }
 
+// Turns sales history + the manager's projections into what the AI needs to size crews:
+// expected sales per day of the target week, plus how much labor this group has historically used per sales dollar.
+function buildSalesPlan({ weekStart, projections, pastSales, pastShifts, staffById }) {
+  const iso = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : v);
+  const num = (v) => (v === null || v === undefined ? null : Number(v));
+
+  // Typical sales by weekday over the history window.
+  const byWeekday = {};
+  pastSales.forEach((r) => {
+    const total = num(r.amount);
+    if (!total || total <= 0) return;
+    const k = weekdayKey(iso(r.sale_date));
+    const w = (byWeekday[k] = byWeekday[k] || { n: 0, total: 0, food: 0, foodN: 0, bev: 0, bevN: 0 });
+    w.n += 1; w.total += total;
+    if (num(r.food_amount) !== null) { w.food += num(r.food_amount); w.foodN += 1; }
+    if (num(r.bev_amount) !== null) { w.bev += num(r.bev_amount); w.bevN += 1; }
+  });
+
+  const projByDate = {};
+  projections.forEach((r) => { if (num(r.projected_amount) !== null) projByDate[iso(r.proj_date)] = num(r.projected_amount); });
+
+  const salesPlan = Array.from({ length: 7 }, (_, i) => {
+    const date = addDaysIso(weekStart, i);
+    const wk = weekdayKey(date);
+    const avg = byWeekday[wk];
+    const avgTotal = avg ? avg.total / avg.n : null;
+    let expectedSales = null, basis = null;
+    if (projByDate[date] !== undefined) { expectedSales = projByDate[date]; basis = "manager projection"; }
+    else if (avgTotal !== null) { expectedSales = Math.round(avgTotal); basis = `average of ${avg.n} recent ${wk} day${avg.n === 1 ? "" : "s"}`; }
+    let foodShare = null;
+    if (avg && avg.foodN > 0 && avg.bevN > 0) {
+      const f = avg.food / avg.foodN, b = avg.bev / avg.bevN;
+      if (f + b > 0) foodShare = Math.round((f / (f + b)) * 100);
+    }
+    return {
+      date, weekday: wk, expectedSales, basis,
+      foodPercent: foodShare, beveragePercent: foodShare === null ? null : 100 - foodShare,
+    };
+  });
+
+  // How many sales dollars this staff group has historically produced per labor hour, on days with both sales and shifts.
+  const hoursByDate = {}, costByDate = {};
+  pastShifts.forEach((sh) => {
+    const [a, b] = shiftRange(sh.startTime, sh.endTime);
+    const h = (b - a) / 60;
+    hoursByDate[sh.date] = (hoursByDate[sh.date] || 0) + h;
+    costByDate[sh.date] = (costByDate[sh.date] || 0) + h * (staffById[sh.staffId].rate || 0);
+  });
+  let sales = 0, hours = 0, cost = 0, days = 0;
+  pastSales.forEach((r) => {
+    const d = iso(r.sale_date), total = num(r.amount);
+    if (total && total > 0 && hoursByDate[d] > 0) { sales += total; hours += hoursByDate[d]; cost += costByDate[d]; days += 1; }
+  });
+  const benchmarks = { daysOfHistory: days, salesPerLaborHour: null, laborPercentOfSales: null, suggestedLaborHours: null };
+  if (days >= 3 && hours > 0) {
+    const splh = sales / hours;
+    benchmarks.salesPerLaborHour = Math.round(splh);
+    benchmarks.laborPercentOfSales = cost > 0 ? Math.round((cost / sales) * 1000) / 10 : null;
+    benchmarks.suggestedLaborHours = Object.fromEntries(
+      salesPlan.filter((d) => d.expectedSales > 0).map((d) => [d.date, Math.round((d.expectedSales / splh) * 10) / 10])
+    );
+  }
+  return { salesPlan, benchmarks };
+}
+
 async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds, lang }) {
   if (!prompt) throw httpError(400, "prompt is required");
   if (prompt.length > 1500) throw httpError(400, "prompt must be 1500 characters or fewer");
@@ -2090,12 +2155,21 @@ async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds
   const staffById = {};
   pool_.forEach((p) => { staffById[p.id] = { name: p.name, roles: p.roles || [], rate: p.hourly_rate !== null ? Number(p.hourly_rate) : 0 }; });
   const availabilityByStaff = await loadAvailabilityMap(restaurantId, pool_.map((p) => p.id));
-  const [existingRes, projRes, salesRes] = await Promise.all([
+  const historyStart = addDaysIso(weekStart, -56); // 8 weeks of history
+  const [existingRes, projRes, salesRes, pastShiftRes] = await Promise.all([
     pool.query("SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3", [restaurantId, weekStart, weekEnd]),
     pool.query("SELECT * FROM sales_projections WHERE restaurant_id = $1 AND proj_date >= $2 AND proj_date <= $3", [restaurantId, weekStart, weekEnd]),
-    pool.query("SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date >= $2 AND sale_date < $3 ORDER BY sale_date", [restaurantId, addDaysIso(weekStart, -28), weekStart]),
+    pool.query("SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date >= $2 AND sale_date < $3 ORDER BY sale_date", [restaurantId, historyStart, weekStart]),
+    pool.query("SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date < $3", [restaurantId, historyStart, weekStart]),
   ]);
   const existing = existingRes.rows.map(scheduleShiftRowToJson);
+  const plan = buildSalesPlan({
+    weekStart,
+    projections: projRes.rows,
+    pastSales: salesRes.rows,
+    pastShifts: pastShiftRes.rows.map(scheduleShiftRowToJson).filter((sh) => staffById[sh.staffId]),
+    staffById,
+  });
 
   const context = {
     week: Array.from({ length: 7 }, (_, i) => { const d = addDaysIso(weekStart, i); return { date: d, weekday: weekdayKey(d) }; }),
@@ -2105,8 +2179,8 @@ async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds
       availability: Object.fromEntries(Object.entries(availabilityByStaff[p.id] || {}).map(([k, v]) => [k, { free: v.available, note: v.note || "" }])),
     })),
     alreadyScheduledThisWeek: existing.filter((e) => staffById[e.staffId]).map((e) => ({ staffId: e.staffId, date: e.date, start: e.startTime, end: e.endTime, role: e.role })),
-    projectedSales: projRes.rows.map((r) => ({ date: r.proj_date instanceof Date ? r.proj_date.toISOString().slice(0, 10) : r.proj_date, amount: r.projected_amount !== null ? Number(r.projected_amount) : null })),
-    recentActualSales: salesRes.rows.map((r) => ({ date: r.sale_date instanceof Date ? r.sale_date.toISOString().slice(0, 10) : r.sale_date, total: r.amount !== null ? Number(r.amount) : null })),
+    salesPlan: plan.salesPlan,
+    staffingBenchmarks: plan.benchmarks,
   };
 
   const system = `You build weekly shift schedules for a restaurant manager. Follow the manager's request exactly, using ONLY the staff and dates in the data.
@@ -2116,7 +2190,7 @@ Rules:
 - Never schedule someone on a weekday where their availability free is false. Respect availability notes (e.g. "after 5pm") as best you can.
 - Do not duplicate or overlap shifts in "alreadyScheduledThisWeek"; fill around them.
 - One shift per person per day unless asked otherwise. Keep shifts between 3 and 12 hours. Avoid more than 40 hours a week per person unless asked.
-- Use projected/recent sales to size crews when the manager asks for it; busier days get more people.
+- Size crews to expected sales. "salesPlan" gives each day's expected sales (the manager's projection when set, otherwise that weekday's recent average) with the food / beverage split. Busier days get more people; food sales drive the kitchen and beverage sales drive bartenders and bussers. When "staffingBenchmarks.suggestedLaborHours" is present, aim for each day's total shift hours to land near that number (and mention it in the summary). Headcounts or hours the manager states explicitly always win over these suggestions. If there is no sales data, spread staff evenly and say that in the summary.
 - Times are 24-hour "HH:MM". Dates are YYYY-MM-DD and must fall inside the week.
 - If the request can't be fully met (not enough staff, conflicts), schedule what you can and say so briefly in "summary".
 Reply with ONLY a JSON object: {"summary":"<one or two sentences, in ${LANG_NAMES[lang] || "English"}>","shifts":[{"staffId":"","date":"","startTime":"","endTime":"","role":""}]}.
@@ -2142,6 +2216,24 @@ ${JSON.stringify(context)}`;
     totalHours += h;
     estCost += h * (staffById[sh.staffId].rate || 0);
   });
+  // Per-day labor against expected sales, counting what's already on the grid plus the new shifts (this staff group only).
+  const days = plan.salesPlan.map((d) => {
+    let hours = 0, cost = 0;
+    [...existing.filter((e) => staffById[e.staffId]), ...ok].filter((sh) => sh.date === d.date).forEach((sh) => {
+      const [a, b] = shiftRange(sh.startTime, sh.endTime);
+      hours += (b - a) / 60;
+      cost += ((b - a) / 60) * (staffById[sh.staffId].rate || 0);
+    });
+    return {
+      date: d.date,
+      hours: Math.round(hours * 10) / 10,
+      cost: Math.round(cost),
+      expectedSales: d.expectedSales,
+      laborPct: d.expectedSales > 0 && hours > 0 ? Math.round((cost / d.expectedSales) * 1000) / 10 : null,
+    };
+  });
+  const weekSales = days.reduce((n, d) => n + (d.expectedSales || 0), 0);
+  const weekCost = days.reduce((n, d) => n + d.cost, 0);
   return {
     weekStart,
     summary: String(parsed.summary || "").slice(0, 600),
@@ -2149,6 +2241,8 @@ ${JSON.stringify(context)}`;
     skipped,
     totalHours: Math.round(totalHours * 10) / 10,
     estCost: Math.round(estCost),
+    days,
+    weekLaborPct: weekSales > 0 && weekCost > 0 ? Math.round((weekCost / weekSales) * 1000) / 10 : null,
   };
 }
 

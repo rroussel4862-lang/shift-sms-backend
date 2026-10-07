@@ -979,6 +979,7 @@ const T = {
       thinking: "Thinking…", sorry: err => `Sorry — ${err}`, you: "You", ai: "AI",
       schedDefault: "Here's a proposed schedule — nothing is saved until you apply it.", schedProposal: n => `${n} shift${n === 1 ? "" : "s"} proposed — not saved yet`, schedHours: (h, c) => `${h}h total · about $${c} labor`,
       schedApply: "Apply to grid", schedDiscard: "Discard", schedApplied: n => `${n} shift${n === 1 ? "" : "s"} added to the schedule.`, schedUndo: "Undo", schedUndone: "Undone — the shifts were removed.", schedDiscarded: "Discarded — nothing was saved.",
+      schedDayLabor: (sales, pct) => pct === null ? `~$${sales} expected sales` : `~$${sales} expected sales · ${pct}% labor`, schedWeekLabor: pct => `${pct}% labor vs expected sales`,
       schedSkipped: "Left out:", schedNone: "No shifts could be proposed.", schedWeek: d => `Week of ${d}`, schedOpenBo: "Open in Back Office",
       skip: { unavailable: "marked unavailable", overlap: "already has a shift then", bad_time: "invalid times", bad_date: "date outside this week", unknown_staff: "unknown staff member" },
     },
@@ -1112,6 +1113,7 @@ const T = {
       thinking: "Réflexion en cours…", sorry: err => `Désolé — ${err}`, you: "Vous", ai: "IA",
       schedDefault: "Voici un horaire proposé — rien n'est enregistré avant que vous l'appliquiez.", schedProposal: n => `${n} quart${n === 1 ? "" : "s"} proposé${n === 1 ? "" : "s"} — pas encore enregistré${n === 1 ? "" : "s"}`, schedHours: (h, c) => `${h} h au total · environ ${c} $ de main-d'œuvre`,
       schedApply: "Appliquer à la grille", schedDiscard: "Annuler", schedApplied: n => `${n} quart${n === 1 ? "" : "s"} ajouté${n === 1 ? "" : "s"} à l'horaire.`, schedUndo: "Annuler l'ajout", schedUndone: "Annulé — les quarts ont été retirés.", schedDiscarded: "Annulé — rien n'a été enregistré.",
+      schedDayLabor: (sales, pct) => pct === null ? `~${sales} $ de ventes prévues` : `~${sales} $ de ventes prévues · ${pct}% main-d'œuvre`, schedWeekLabor: pct => `${pct}% de main-d'œuvre par rapport aux ventes prévues`,
       schedSkipped: "Exclus :", schedNone: "Aucun quart n'a pu être proposé.", schedWeek: d => `Semaine du ${d}`, schedOpenBo: "Ouvrir dans l'arrière-boutique",
       skip: { unavailable: "marqué indisponible", overlap: "a déjà un quart à ce moment", bad_time: "heures invalides", bad_date: "date hors de cette semaine", unknown_staff: "employé inconnu" },
     },
@@ -1245,6 +1247,7 @@ const T = {
       thinking: "Pensando…", sorry: err => `Lo siento — ${err}`, you: "Tú", ai: "IA",
       schedDefault: "Aquí tienes un horario propuesto — no se guarda nada hasta que lo apliques.", schedProposal: n => `${n} turno${n === 1 ? "" : "s"} propuesto${n === 1 ? "" : "s"} — aún sin guardar`, schedHours: (h, c) => `${h} h en total · unos $${c} de mano de obra`,
       schedApply: "Aplicar a la cuadrícula", schedDiscard: "Descartar", schedApplied: n => `${n} turno${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} al horario.`, schedUndo: "Deshacer", schedUndone: "Deshecho — se quitaron los turnos.", schedDiscarded: "Descartado — no se guardó nada.",
+      schedDayLabor: (sales, pct) => pct === null ? `~$${sales} de ventas esperadas` : `~$${sales} de ventas esperadas · ${pct}% mano de obra`, schedWeekLabor: pct => `${pct}% de mano de obra vs. ventas esperadas`,
       schedSkipped: "Omitidos:", schedNone: "No se pudo proponer ningún turno.", schedWeek: d => `Semana del ${d}`, schedOpenBo: "Abrir en Administración",
       skip: { unavailable: "marcado como no disponible", overlap: "ya tiene un turno a esa hora", bad_time: "horas no válidas", bad_date: "fecha fuera de esta semana", unknown_staff: "empleado desconocido" },
     },
@@ -1385,13 +1388,15 @@ function chatProposalHtml(m, idx) {
   const days = Object.keys(byDay).sort().map(d => {
     const dt = new Date(d + "T00:00:00");
     const label = `${t("days")[(dt.getDay() + 6) % 7]} ${dt.getMonth() + 1}/${dt.getDate()}`;
-    return `<div class="pd">${escapeHtml(label)}</div>` + byDay[d].sort((a, b) => a.startTime.localeCompare(b.startTime)).map(sh =>
+    const info = (p.days || []).find(x => x.date === d);
+    const extra = info && info.expectedSales ? ` · ${t("comms.schedDayLabor", Math.round(info.expectedSales), info.laborPct)}` : "";
+    return `<div class="pd">${escapeHtml(label + extra)}</div>` + byDay[d].sort((a, b) => a.startTime.localeCompare(b.startTime)).map(sh =>
       `<div class="pl"><span class="nm">${escapeHtml(sh.staffName)}</span><span>${escapeHtml(fmtClock(sh.startTime))} – ${escapeHtml(fmtClock(sh.endTime))}</span><span class="rl">${escapeHtml(sh.role || "")}</span></div>`).join("");
   }).join("");
   const skipped = p.skipped.length ? `<div class="sk">${escapeHtml(t("comms.schedSkipped"))} ` + p.skipped.map(k => `${escapeHtml(k.staffName || "?")} ${escapeHtml(k.date || "")} (${escapeHtml(t("comms.skip")[k.code] || k.code)})`).join("; ") + `</div>` : "";
   return `<div class="chat-proposal">
     <div><b>${p.shifts.length ? escapeHtml(t("comms.schedProposal", p.shifts.length)) : escapeHtml(t("comms.schedNone"))}</b></div>
-    <div style="opacity:.7;font-size:12px">${escapeHtml(t("comms.schedWeek", p.weekStart))}${p.shifts.length ? " · " + escapeHtml(t("comms.schedHours", p.totalHours, p.estCost)) : ""}</div>
+    <div style="opacity:.7;font-size:12px">${escapeHtml(t("comms.schedWeek", p.weekStart))}${p.shifts.length ? " · " + escapeHtml(t("comms.schedHours", p.totalHours, p.estCost)) : ""}${p.weekLaborPct != null ? " · " + escapeHtml(t("comms.schedWeekLabor", p.weekLaborPct)) : ""}</div>
     ${days}${skipped}
     <div class="acts">
       ${p.shifts.length ? `<button class="mini" id="chatApply-${idx}" onclick="applyChatProposal(${idx})">${t("comms.schedApply")}</button>` : ""}

@@ -192,3 +192,49 @@ describe("scheduling from the Comms chat", () => {
     expect(res.body.error).toMatch(/no staff/i);
   });
 });
+
+describe("sales-aware crews", () => {
+  let C, dee;
+  const PAST_FRIDAYS = ["2026-02-06", "2026-02-13", "2026-02-20", "2026-02-27"];
+
+  beforeAll(async () => {
+    C = await createRestaurant(() => request.agent(app));
+    dee = await mkStaff(C, "Dee Server", ["Server"]);
+    for (const d of PAST_FRIDAYS) {
+      await C.agent.put("/api/actual-sales").send({ date: d, foodAmount: 3000, bevAmount: 1000 });
+      await C.agent.post("/api/schedule").send({ staffId: dee, date: d, startTime: "10:00", endTime: "20:00", role: "Server" }); // 10h x $20
+    }
+    await C.agent.put("/api/sales-projections").send({ date: "2026-03-03", projectedAmount: 5000 });
+  });
+
+  test("the AI is given expected sales, the food/beverage split and a labor-hours benchmark", async () => {
+    nextReply = { summary: "Sized to sales.", shifts: [sh(dee, "2026-03-06", "11:00", "21:00")] };
+    const res = await C.agent.post("/api/ai/schedule").send({ prompt: "Staff to sales", weekStart: WEEK });
+    expect(res.status).toBe(200);
+    const plan = JSON.parse(lastBody.system.split("DATA:\n")[1]);
+    const fri = plan.salesPlan.find((d) => d.date === "2026-03-06");
+    expect(fri).toMatchObject({ weekday: "fri", expectedSales: 4000, foodPercent: 75, beveragePercent: 25 });
+    expect(fri.basis).toMatch(/average of 4/);
+    expect(plan.salesPlan.find((d) => d.date === "2026-03-03")).toMatchObject({ expectedSales: 5000, basis: "manager projection" });
+    expect(plan.staffingBenchmarks).toMatchObject({ daysOfHistory: 4, salesPerLaborHour: 400, laborPercentOfSales: 5 });
+    expect(plan.staffingBenchmarks.suggestedLaborHours).toEqual({ "2026-03-03": 12.5, "2026-03-06": 10 });
+  });
+
+  test("the preview reports labor % per day and for the week", async () => {
+    nextReply = { summary: "", shifts: [sh(dee, "2026-03-06", "11:00", "21:00")] };
+    const res = await C.agent.post("/api/ai/schedule").send({ prompt: "x", weekStart: WEEK });
+    const fri = res.body.days.find((d) => d.date === "2026-03-06");
+    expect(fri).toEqual({ date: "2026-03-06", hours: 10, cost: 200, expectedSales: 4000, laborPct: 5 });
+    expect(res.body.days.find((d) => d.date === "2026-03-02").laborPct).toBeNull(); // no sales, no shifts that day
+    expect(res.body.weekLaborPct).toBe(2.2); // $200 against $9,000 expected for the week
+  });
+
+  test("with no sales history it says so instead of inventing numbers", async () => {
+    nextReply = { summary: "Spread evenly.", shifts: [sh(ana, "2026-03-11", "11:00", "17:00")] };
+    const res = await A.agent.post("/api/ai/schedule").send({ prompt: "x", weekStart: "2026-03-09" });
+    const plan = JSON.parse(lastBody.system.split("DATA:\n")[1]);
+    expect(plan.salesPlan.every((d) => d.expectedSales === null)).toBe(true);
+    expect(plan.staffingBenchmarks.suggestedLaborHours).toBeNull();
+    expect(res.body.weekLaborPct).toBeNull();
+  });
+});

@@ -393,7 +393,7 @@ I18N.add({
     "sched.aiNeedPrompt": "Describe what you need first", "sched.aiNoShifts": "The AI didn't propose any shifts — try adding more detail.",
     "sched.aiProposal": n => `${n} shift${n === 1 ? "" : "s"} proposed — not saved yet`, "sched.aiApply": "Apply to grid", "sched.aiDiscard": "Discard",
     "sched.aiApplied": n => `${n} shift${n === 1 ? "" : "s"} added to the grid.`, "sched.aiUndo": "Undo", "sched.aiUndone": "Undone — the shifts were removed.",
-    "sched.aiSkipped": "Left out:", "sched.aiHours": (h, c) => `${h}h total · about $${c} labor`,
+    "sched.aiDayLabor": (sales, pct) => pct === null ? `~$${sales} expected sales` : `~$${sales} expected sales · ${pct}% labor`, "sched.aiWeekLabor": pct => `${pct}% labor vs expected sales`, "sched.aiSkipped": "Left out:", "sched.aiHours": (h, c) => `${h}h total · about $${c} labor`,
     "sched.skip.unavailable": "marked unavailable", "sched.skip.overlap": "already has a shift then", "sched.skip.bad_time": "invalid times", "sched.skip.bad_date": "date outside this week", "sched.skip.unknown_staff": "unknown staff member",
     "sched.noStaff": h => `No staff tagged with ${h} roles yet. Add roles in the Staff tab.`,
     "sched.hoursWeek": h => `${h} hours this week`, "sched.costWeek": h => `${h} labor cost this week`,
@@ -427,7 +427,7 @@ I18N.add({
     "sched.aiNeedPrompt": "Décrivez d'abord ce qu'il vous faut", "sched.aiNoShifts": "L'IA n'a proposé aucun quart — ajoutez plus de détails.",
     "sched.aiProposal": n => `${n} quart${n === 1 ? "" : "s"} proposé${n === 1 ? "" : "s"} — pas encore enregistré${n === 1 ? "" : "s"}`, "sched.aiApply": "Appliquer à la grille", "sched.aiDiscard": "Annuler",
     "sched.aiApplied": n => `${n} quart${n === 1 ? "" : "s"} ajouté${n === 1 ? "" : "s"} à la grille.`, "sched.aiUndo": "Annuler l'ajout", "sched.aiUndone": "Annulé — les quarts ont été retirés.",
-    "sched.aiSkipped": "Exclus :", "sched.aiHours": (h, c) => `${h} h au total · environ ${c} $ de main-d'œuvre`,
+    "sched.aiDayLabor": (sales, pct) => pct === null ? `~${sales} $ de ventes prévues` : `~${sales} $ de ventes prévues · ${pct}% main-d'œuvre`, "sched.aiWeekLabor": pct => `${pct}% de main-d'œuvre par rapport aux ventes prévues`, "sched.aiSkipped": "Exclus :", "sched.aiHours": (h, c) => `${h} h au total · environ ${c} $ de main-d'œuvre`,
     "sched.skip.unavailable": "marqué indisponible", "sched.skip.overlap": "a déjà un quart à ce moment", "sched.skip.bad_time": "heures invalides", "sched.skip.bad_date": "date hors de cette semaine", "sched.skip.unknown_staff": "employé inconnu",
     "sched.noStaff": h => `Aucun employé n'a de poste en ${h} pour l'instant. Ajoutez des postes dans l'onglet Personnel.`,
     "sched.hoursWeek": h => `Heures ${h} cette semaine`, "sched.costWeek": h => `Coût de main-d'œuvre ${h} cette semaine`,
@@ -461,7 +461,7 @@ I18N.add({
     "sched.aiNeedPrompt": "Describe primero lo que necesitas", "sched.aiNoShifts": "La IA no propuso ningún turno — agrega más detalles.",
     "sched.aiProposal": n => `${n} turno${n === 1 ? "" : "s"} propuesto${n === 1 ? "" : "s"} — aún sin guardar`, "sched.aiApply": "Aplicar a la cuadrícula", "sched.aiDiscard": "Descartar",
     "sched.aiApplied": n => `${n} turno${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} a la cuadrícula.`, "sched.aiUndo": "Deshacer", "sched.aiUndone": "Deshecho — se quitaron los turnos.",
-    "sched.aiSkipped": "Omitidos:", "sched.aiHours": (h, c) => `${h} h en total · unos $${c} de mano de obra`,
+    "sched.aiDayLabor": (sales, pct) => pct === null ? `~$${sales} de ventas esperadas` : `~$${sales} de ventas esperadas · ${pct}% mano de obra`, "sched.aiWeekLabor": pct => `${pct}% de mano de obra vs. ventas esperadas`, "sched.aiSkipped": "Omitidos:", "sched.aiHours": (h, c) => `${h} h en total · unos $${c} de mano de obra`,
     "sched.skip.unavailable": "marcado como no disponible", "sched.skip.overlap": "ya tiene un turno a esa hora", "sched.skip.bad_time": "horas no válidas", "sched.skip.bad_date": "fecha fuera de esta semana", "sched.skip.unknown_staff": "empleado desconocido",
     "sched.noStaff": h => `Aún no hay personal con puestos de ${h}. Agrega puestos en la pestaña Personal.`,
     "sched.hoursWeek": h => `Horas de ${h} esta semana`, "sched.costWeek": h => `Costo laboral de ${h} esta semana`,
@@ -722,7 +722,9 @@ function renderAiSched() {
     const label = `${tr("days." + ((dt.getDay() + 6) % 7))} ${dt.getMonth() + 1}/${dt.getDate()}`;
     const lines = byDay[d].sort((a, b) => a.startTime.localeCompare(b.startTime)).map(sh =>
       `<div class="prop-line"><span class="nm">${escapeHtml(sh.staffName)}</span><span>${escapeHtml(formatTime(sh.startTime))} – ${escapeHtml(formatTime(sh.endTime))}</span><span class="rl">${escapeHtml(sh.role || "")}</span></div>`).join("");
-    return `<div class="prop-day">${escapeHtml(label)}</div>${lines}`;
+    const info = (aiProposal.days || []).find(x => x.date === d);
+    const extra = info && info.expectedSales ? ` · ${tr("sched.aiDayLabor", Math.round(info.expectedSales), info.laborPct)}` : "";
+    return `<div class="prop-day">${escapeHtml(label + extra)}</div>${lines}`;
   }).join("");
   const skipped = aiProposal.skipped.length === 0 ? "" :
     `<div class="skipped">${escapeHtml(tr("sched.aiSkipped"))} ` + aiProposal.skipped.map(k =>
@@ -730,7 +732,7 @@ function renderAiSched() {
   box.innerHTML = `
     ${aiProposal.summary ? `<div class="summary">${escapeHtml(aiProposal.summary)}</div>` : ""}
     ${aiProposal.shifts.length === 0 ? `<div class="skipped">${escapeHtml(tr("sched.aiNoShifts"))}</div>` : `
-      <div class="summary"><b>${escapeHtml(tr("sched.aiProposal", aiProposal.shifts.length))}</b> · ${escapeHtml(tr("sched.aiHours", hours.toFixed(1), cost.toFixed(0)))}</div>
+      <div class="summary"><b>${escapeHtml(tr("sched.aiProposal", aiProposal.shifts.length))}</b> · ${escapeHtml(tr("sched.aiHours", hours.toFixed(1), cost.toFixed(0)))}${aiProposal.weekLaborPct != null ? " · " + escapeHtml(tr("sched.aiWeekLabor", aiProposal.weekLaborPct)) : ""}</div>
       ${days}`}
     ${skipped}
     <div class="row">
