@@ -530,6 +530,40 @@
   .cost-inputs { display: flex; gap: 10px; }
   .cost-inputs > div { flex: 1; }
 
+
+  /* ---------- Paper-card look for Hiring / Scheduling / Staff / Comms (same as mockup stubs) ---------- */
+  .module-header h2 { font-family: 'Oswald', sans-serif; font-size: 22px; font-weight: 600; margin: 0 0 6px; }
+  /* Inside paper cards, dark-theme colours flip to ink-on-paper so existing controls stay readable */
+  .stub, .ticket {
+    --text-dim: rgba(35,38,31,0.62);
+    --text-bright: var(--ink);
+    --rail: rgba(35,38,31,0.25);
+    --bg: #fff;
+    --panel: transparent;
+    --panel-light: rgba(35,38,31,0.06);
+  }
+  .ticket {
+    padding: 16px 16px 14px;
+    background-image: repeating-linear-gradient(to right, transparent 0 6px, rgba(0,0,0,0.07) 6px 7px);
+    background-size: 13px 100%;
+    background-position: top;
+    background-repeat: repeat-x;
+  }
+  .ticket .role { font-size: 16px; text-transform: none; }
+  #panelHiring .stamp:not(.filled) { border-color: var(--hiring); color: var(--hiring); }
+  .stub input[type="date"] { width: 100%; padding: 10px 12px; border-radius: 5px; font-family: inherit; font-size: 14px; }
+  .chat-input-row .primary { margin-top: 0; }
+  .stub.plain h3 { padding-right: 0; margin-bottom: 10px; }
+  .stub.plain > label:first-of-type { margin-top: 0; }
+  .stub textarea { background: #fff; color: var(--ink); border: 1px solid rgba(35,38,31,0.25); width: 100%; border-radius: 5px; padding: 10px 12px; font-family: inherit; font-size: 14px; }
+  .stub textarea::placeholder { color: rgba(35,38,31,0.45); }
+  .staff-row.stub { border-bottom: none; align-items: flex-start; gap: 10px; }
+  .staff-row.stub .staff-name { font-family: 'Oswald', sans-serif; font-size: 16px; font-weight: 600; }
+  .stub .rank-row { border-bottom: 1px dashed rgba(35,38,31,0.2); }
+  .stub .rank-row:last-child { border-bottom: none; }
+  .section { margin-bottom: 20px; }
+  .section > h2 { font-family: 'Oswald', sans-serif; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 0 0 12px; }
+
   @media (max-width: 760px) {
     #sidebar { padding: 10px 12px; gap: 5px; }
     .nav-stub { font-size: 10.5px; padding: 9px 10px; }
@@ -626,10 +660,11 @@
   <div class="tab-panel" id="panelShifts">
     <div class="module-header" style="--accent:var(--scheduling)">
       <div class="eyebrow" data-i18n="scheduling.eyebrow">Scheduling</div>
+      <h2 data-i18n="scheduling.h2">Shifts & staffing</h2>
       <p data-i18n="scheduling.desc">When someone doesn't show, post it here — every matching staff member gets a real text within seconds.</p>
     </div>
-    <div class="card">
-      <h2 data-i18n="scheduling.postCard">Post an open shift</h2>
+    <div class="stub plain">
+      <h3 data-i18n="scheduling.postCard">Post an open shift</h3>
       <label data-i18n="scheduling.position">Position</label>
       <select id="shiftRole"></select>
       <label data-i18n="scheduling.when">When</label>
@@ -639,12 +674,12 @@
       <button class="primary amber" onclick="postShift()" data-i18n="scheduling.sendBtn">Send to staff now</button>
     </div>
 
-    <div class="card">
+    <div class="section">
       <h2 data-i18n="scheduling.openShiftsCard">Open shifts</h2>
       <div id="openShifts"><p class="empty" data-i18n="scheduling.noOpenShifts">No open shifts.</p></div>
     </div>
 
-    <div class="card">
+    <div class="section">
       <h2 data-i18n="scheduling.filledCard">Recently filled</h2>
       <div id="filledShifts"><p class="empty" data-i18n="scheduling.nothingFilled">Nothing filled yet.</p></div>
     </div>
@@ -653,10 +688,11 @@
   <div class="tab-panel" id="panelStaff">
     <div class="module-header" style="--accent:var(--staffcolor)">
       <div class="eyebrow" data-i18n="staff.eyebrow">Staff</div>
+      <h2 data-i18n="staff.h2">Your team</h2>
       <p data-i18n="staff.desc">Your roster, their roles, and who's actually stepping up — add, edit, and see who responds most.</p>
     </div>
-    <div class="card">
-      <h2 data-i18n="staff.addCard">Add new staff</h2>
+    <div class="stub plain">
+      <h3 data-i18n="staff.addCard">Add new staff</h3>
       <label data-i18n="staff.name">Name</label>
       <input type="text" id="staffName" placeholder="Full name" data-i18n-ph="staff.namePh" />
       <label data-i18n="staff.phone">Phone</label>
@@ -670,7 +706,7 @@
       <button class="primary" onclick="addStaff()" data-i18n="staff.addBtn">Add staff</button>
     </div>
 
-    <div class="card">
+    <div class="section">
       <h2 data-i18n="staff.currentCard">Current staff</h2>
       <div class="tabs" style="max-width:none;margin:0 0 10px;padding:0">
         <button type="button" class="tab-btn active" id="modeBtnAll" onclick="setStaffFilterMode('all')" data-i18n="staff.filterAll">All</button>
@@ -682,8 +718,8 @@
       <div id="staffList"><p class="empty" data-i18n="staff.noStaff">No staff yet.</p></div>
     </div>
 
-    <div class="card">
-      <h2 data-i18n="staff.mostAvailable">Most available</h2>
+    <div class="stub plain">
+      <h3 data-i18n="staff.mostAvailable">Most available</h3>
       <div style="color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px" data-i18n="staff.pointsNote">3 pts / covered · 1 pt / responded</div>
       <div id="leaderboardList"><p class="empty" data-i18n="staff.noStaff">No staff yet.</p></div>
     </div>
@@ -692,18 +728,19 @@
   <div class="tab-panel" id="panelHiring">
     <div class="module-header" style="--accent:var(--hiring)">
       <div class="eyebrow" data-i18n="hiring.eyebrow">Hiring</div>
+      <h2 data-i18n="hiring.h2">Applicant pipeline</h2>
       <p data-i18n="hiring.desc">Post an opening, share it wherever candidates look, and track everyone through to an offer.</p>
     </div>
-    <div class="card">
-      <h2 data-i18n="hiring.infoCard">Restaurant info</h2>
+    <div class="stub plain">
+      <h3 data-i18n="hiring.infoCard">Restaurant info</h3>
       <div style="color:var(--text-dim);font-size:12px;margin-bottom:10px;line-height:1.4" data-i18n="hiring.infoDesc">Used when sharing job postings externally (Indeed, Facebook, Craigslist).</div>
       <label data-i18n="hiring.address">Address</label>
       <input type="text" id="restaurantAddress" placeholder="123 Main St, Your City" data-i18n-ph="hiring.addressPh" />
       <button class="primary" onclick="saveRestaurantAddress()" data-i18n="hiring.save">Save</button>
     </div>
 
-    <div class="card">
-      <h2 data-i18n="hiring.postCard">Post a job opening</h2>
+    <div class="stub plain">
+      <h3 data-i18n="hiring.postCard">Post a job opening</h3>
       <label data-i18n="hiring.title">Title</label>
       <input type="text" id="postingTitle" placeholder="e.g. Line Cook — evenings" data-i18n-ph="hiring.titlePh" />
       <label data-i18n="hiring.role">Role</label>
@@ -713,12 +750,12 @@
       <button class="primary" onclick="createPosting()" data-i18n="hiring.postBtn">Post opening</button>
     </div>
 
-    <div class="card">
+    <div class="section">
       <h2 data-i18n="hiring.postingsCard">Open postings</h2>
       <div id="postingsList"><p class="empty" data-i18n="hiring.noPostings">No postings yet.</p></div>
     </div>
 
-    <div class="card">
+    <div class="section">
       <h2 data-i18n="hiring.applicantsCard">Applicants</h2>
       <div id="applicantFilter" style="margin-bottom:10px"></div>
       <div id="applicantsList"><p class="empty" data-i18n="hiring.noApplications">No applications yet.</p></div>
@@ -731,10 +768,13 @@
   <div class="tab-panel" id="panelComms">
     <div class="module-header" style="--accent:var(--comms)">
       <div class="eyebrow" data-i18n="comms.eyebrow">Communications</div>
+      <h2 data-i18n="comms.h2">Team messages & AI agent</h2>
       <p data-i18n="comms.desc">Ask about staffing, labor cost, hiring, or anything else — answered from your restaurant's real data, not a canned script.</p>
     </div>
-    <div class="card">
-      <div id="chatThread"></div>
+    <div class="stub plain" style="--accent:var(--comms)">
+      <div class="tag" data-i18n="comms.aiTag">AI agent</div>
+      <h3 data-i18n="comms.askHeader">Ask about your restaurant</h3>
+      <div id="chatThread" style="margin-top:14px"></div>
       <div class="chat-input-row">
         <input type="text" id="chatInput" placeholder="e.g. Which shift is understaffed this week?" data-i18n-ph="comms.placeholder" onkeydown="if(event.key==='Enter') askAi()" />
         <button class="primary" style="width:auto;padding:0 18px" onclick="askAi()" data-i18n="comms.ask">Ask</button>
@@ -817,7 +857,7 @@ const T = {
       aiAgent: "AI agent", askLabel: "Ask", askSub: "Ask about staffing, cost, or hiring",
     },
     scheduling: {
-      eyebrow: "Scheduling", desc: "When someone doesn't show, post it here — every matching staff member gets a real text within seconds.",
+      eyebrow: "Scheduling", h2: "Shifts & staffing", desc: "When someone doesn't show, post it here — every matching staff member gets a real text within seconds.",
       postCard: "Post an open shift", position: "Position", when: "When", whenPh: "e.g. Today, 5pm–close",
       note: "Note (optional)", notePh: "e.g. Jordan called out sick", sendBtn: "Send to staff now",
       openShiftsCard: "Open shifts", noOpenShifts: "No open shifts.", filledCard: "Recently filled", nothingFilled: "Nothing filled yet.",
@@ -833,7 +873,7 @@ const T = {
       confirmRemove: "Remove this ticket? Staff who already responded won't be notified.", bannerRemoved: "Ticket removed",
     },
     staff: {
-      eyebrow: "Staff", desc: "Your roster, their roles, and who's actually stepping up — add, edit, and see who responds most.",
+      eyebrow: "Staff", h2: "Your team", desc: "Your roster, their roles, and who's actually stepping up — add, edit, and see who responds most.",
       addCard: "Add new staff", name: "Name", namePh: "Full name", phone: "Phone",
       rate: "Hourly rate (optional)", ratePh: "e.g. 19.50", hireDate: "Hire date (optional)",
       roles: "Role(s) — tap all that apply", addBtn: "Add staff",
@@ -850,7 +890,7 @@ const T = {
       rankMeta: (c, r) => `${c} covered · ${r} responded`,
     },
     hiring: {
-      eyebrow: "Hiring", desc: "Post an opening, share it wherever candidates look, and track everyone through to an offer.",
+      eyebrow: "Hiring", h2: "Applicant pipeline", desc: "Post an opening, share it wherever candidates look, and track everyone through to an offer.",
       infoCard: "Restaurant info", infoDesc: "Used when sharing job postings externally (Indeed, Facebook, Craigslist).",
       address: "Address", addressPh: "123 Main St, Your City", save: "Save",
       postCard: "Post a job opening", title: "Title", titlePh: "e.g. Line Cook — evenings", role: "Role",
@@ -874,7 +914,7 @@ const T = {
       reject: "Reject",
     },
     comms: {
-      eyebrow: "Communications",
+      eyebrow: "Communications", h2: "Team messages & AI agent", aiTag: "AI agent", askHeader: "Ask about your restaurant",
       desc: "Ask about staffing, labor cost, hiring, or anything else — answered from your restaurant's real data, not a canned script.",
       placeholder: "e.g. Which shift is understaffed this week?", ask: "Ask",
       emptyChat: "Ask anything about your staffing, schedule, costs, or hiring pipeline.",
@@ -929,7 +969,7 @@ const T = {
       aiAgent: "Agent IA", askLabel: "Demander", askSub: "Posez une question sur le personnel, les coûts ou l'embauche",
     },
     scheduling: {
-      eyebrow: "Horaire", desc: "Quand quelqu'un ne se présente pas, publiez-le ici — chaque employé correspondant reçoit un vrai texto en quelques secondes.",
+      eyebrow: "Horaire", h2: "Quarts et personnel", desc: "Quand quelqu'un ne se présente pas, publiez-le ici — chaque employé correspondant reçoit un vrai texto en quelques secondes.",
       postCard: "Publier un quart ouvert", position: "Poste", when: "Quand", whenPh: "ex. Aujourd'hui, 17h–fermeture",
       note: "Note (optionnel)", notePh: "ex. Jordan a appelé pour maladie", sendBtn: "Envoyer au personnel maintenant",
       openShiftsCard: "Quarts ouverts", noOpenShifts: "Aucun quart ouvert.", filledCard: "Récemment comblés", nothingFilled: "Rien de comblé pour l'instant.",
@@ -945,7 +985,7 @@ const T = {
       confirmRemove: "Retirer ce billet ? Les employés ayant déjà répondu ne seront pas avisés.", bannerRemoved: "Billet retiré",
     },
     staff: {
-      eyebrow: "Personnel", desc: "Votre équipe, leurs postes, et qui répond vraiment présent — ajoutez, modifiez, et voyez qui répond le plus.",
+      eyebrow: "Personnel", h2: "Votre équipe", desc: "Votre équipe, leurs postes, et qui répond vraiment présent — ajoutez, modifiez, et voyez qui répond le plus.",
       addCard: "Ajouter un employé", name: "Nom", namePh: "Nom complet", phone: "Téléphone",
       rate: "Taux horaire (optionnel)", ratePh: "ex. 19,50", hireDate: "Date d'embauche (optionnel)",
       roles: "Poste(s) — touchez tous ceux qui s'appliquent", addBtn: "Ajouter l'employé",
@@ -962,7 +1002,7 @@ const T = {
       rankMeta: (c, r) => `${c} couverts · ${r} réponses`,
     },
     hiring: {
-      eyebrow: "Embauche", desc: "Publiez un poste, partagez-le où les candidats cherchent, et suivez chacun jusqu'à l'offre.",
+      eyebrow: "Embauche", h2: "Pipeline de candidatures", desc: "Publiez un poste, partagez-le où les candidats cherchent, et suivez chacun jusqu'à l'offre.",
       infoCard: "Infos du restaurant", infoDesc: "Utilisé lors du partage de postes à l'externe (Indeed, Facebook, Craigslist).",
       address: "Adresse", addressPh: "123 rue Principale, Votre ville", save: "Enregistrer",
       postCard: "Publier un poste", title: "Titre", titlePh: "ex. Cuisinier de ligne — soirs", role: "Poste",
@@ -986,7 +1026,7 @@ const T = {
       reject: "Refuser",
     },
     comms: {
-      eyebrow: "Communications",
+      eyebrow: "Communications", h2: "Messages d'équipe & agent IA", aiTag: "Agent IA", askHeader: "Posez une question sur votre restaurant",
       desc: "Posez des questions sur le personnel, les coûts, l'embauche ou autre — réponses basées sur les vraies données de votre restaurant, pas un script.",
       placeholder: "ex. Quel quart manque de personnel cette semaine ?", ask: "Demander",
       emptyChat: "Posez une question sur votre personnel, l'horaire, les coûts ou l'embauche.",
@@ -1041,7 +1081,7 @@ const T = {
       aiAgent: "Agente IA", askLabel: "Preguntar", askSub: "Pregunta sobre personal, costos o contratación",
     },
     scheduling: {
-      eyebrow: "Horario", desc: "Cuando alguien no se presenta, publícalo aquí — cada empleado correspondiente recibe un mensaje de texto real en segundos.",
+      eyebrow: "Horario", h2: "Turnos y personal", desc: "Cuando alguien no se presenta, publícalo aquí — cada empleado correspondiente recibe un mensaje de texto real en segundos.",
       postCard: "Publicar un turno abierto", position: "Puesto", when: "Cuándo", whenPh: "ej. Hoy, 5pm–cierre",
       note: "Nota (opcional)", notePh: "ej. Jordan llamó por enfermedad", sendBtn: "Enviar al personal ahora",
       openShiftsCard: "Turnos abiertos", noOpenShifts: "No hay turnos abiertos.", filledCard: "Cubiertos recientemente", nothingFilled: "Nada cubierto todavía.",
@@ -1057,7 +1097,7 @@ const T = {
       confirmRemove: "¿Eliminar este ticket? El personal que ya respondió no será notificado.", bannerRemoved: "Ticket eliminado",
     },
     staff: {
-      eyebrow: "Personal", desc: "Tu equipo, sus puestos, y quién realmente responde — agrega, edita y ve quién responde más.",
+      eyebrow: "Personal", h2: "Tu equipo", desc: "Tu equipo, sus puestos, y quién realmente responde — agrega, edita y ve quién responde más.",
       addCard: "Agregar personal", name: "Nombre", namePh: "Nombre completo", phone: "Teléfono",
       rate: "Tarifa por hora (opcional)", ratePh: "ej. 19.50", hireDate: "Fecha de contratación (opcional)",
       roles: "Puesto(s) — toca todos los que apliquen", addBtn: "Agregar personal",
@@ -1074,7 +1114,7 @@ const T = {
       rankMeta: (c, r) => `${c} cubiertos · ${r} respondidos`,
     },
     hiring: {
-      eyebrow: "Contratación", desc: "Publica una vacante, compártela donde los candidatos buscan, y da seguimiento a cada uno hasta la oferta.",
+      eyebrow: "Contratación", h2: "Proceso de candidatos", desc: "Publica una vacante, compártela donde los candidatos buscan, y da seguimiento a cada uno hasta la oferta.",
       infoCard: "Información del restaurante", infoDesc: "Se usa al compartir vacantes externamente (Indeed, Facebook, Craigslist).",
       address: "Dirección", addressPh: "Calle Principal 123, Tu ciudad", save: "Guardar",
       postCard: "Publicar una vacante", title: "Título", titlePh: "ej. Cocinero de línea — noches", role: "Puesto",
@@ -1098,7 +1138,7 @@ const T = {
       reject: "Rechazar",
     },
     comms: {
-      eyebrow: "Comunicaciones",
+      eyebrow: "Comunicaciones", h2: "Mensajes del equipo y agente IA", aiTag: "Agente IA", askHeader: "Pregunta sobre tu restaurante",
       desc: "Pregunta sobre personal, costos, contratación o cualquier otra cosa — respondido con los datos reales de tu restaurante, no un guion.",
       placeholder: "ej. ¿Qué turno tiene poco personal esta semana?", ask: "Preguntar",
       emptyChat: "Pregunta lo que sea sobre tu personal, horario, costos o contrataciones.",
@@ -1366,7 +1406,7 @@ function render() {
           const existingHireInput = document.getElementById(`editHireDate-${p.id}`);
           const hireDateValue = existingHireInput ? existingHireInput.value : (p.hireDate || "");
           return `
-            <div class="staff-row" style="flex-direction:column;align-items:stretch">
+            <div class="staff-row stub" style="flex-direction:column;align-items:stretch">
               <div class="staff-name">${escapeHtml(p.name)}</div>
               <label style="margin-top:8px">${t("staff.phone")}</label>
               <input type="tel" id="editPhone-${p.id}" value="${escapeHtml(phoneValue)}" />
@@ -1389,7 +1429,7 @@ function render() {
           `;
         }
         return `
-          <div class="staff-row">
+          <div class="staff-row stub">
             <div>
               <div class="staff-name">${escapeHtml(p.name)}</div>
               <div class="staff-roles">
@@ -2116,7 +2156,7 @@ function renderApplicants() {
             <div class="stamp${a.stage === 'rejected' ? ' filled' : ''}">${STAGE_LABELS[a.stage] || a.stage}</div>
             <div class="role">${escapeHtml(a.name)}</div>
             <div class="meta">${posting ? escapeHtml(posting.title) : ""} · ${escapeHtml(a.email || a.phone || "")}</div>
-            ${a.email && a.phone ? `<div class="meta" style="margin-top:-6px">${escapeHtml(a.phone)}</div>` : ""}
+            ${a.email && a.phone ? `<div class="meta" style="margin-top:2px">${escapeHtml(a.phone)}</div>` : ""}
             ${a.note ? `<div class="note">${escapeHtml(a.note)}</div>` : ""}
             <div style="margin-top:10px">
               <label style="font-size:10px;text-transform:uppercase;letter-spacing:0.04em;opacity:0.6;display:block;margin-bottom:4px">Interview time</label>
