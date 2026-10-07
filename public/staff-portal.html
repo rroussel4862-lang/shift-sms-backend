@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-title-key="title">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>My Shifts — Open Shift Rail</title>
+<script src="/i18n-lite.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
@@ -92,16 +93,17 @@
 
 <div id="landing">
   <div class="landing-mark"><span>OSR</span></div>
-  <h1>My Shifts</h1>
-  <p>Your schedule, your availability, and open shifts you can pick up — log in to get started.</p>
+  <h1 data-i18n="landing.title">My Shifts</h1>
+  <p data-i18n="landing.sub">Your schedule, your availability, and open shifts you can pick up — log in to get started.</p>
   <div id="authForms">
-    <label>Email</label>
+    <label data-i18n="landing.email">Email</label>
     <input type="text" id="loginEmail" placeholder="you@example.com" />
-    <label>Password</label>
+    <label data-i18n="landing.password">Password</label>
     <input type="password" id="loginPassword" placeholder="••••••••" />
-    <button class="enter-btn" onclick="submitLogin()">Log in</button>
+    <button class="enter-btn" onclick="submitLogin()" data-i18n="landing.login">Log in</button>
     <div id="authError"></div>
   </div>
+  <div class="i18n-switch" style="margin-top:22px"></div>
 </div>
 
 <div id="appShell">
@@ -113,37 +115,37 @@
         <p id="staffSub"></p>
       </div>
     </div>
-    <button id="logoutBtn" onclick="logout()">Log out</button>
+    <div style="display:flex;gap:8px;align-items:center"><div class="i18n-switch"></div><button id="logoutBtn" onclick="logout()" data-i18n="app.logout">Log out</button></div>
   </header>
 
   <div id="banner"></div>
 
   <div class="tabs">
-    <button class="tab-btn active" id="tabBtnSchedule" onclick="switchStaffTab('schedule')">My Schedule</button>
-    <button class="tab-btn" id="tabBtnAvailability" onclick="switchStaffTab('availability')">Availability</button>
-    <button class="tab-btn" id="tabBtnOpen" onclick="switchStaffTab('open')">Open Shifts</button>
+    <button class="tab-btn active" id="tabBtnSchedule" onclick="switchStaffTab('schedule')" data-i18n="tabs.schedule">My Schedule</button>
+    <button class="tab-btn" id="tabBtnAvailability" onclick="switchStaffTab('availability')" data-i18n="tabs.availability">Availability</button>
+    <button class="tab-btn" id="tabBtnOpen" onclick="switchStaffTab('open')" data-i18n="tabs.open">Open Shifts</button>
   </div>
 
   <main>
     <div class="tab-panel active" id="panelSchedule">
       <div class="card">
-        <h2>Upcoming shifts</h2>
-        <div id="myScheduleList"><p class="empty">Loading…</p></div>
+        <h2 data-i18n="schedule.h2">Upcoming shifts</h2>
+        <div id="myScheduleList"><p class="empty" data-i18n="schedule.loading">Loading…</p></div>
       </div>
     </div>
 
     <div class="tab-panel" id="panelAvailability">
       <div class="card">
-        <h2>Your weekly availability</h2>
-        <div style="color:var(--text-dim);font-size:12px;margin-bottom:10px;line-height:1.4">Let your manager know which days you're generally free to work.</div>
+        <h2 data-i18n="avail.h2">Your weekly availability</h2>
+        <div data-i18n="avail.help" style="color:var(--text-dim);font-size:12px;margin-bottom:10px;line-height:1.4">Let your manager know which days you're generally free to work.</div>
         <div id="availabilityList"></div>
-        <button class="claim-btn" style="background:var(--amber);color:var(--ink);margin-top:14px" onclick="saveAvailability()">Save availability</button>
+        <button class="claim-btn" style="background:var(--amber);color:var(--ink);margin-top:14px" onclick="saveAvailability()" data-i18n="avail.save">Save availability</button>
       </div>
     </div>
 
     <div class="tab-panel" id="panelOpen">
       <div class="card">
-        <h2>Open shifts you can take</h2>
+        <h2 data-i18n="open.h2">Open shifts you can take</h2>
         <div id="openShiftsList"><p class="empty">Loading…</p></div>
       </div>
     </div>
@@ -151,12 +153,72 @@
 </div>
 
 <script>
-const DAYS = [
-  { key: "mon", label: "Mon" }, { key: "tue", label: "Tue" }, { key: "wed", label: "Wed" },
-  { key: "thu", label: "Thu" }, { key: "fri", label: "Fri" }, { key: "sat", label: "Sat" }, { key: "sun", label: "Sun" },
-];
+I18N.add({
+  en: {
+    title: "My Shifts — Open Shift Rail",
+    "role.Line Cook": "Line Cook", "role.Server": "Server", "role.Host": "Host", "role.Bartender": "Bartender", "role.Busser": "Busser", "role.Dishwasher": "Dishwasher", "role.Prep Cook": "Prep Cook", "role.Expo": "Expo",
+    "landing.title": "My Shifts", "landing.sub": "Your schedule, your availability, and open shifts you can pick up — log in to get started.",
+    "landing.email": "Email", "landing.password": "Password", "landing.login": "Log in",
+    "landing.errMissing": "Enter your email and password",
+    "app.logout": "Log out", "app.hi": n => `Hi, ${n}`, "app.myShifts": "My Shifts",
+    "tabs.schedule": "My Schedule", "tabs.availability": "Availability", "tabs.open": "Open Shifts",
+    "schedule.h2": "Upcoming shifts", "schedule.loading": "Loading…",
+    "schedule.count": n => `${n} upcoming shift${n === 1 ? "" : "s"}`,
+    "schedule.empty": "No shifts scheduled yet — check back soon.", "schedule.shift": "Shift",
+    "avail.h2": "Your weekly availability", "avail.help": "Let your manager know which days you're generally free to work.",
+    "avail.free": "Free", "avail.busy": "Busy", "avail.notePh": "e.g. after 5pm", "avail.save": "Save availability", "avail.saved": "Availability saved",
+    "open.h2": "Open shifts you can take", "open.empty": "No open shifts matching your roles right now.",
+    "open.stamp": "Open", "open.asap": "ASAP", "open.claim": "Claim this shift", "open.waiting": "You're in — waiting on manager",
+    "open.claimed": "You're in — your manager will confirm shortly",
+    "err.network": "Network error — is the server running?",
+    "days.mon": "Mon", "days.tue": "Tue", "days.wed": "Wed", "days.thu": "Thu", "days.fri": "Fri", "days.sat": "Sat", "days.sun": "Sun",
+  },
+  fr: {
+    title: "Mes quarts — Open Shift Rail",
+    "role.Line Cook": "Cuisinier de ligne", "role.Server": "Serveur/Serveuse", "role.Host": "Hôte/Hôtesse", "role.Bartender": "Barman/Barmaid", "role.Busser": "Aide-serveur", "role.Dishwasher": "Plongeur/Plongeuse", "role.Prep Cook": "Cuisinier de préparation", "role.Expo": "Expéditeur",
+    "landing.title": "Mes quarts", "landing.sub": "Votre horaire, vos disponibilités et les quarts ouverts que vous pouvez prendre — connectez-vous pour commencer.",
+    "landing.email": "Courriel", "landing.password": "Mot de passe", "landing.login": "Se connecter",
+    "landing.errMissing": "Entrez votre courriel et votre mot de passe",
+    "app.logout": "Déconnexion", "app.hi": n => `Salut, ${n}`, "app.myShifts": "Mes quarts",
+    "tabs.schedule": "Mon horaire", "tabs.availability": "Disponibilités", "tabs.open": "Quarts ouverts",
+    "schedule.h2": "Prochains quarts", "schedule.loading": "Chargement…",
+    "schedule.count": n => `${n} quart${n === 1 ? "" : "s"} à venir`,
+    "schedule.empty": "Aucun quart prévu pour l'instant — repassez bientôt.", "schedule.shift": "Quart",
+    "avail.h2": "Vos disponibilités de la semaine", "avail.help": "Indiquez à votre gestionnaire les jours où vous êtes généralement libre de travailler.",
+    "avail.free": "Libre", "avail.busy": "Occupé", "avail.notePh": "p. ex. après 17 h", "avail.save": "Enregistrer mes disponibilités", "avail.saved": "Disponibilités enregistrées",
+    "open.h2": "Quarts ouverts que vous pouvez prendre", "open.empty": "Aucun quart ouvert ne correspond à vos postes pour le moment.",
+    "open.stamp": "Ouvert", "open.asap": "Dès que possible", "open.claim": "Prendre ce quart", "open.waiting": "C'est noté — en attente du gestionnaire",
+    "open.claimed": "C'est noté — votre gestionnaire confirmera sous peu",
+    "err.network": "Erreur réseau — le serveur est-il en marche?",
+    "days.mon": "Lun", "days.tue": "Mar", "days.wed": "Mer", "days.thu": "Jeu", "days.fri": "Ven", "days.sat": "Sam", "days.sun": "Dim",
+  },
+  es: {
+    title: "Mis turnos — Open Shift Rail",
+    "role.Line Cook": "Cocinero de línea", "role.Server": "Mesero/a", "role.Host": "Anfitrión/a", "role.Bartender": "Bartender", "role.Busser": "Ayudante de mesero", "role.Dishwasher": "Lavaplatos", "role.Prep Cook": "Cocinero de preparación", "role.Expo": "Expo",
+    "landing.title": "Mis turnos", "landing.sub": "Tu horario, tu disponibilidad y los turnos abiertos que puedes tomar — inicia sesión para empezar.",
+    "landing.email": "Correo", "landing.password": "Contraseña", "landing.login": "Iniciar sesión",
+    "landing.errMissing": "Ingresa tu correo y contraseña",
+    "app.logout": "Cerrar sesión", "app.hi": n => `Hola, ${n}`, "app.myShifts": "Mis turnos",
+    "tabs.schedule": "Mi horario", "tabs.availability": "Disponibilidad", "tabs.open": "Turnos abiertos",
+    "schedule.h2": "Próximos turnos", "schedule.loading": "Cargando…",
+    "schedule.count": n => `${n} turno${n === 1 ? "" : "s"} próximo${n === 1 ? "" : "s"}`,
+    "schedule.empty": "Aún no hay turnos programados — vuelve pronto.", "schedule.shift": "Turno",
+    "avail.h2": "Tu disponibilidad semanal", "avail.help": "Dile a tu gerente qué días sueles estar libre para trabajar.",
+    "avail.free": "Libre", "avail.busy": "Ocupado", "avail.notePh": "ej. después de las 5 pm", "avail.save": "Guardar disponibilidad", "avail.saved": "Disponibilidad guardada",
+    "open.h2": "Turnos abiertos que puedes tomar", "open.empty": "No hay turnos abiertos para tus puestos por ahora.",
+    "open.stamp": "Abierto", "open.asap": "Lo antes posible", "open.claim": "Tomar este turno", "open.waiting": "Anotado — esperando al gerente",
+    "open.claimed": "Anotado — tu gerente lo confirmará pronto",
+    "err.network": "Error de red — ¿está el servidor en marcha?",
+    "days.mon": "Lun", "days.tue": "Mar", "days.wed": "Mié", "days.thu": "Jue", "days.fri": "Vie", "days.sat": "Sáb", "days.sun": "Dom",
+  },
+});
+const tr = (k, ...a) => I18N.t(k, ...a);
+const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const roleLabel = r => { const k = "role." + r; const v = I18N.t(k); return v === k ? r : v; };
+const dayLabel = k => I18N.t("days." + k);
 
 let myAvailability = {};
+const DAYS = DAY_KEYS.map(k => ({ key: k }));
 
 function showBanner(text, tone) {
   const el = document.getElementById("banner");
@@ -172,7 +234,7 @@ async function api(path, options) {
     if (!res.ok) return { ok: false, error: (body && body.error) || `HTTP ${res.status}` };
     return { ok: true, data: body };
   } catch (e) {
-    return { ok: false, error: "Network error — is the server running?" };
+    return { ok: false, error: tr("err.network") };
   }
 }
 
@@ -182,25 +244,15 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function formatDate(dateStr) {
-  const d = new Date(dateStr + "T00:00:00");
-  if (isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-}
-
-function formatTime(t) {
-  const [h, m] = t.split(":").map(Number);
-  const period = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
-}
+const formatDate = d => I18N.formatDate(d);
+const formatTime = t => I18N.formatTime(t);
 
 async function submitLogin() {
   const email = document.getElementById("loginEmail").value.trim();
   const password = document.getElementById("loginPassword").value;
   const errorDiv = document.getElementById("authError");
   errorDiv.textContent = "";
-  if (!email || !password) { errorDiv.textContent = "Enter your email and password"; return; }
+  if (!email || !password) { errorDiv.textContent = tr("landing.errMissing"); return; }
   const result = await api("/api/staff-auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
   if (!result.ok) { errorDiv.textContent = result.error; return; }
   enterApp(result.data.name);
@@ -221,9 +273,10 @@ function switchStaffTab(name) {
 }
 
 function enterApp(name) {
+  window.__myName = name;
   document.getElementById("landing").style.display = "none";
   document.getElementById("appShell").style.display = "block";
-  document.getElementById("staffHeading").textContent = name ? `Hi, ${name.split(" ")[0]}` : "My Shifts";
+  document.getElementById("staffHeading").textContent = name ? tr("app.hi", name.split(" ")[0]) : tr("app.myShifts");
   loadSchedule();
   loadAvailability();
   loadOpenShifts();
@@ -238,12 +291,12 @@ async function loadSchedule() {
   const list = document.getElementById("myScheduleList");
   if (!result.ok) { list.innerHTML = `<p class="empty">${result.error}</p>`; return; }
   const shifts = result.data;
-  document.getElementById("staffSub").textContent = `${shifts.length} upcoming shift${shifts.length === 1 ? "" : "s"}`;
+  document.getElementById("staffSub").textContent = tr("schedule.count", shifts.length);
   list.innerHTML = shifts.length === 0
-    ? '<p class="empty">No shifts scheduled yet — check back soon.</p>'
+    ? `<p class="empty">${tr("schedule.empty")}</p>`
     : shifts.map(s => `
         <div class="ticket">
-          <div class="stamp">${escapeHtml(s.role || "Shift")}</div>
+          <div class="stamp">${escapeHtml(s.role ? roleLabel(s.role) : tr("schedule.shift"))}</div>
           <h3>${formatDate(s.date)}</h3>
           <div class="meta">${formatTime(s.startTime)} – ${formatTime(s.endTime)}</div>
         </div>
@@ -262,12 +315,12 @@ function renderAvailability() {
     const entry = myAvailability[d.key] || { available: null, note: "" };
     return `
       <div class="avail-row">
-        <div class="avail-day">${d.label}</div>
+        <div class="avail-day">${dayLabel(d.key)}</div>
         <div class="avail-toggle">
-          <button class="${entry.available === true ? "active yes" : ""}" onclick="setAvailDay('${d.key}', true)">Free</button>
-          <button class="${entry.available === false ? "active no" : ""}" onclick="setAvailDay('${d.key}', false)">Busy</button>
+          <button class="${entry.available === true ? "active yes" : ""}" onclick="setAvailDay('${d.key}', true)">${tr("avail.free")}</button>
+          <button class="${entry.available === false ? "active no" : ""}" onclick="setAvailDay('${d.key}', false)">${tr("avail.busy")}</button>
         </div>
-        <input type="text" class="avail-note" placeholder="e.g. after 5pm" value="${escapeHtml(entry.note || "")}" oninput="setAvailNote('${d.key}', this.value)" />
+        <input type="text" class="avail-note" placeholder="${escapeHtml(tr("avail.notePh"))}" value="${escapeHtml(entry.note || "")}" oninput="setAvailNote('${d.key}', this.value)" />
       </div>
     `;
   }).join("");
@@ -286,7 +339,7 @@ function setAvailNote(key, value) {
 
 async function saveAvailability() {
   const result = await api("/api/staff-auth/availability", { method: "PUT", body: JSON.stringify({ availability: myAvailability }) });
-  if (result.ok) showBanner("Availability saved", "success");
+  if (result.ok) showBanner(tr("avail.saved"), "success");
   else showBanner(result.error, "warn");
 }
 
@@ -296,17 +349,17 @@ async function loadOpenShifts() {
   if (!result.ok) { list.innerHTML = `<p class="empty">${result.error}</p>`; return; }
   const shifts = result.data;
   list.innerHTML = shifts.length === 0
-    ? '<p class="empty">No open shifts matching your roles right now.</p>'
+    ? `<p class="empty">${tr("open.empty")}</p>`
     : shifts.map(s => {
         const myId = window.__myStaffId;
         const alreadyIn = s.responders.some(r => r.staffId === myId);
         return `
           <div class="ticket">
-            <div class="stamp">Open</div>
-            <h3>${escapeHtml(s.role)}</h3>
-            <div class="meta">${escapeHtml(s.time || "ASAP")}</div>
+            <div class="stamp">${tr("open.stamp")}</div>
+            <h3>${escapeHtml(roleLabel(s.role))}</h3>
+            <div class="meta">${escapeHtml(s.time || tr("open.asap"))}</div>
             ${s.note ? `<div class="note">${escapeHtml(s.note)}</div>` : ""}
-            <button class="claim-btn" ${alreadyIn ? "disabled" : ""} onclick="claimShift('${s.id}')">${alreadyIn ? "You're in — waiting on manager" : "Claim this shift"}</button>
+            <button class="claim-btn" ${alreadyIn ? "disabled" : ""} onclick="claimShift('${s.id}')">${alreadyIn ? tr("open.waiting") : tr("open.claim")}</button>
           </div>
         `;
       }).join("");
@@ -315,12 +368,22 @@ async function loadOpenShifts() {
 async function claimShift(shiftId) {
   const result = await api(`/api/staff-auth/open-shifts/${shiftId}/claim`, { method: "POST" });
   if (result.ok) {
-    showBanner("You're in — your manager will confirm shortly", "success");
+    showBanner(tr("open.claimed"), "success");
     loadOpenShifts();
   } else {
     showBanner(result.error, "warn");
   }
 }
+
+let lastShifts = null;
+I18N.onChange(() => {
+  if (document.getElementById("appShell").style.display === "block") {
+    const h = document.getElementById("staffHeading");
+    h.textContent = window.__myName ? tr("app.hi", window.__myName.split(" ")[0]) : tr("app.myShifts");
+    loadSchedule(); renderAvailability(); loadOpenShifts();
+  }
+});
+I18N.apply();
 
 (async function checkSession() {
   const result = await api("/api/staff-auth/me");

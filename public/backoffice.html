@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-title-key="title">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Back Office — Open Shift Rail</title>
+<script src="/i18n-lite.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
@@ -234,9 +235,9 @@
 
 <div id="authGate" style="display:none">
   <div class="box">
-    <h1>Log in required</h1>
-    <p>The Back Office uses the same account as the main app. Log in there first, then come back to this page.</p>
-    <a class="back-link" href="/">Go to the main app</a>
+    <h1 data-i18n="gate.title">Log in required</h1>
+    <p data-i18n="gate.p">The Back Office uses the same account as the main app. Log in there first, then come back to this page.</p>
+    <a class="back-link" href="/" data-i18n="gate.link">Go to the main app</a>
   </div>
 </div>
 
@@ -246,17 +247,17 @@
       <div class="brand-mark">OSR</div>
       <div>
         <h1 id="restaurantHeading">Back Office</h1>
-        <div class="sub">Business data that keeps the app up to date — separate from day-to-day operations.</div>
+        <div class="sub" data-i18n="header.sub">Business data that keeps the app up to date — separate from day-to-day operations.</div>
       </div>
     </div>
-    <a class="back-link" href="/">← Back to main app</a>
+    <div style="display:flex;gap:10px;align-items:center"><div class="i18n-switch"></div><a class="back-link" href="/" data-i18n="header.back">← Back to main app</a></div>
   </header>
 
   <nav class="sections">
-    <button class="section-btn active" id="sectionBtnStaff" onclick="showSection('staff')">Staff</button>
-    <button class="section-btn" id="sectionBtnSchedule" onclick="showSection('schedule')">Schedule</button>
-    <button class="section-btn" disabled title="Coming next">Sales</button>
-    <button class="section-btn" disabled title="Coming next">Revenue history</button>
+    <button class="section-btn active" id="sectionBtnStaff" onclick="showSection('staff')" data-i18n="nav.staff">Staff</button>
+    <button class="section-btn" id="sectionBtnSchedule" onclick="showSection('schedule')" data-i18n="nav.schedule">Schedule</button>
+    <button class="section-btn" disabled data-i18n-title="nav.soon" title="Coming next" data-i18n="nav.sales">Sales</button>
+    <button class="section-btn" disabled data-i18n-title="nav.soon" title="Coming next" data-i18n="nav.revenue">Revenue history</button>
   </nav>
 
   <div id="banner"></div>
@@ -265,34 +266,34 @@
     <div class="section-panel active" id="sectionStaff">
       <div class="toolbar">
         <div>
-          <h2>Staff pay & tenure</h2>
-          <div class="desc">Rates and hire dates feed real labor-cost math elsewhere in the app. Roles and phone numbers are also editable here for full setup in one place.</div>
+          <h2 data-i18n="staff.h2">Staff pay & tenure</h2>
+          <div class="desc" data-i18n="staff.desc">Rates and hire dates feed real labor-cost math elsewhere in the app. Roles and phone numbers are also editable here for full setup in one place.</div>
         </div>
-        <button class="ghost" onclick="loadStaff()">Refresh</button>
+        <button class="ghost" onclick="loadStaff()" data-i18n="staff.refresh">Refresh</button>
       </div>
 
       <table>
         <thead>
           <tr>
-            <th style="width:12%">Name</th>
-            <th style="width:12%">Phone</th>
-            <th style="width:14%">Roles (comma-separated)</th>
-            <th style="width:8%">Rate ($/hr)</th>
-            <th style="width:11%">Hire date</th>
-            <th style="width:17%">Address</th>
+            <th style="width:12%" data-i18n="th.name">Name</th>
+            <th style="width:12%" data-i18n="th.phone">Phone</th>
+            <th style="width:14%" data-i18n="th.roles">Roles (comma-separated)</th>
+            <th style="width:8%" data-i18n="th.rate">Rate ($/hr)</th>
+            <th style="width:11%" data-i18n="th.hire">Hire date</th>
+            <th style="width:17%" data-i18n="th.address">Address</th>
             <th style="width:26%"></th>
           </tr>
         </thead>
         <tbody id="staffTableBody"></tbody>
         <tbody>
           <tr class="add-row">
-            <td data-label="Name"><input type="text" id="newName" placeholder="Full name" /></td>
-            <td data-label="Phone"><input type="tel" id="newPhone" placeholder="+15551234567" /></td>
-            <td data-label="Roles"><input type="text" id="newRoles" placeholder="Server, Host" /></td>
-            <td data-label="Rate"><input type="text" class="rate-input" id="newRate" placeholder="19.50" /></td>
-            <td data-label="Hire date"><input type="date" id="newHireDate" /></td>
-            <td data-label="Address"><input type="text" id="newAddress" placeholder="123 Main St, City" /></td>
-            <td><button class="action" style="padding:7px 10px" onclick="addStaffRow()">Add</button></td>
+            <td data-i18n-label="th.nameShort"><input type="text" id="newName" data-i18n-ph="staff.namePh" placeholder="Full name" /></td>
+            <td data-i18n-label="th.phoneShort"><input type="tel" id="newPhone" placeholder="+15551234567" /></td>
+            <td data-i18n-label="th.rolesShort"><input type="text" id="newRoles" placeholder="Server, Host" /></td>
+            <td data-i18n-label="th.rateShort"><input type="text" class="rate-input" id="newRate" placeholder="19.50" /></td>
+            <td data-i18n-label="th.hire"><input type="date" id="newHireDate" /></td>
+            <td data-i18n-label="th.address"><input type="text" id="newAddress" data-i18n-ph="staff.addressPh" placeholder="123 Main St, City" /></td>
+            <td><button class="action" style="padding:7px 10px" onclick="addStaffRow()" data-i18n="staff.add">Add</button></td>
           </tr>
         </tbody>
       </table>
@@ -301,26 +302,26 @@
     <div class="section-panel" id="sectionSchedule">
       <div class="toolbar">
         <div>
-          <h2>Weekly schedule</h2>
-          <div class="desc">Assign staff to shifts for the week. Drag a shift to move it, or copy/paste it to another day. Hours and labor cost are calculated live from each person's rate.</div>
+          <h2 data-i18n="sched.h2">Weekly schedule</h2>
+          <div class="desc" data-i18n="sched.desc">Assign staff to shifts for the week. Drag a shift to move it, or copy/paste it to another day. Hours and labor cost are calculated live from each person's rate.</div>
         </div>
       </div>
 
       <div class="house-toggle">
-        <button class="house-btn active" id="houseBtnFoh" onclick="setHouseView('foh')">Front of House</button>
-        <button class="house-btn" id="houseBtnBoh" onclick="setHouseView('boh')">Back of House</button>
+        <button class="house-btn active" id="houseBtnFoh" onclick="setHouseView('foh')" data-i18n="sched.foh">Front of House</button>
+        <button class="house-btn" id="houseBtnBoh" onclick="setHouseView('boh')" data-i18n="sched.boh">Back of House</button>
       </div>
 
       <div class="week-nav">
-        <button class="ghost" onclick="shiftWeek(-1)">← Prev week</button>
+        <button class="ghost" onclick="shiftWeek(-1)" data-i18n="sched.prev">← Prev week</button>
         <span class="week-label" id="weekLabel"></span>
-        <button class="ghost" onclick="shiftWeek(1)">Next week →</button>
-        <button class="ghost" onclick="goToThisWeek()">This week</button>
+        <button class="ghost" onclick="shiftWeek(1)" data-i18n="sched.next">Next week →</button>
+        <button class="ghost" onclick="goToThisWeek()" data-i18n="sched.today">This week</button>
       </div>
 
       <div class="copy-bar" id="copyBar">
-        <span>Shift copied — click "Paste here" on any cell to duplicate it.</span>
-        <button onclick="cancelCopy()">Cancel</button>
+        <span data-i18n="sched.copied">Shift copied — click "Paste here" on any cell to duplicate it.</span>
+        <button onclick="cancelCopy()" data-i18n="common.cancel">Cancel</button>
       </div>
 
       <div class="grid-wrap">
@@ -347,6 +348,94 @@
 </div>
 
 <script>
+I18N.add({
+  en: {
+    title: "Back Office — Open Shift Rail",
+    "gate.title": "Log in required", "gate.p": "The Back Office uses the same account as the main app. Log in there first, then come back to this page.", "gate.link": "Go to the main app",
+    "header.sub": "Business data that keeps the app up to date — separate from day-to-day operations.", "header.back": "← Back to main app", heading: "Back Office", headingOf: n => `${n} — Back Office`,
+    "nav.staff": "Staff", "nav.schedule": "Schedule", "nav.sales": "Sales", "nav.revenue": "Revenue history", "nav.soon": "Coming next",
+    "staff.h2": "Staff pay & tenure", "staff.desc": "Rates and hire dates feed real labor-cost math elsewhere in the app. Roles and phone numbers are also editable here for full setup in one place.",
+    "staff.refresh": "Refresh", "staff.add": "Add", "staff.namePh": "Full name", "staff.addressPh": "123 Main St, City",
+    "th.name": "Name", "th.phone": "Phone", "th.roles": "Roles (comma-separated)", "th.rate": "Rate ($/hr)", "th.hire": "Hire date", "th.address": "Address",
+    "th.nameShort": "Name", "th.phoneShort": "Phone", "th.rolesShort": "Roles", "th.rateShort": "Rate",
+    "staff.empty": "No staff yet — add your first one below.", "staff.save": "Save", "staff.sendLogin": "Send login", "staff.resendLogin": "Resend login",
+    "staff.hasLoginTip": "Already has a login — sends a fresh setup link", "staff.delete": "Delete", "staff.member": "staff member",
+    "staff.confirmDelete": "Delete this staff member? This can't be undone.",
+    "msg.nameRequired": "Name and phone are required", "msg.saved": "Saved", "msg.savedName": n => `Saved ${n}`, "msg.added": n => `Added ${n}`,
+    "msg.loginSent": n => `Login link texted to ${n}`, "msg.needName": "Enter a name first", "msg.needPhone": "Enter a phone number first", "msg.needTimes": "Pick a start and end time",
+    "err.network": "Network error — is the server running?",
+    "sched.h2": "Weekly schedule", "sched.desc": "Assign staff to shifts for the week. Drag a shift to move it, or copy/paste it to another day. Hours and labor cost are calculated live from each person's rate.",
+    "sched.foh": "Front of House", "sched.boh": "Back of House", "sched.prev": "← Prev week", "sched.next": "Next week →", "sched.today": "This week",
+    "sched.copied": "Shift copied — click \"Paste here\" on any cell to duplicate it.",
+    "sched.staffCol": "Staff", "sched.total": "Total", "sched.aiForecast": "AI forecast", "sched.notYet": "not yet available", "sched.actual": "Actual sales", "sched.projected": "Projected sales",
+    "sched.dailyTotals": "Daily totals", "sched.laborIndex": "Labor cost index",
+    "sched.noStaff": h => `No staff tagged with ${h} roles yet. Add roles in the Staff tab.`,
+    "sched.hoursWeek": h => `${h} hours this week`, "sched.costWeek": h => `${h} labor cost this week`,
+    "sched.rolePh": "Role (optional)", "sched.addShift": "+ Add", "sched.paste": "Paste here", "common.cancel": "Cancel", "common.save": "Save", "common.copy": "Copy", "common.delete": "Delete",
+    "house.foh": "FOH", "house.boh": "BOH",
+    "days.0": "Mon", "days.1": "Tue", "days.2": "Wed", "days.3": "Thu", "days.4": "Fri", "days.5": "Sat", "days.6": "Sun",
+    "role.Line Cook": "Line Cook", "role.Server": "Server", "role.Host": "Host", "role.Bartender": "Bartender", "role.Busser": "Busser", "role.Dishwasher": "Dishwasher", "role.Prep Cook": "Prep Cook", "role.Expo": "Expo",
+  },
+  fr: {
+    title: "Arrière-boutique — Open Shift Rail",
+    "gate.title": "Connexion requise", "gate.p": "L'arrière-boutique utilise le même compte que l'application principale. Connectez-vous d'abord là-bas, puis revenez sur cette page.", "gate.link": "Aller à l'application principale",
+    "header.sub": "Les données d'affaires qui gardent l'application à jour — séparées des opérations quotidiennes.", "header.back": "← Retour à l'application principale", heading: "Arrière-boutique", headingOf: n => `${n} — Arrière-boutique`,
+    "nav.staff": "Personnel", "nav.schedule": "Horaire", "nav.sales": "Ventes", "nav.revenue": "Historique des revenus", "nav.soon": "Bientôt disponible",
+    "staff.h2": "Salaires et ancienneté du personnel", "staff.desc": "Les taux horaires et les dates d'embauche alimentent le calcul réel des coûts de main-d'œuvre ailleurs dans l'application. Les postes et les numéros de téléphone sont aussi modifiables ici pour tout configurer au même endroit.",
+    "staff.refresh": "Actualiser", "staff.add": "Ajouter", "staff.namePh": "Nom complet", "staff.addressPh": "123 rue Principale, Ville",
+    "th.name": "Nom", "th.phone": "Téléphone", "th.roles": "Postes (séparés par des virgules)", "th.rate": "Taux ($/h)", "th.hire": "Date d'embauche", "th.address": "Adresse",
+    "th.nameShort": "Nom", "th.phoneShort": "Téléphone", "th.rolesShort": "Postes", "th.rateShort": "Taux",
+    "staff.empty": "Aucun employé pour l'instant — ajoutez le premier ci-dessous.", "staff.save": "Enregistrer", "staff.sendLogin": "Envoyer l'accès", "staff.resendLogin": "Renvoyer l'accès",
+    "staff.hasLoginTip": "A déjà un accès — envoie un nouveau lien de configuration", "staff.delete": "Supprimer", "staff.member": "employé",
+    "staff.confirmDelete": "Supprimer cet employé? Cette action est irréversible.",
+    "msg.nameRequired": "Le nom et le téléphone sont requis", "msg.saved": "Enregistré", "msg.savedName": n => `${n} enregistré`, "msg.added": n => `${n} ajouté`,
+    "msg.loginSent": n => `Lien d'accès envoyé par texto à ${n}`, "msg.needName": "Entrez d'abord un nom", "msg.needPhone": "Entrez d'abord un numéro de téléphone", "msg.needTimes": "Choisissez une heure de début et de fin",
+    "err.network": "Erreur réseau — le serveur est-il en marche?",
+    "sched.h2": "Horaire de la semaine", "sched.desc": "Assignez le personnel aux quarts de la semaine. Glissez un quart pour le déplacer, ou copiez-collez-le à un autre jour. Les heures et le coût de la main-d'œuvre sont calculés en direct selon le taux de chaque personne.",
+    "sched.foh": "Salle", "sched.boh": "Cuisine", "sched.prev": "← Semaine préc.", "sched.next": "Semaine suiv. →", "sched.today": "Cette semaine",
+    "sched.copied": "Quart copié — cliquez sur « Coller ici » dans n'importe quelle case pour le dupliquer.",
+    "sched.staffCol": "Personnel", "sched.total": "Total", "sched.aiForecast": "Prévision IA", "sched.notYet": "pas encore disponible", "sched.actual": "Ventes réelles", "sched.projected": "Ventes prévues",
+    "sched.dailyTotals": "Totaux quotidiens", "sched.laborIndex": "Indice du coût de main-d'œuvre",
+    "sched.noStaff": h => `Aucun employé n'a de poste en ${h} pour l'instant. Ajoutez des postes dans l'onglet Personnel.`,
+    "sched.hoursWeek": h => `Heures ${h} cette semaine`, "sched.costWeek": h => `Coût de main-d'œuvre ${h} cette semaine`,
+    "sched.rolePh": "Poste (facultatif)", "sched.addShift": "+ Ajouter", "sched.paste": "Coller ici", "common.cancel": "Annuler", "common.save": "Enregistrer", "common.copy": "Copier", "common.delete": "Supprimer",
+    "house.foh": "Salle", "house.boh": "Cuisine",
+    "days.0": "Lun", "days.1": "Mar", "days.2": "Mer", "days.3": "Jeu", "days.4": "Ven", "days.5": "Sam", "days.6": "Dim",
+    "role.Line Cook": "Cuisinier de ligne", "role.Server": "Serveur/Serveuse", "role.Host": "Hôte/Hôtesse", "role.Bartender": "Barman/Barmaid", "role.Busser": "Aide-serveur", "role.Dishwasher": "Plongeur/Plongeuse", "role.Prep Cook": "Cuisinier de préparation", "role.Expo": "Expéditeur",
+  },
+  es: {
+    title: "Oficina — Open Shift Rail",
+    "gate.title": "Se requiere iniciar sesión", "gate.p": "La Oficina usa la misma cuenta que la aplicación principal. Inicia sesión allí primero y luego vuelve a esta página.", "gate.link": "Ir a la aplicación principal",
+    "header.sub": "Datos del negocio que mantienen la aplicación al día — separados de las operaciones diarias.", "header.back": "← Volver a la aplicación principal", heading: "Oficina", headingOf: n => `${n} — Oficina`,
+    "nav.staff": "Personal", "nav.schedule": "Horario", "nav.sales": "Ventas", "nav.revenue": "Historial de ingresos", "nav.soon": "Próximamente",
+    "staff.h2": "Pago y antigüedad del personal", "staff.desc": "Las tarifas y las fechas de contratación alimentan el cálculo real del costo laboral en el resto de la aplicación. Los puestos y teléfonos también se pueden editar aquí para configurar todo en un solo lugar.",
+    "staff.refresh": "Actualizar", "staff.add": "Agregar", "staff.namePh": "Nombre completo", "staff.addressPh": "Calle Principal 123, Ciudad",
+    "th.name": "Nombre", "th.phone": "Teléfono", "th.roles": "Puestos (separados por comas)", "th.rate": "Tarifa ($/h)", "th.hire": "Fecha de contratación", "th.address": "Dirección",
+    "th.nameShort": "Nombre", "th.phoneShort": "Teléfono", "th.rolesShort": "Puestos", "th.rateShort": "Tarifa",
+    "staff.empty": "Aún no hay personal — agrega al primero abajo.", "staff.save": "Guardar", "staff.sendLogin": "Enviar acceso", "staff.resendLogin": "Reenviar acceso",
+    "staff.hasLoginTip": "Ya tiene acceso — envía un nuevo enlace de configuración", "staff.delete": "Eliminar", "staff.member": "empleado",
+    "staff.confirmDelete": "¿Eliminar a este empleado? No se puede deshacer.",
+    "msg.nameRequired": "El nombre y el teléfono son obligatorios", "msg.saved": "Guardado", "msg.savedName": n => `${n} guardado`, "msg.added": n => `${n} agregado`,
+    "msg.loginSent": n => `Enlace de acceso enviado por SMS a ${n}`, "msg.needName": "Ingresa primero un nombre", "msg.needPhone": "Ingresa primero un número de teléfono", "msg.needTimes": "Elige una hora de inicio y de fin",
+    "err.network": "Error de red — ¿está el servidor en marcha?",
+    "sched.h2": "Horario semanal", "sched.desc": "Asigna personal a los turnos de la semana. Arrastra un turno para moverlo, o cópialo y pégalo en otro día. Las horas y el costo laboral se calculan en vivo según la tarifa de cada persona.",
+    "sched.foh": "Salón", "sched.boh": "Cocina", "sched.prev": "← Semana ant.", "sched.next": "Semana sig. →", "sched.today": "Esta semana",
+    "sched.copied": "Turno copiado — haz clic en «Pegar aquí» en cualquier celda para duplicarlo.",
+    "sched.staffCol": "Personal", "sched.total": "Total", "sched.aiForecast": "Pronóstico IA", "sched.notYet": "aún no disponible", "sched.actual": "Ventas reales", "sched.projected": "Ventas proyectadas",
+    "sched.dailyTotals": "Totales diarios", "sched.laborIndex": "Índice de costo laboral",
+    "sched.noStaff": h => `Aún no hay personal con puestos de ${h}. Agrega puestos en la pestaña Personal.`,
+    "sched.hoursWeek": h => `Horas de ${h} esta semana`, "sched.costWeek": h => `Costo laboral de ${h} esta semana`,
+    "sched.rolePh": "Puesto (opcional)", "sched.addShift": "+ Agregar", "sched.paste": "Pegar aquí", "common.cancel": "Cancelar", "common.save": "Guardar", "common.copy": "Copiar", "common.delete": "Eliminar",
+    "house.foh": "Salón", "house.boh": "Cocina",
+    "days.0": "Lun", "days.1": "Mar", "days.2": "Mié", "days.3": "Jue", "days.4": "Vie", "days.5": "Sáb", "days.6": "Dom",
+    "role.Line Cook": "Cocinero de línea", "role.Server": "Mesero/a", "role.Host": "Anfitrión/a", "role.Bartender": "Bartender", "role.Busser": "Ayudante de mesero", "role.Dishwasher": "Lavaplatos", "role.Prep Cook": "Cocinero de preparación", "role.Expo": "Expo",
+  },
+});
+const tr = (k, ...a) => I18N.t(k, ...a);
+const roleLabel = r => { const k = "role." + r; const v = I18N.t(k); return v === k ? r : v; };
+const houseLabel = () => tr(houseView === "foh" ? "sched.foh" : "sched.boh");
+const houseShort = () => tr(houseView === "foh" ? "house.foh" : "house.boh");
+
 let staff = [];
 const ROLES = ["Line Cook", "Server", "Host", "Bartender", "Busser", "Dishwasher", "Prep Cook", "Expo"];
 const FOH_ROLES = ["Server", "Host", "Bartender", "Busser"];
@@ -388,7 +477,7 @@ async function api(path, options) {
     if (!res.ok) return { ok: false, error: (body && body.error) || `HTTP ${res.status}`, status: res.status };
     return { ok: true, data: body };
   } catch (e) {
-    return { ok: false, error: "Network error — is the server running?" };
+    return { ok: false, error: tr("err.network") };
   }
 }
 
@@ -413,21 +502,21 @@ function escapeHtml(str) {
 function renderStaffTable() {
   const tbody = document.getElementById("staffTableBody");
   if (staff.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-note">No staff yet — add your first one below.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-note">${tr("staff.empty")}</td></tr>`;
     return;
   }
   tbody.innerHTML = staff.map(p => `
     <tr data-id="${p.id}">
-      <td data-label="Name"><input type="text" value="${escapeHtml(p.name)}" onblur="updateField('${p.id}','name',this.value)" /></td>
-      <td data-label="Phone"><input type="tel" value="${escapeHtml(p.phone)}" onblur="updateField('${p.id}','phone',this.value)" /></td>
-      <td data-label="Roles"><input type="text" value="${escapeHtml((p.roles || []).join(', '))}" onblur="updateRoles('${p.id}',this.value)" /></td>
-      <td data-label="Rate"><input type="text" class="rate-input num" value="${p.hourlyRate !== null ? p.hourlyRate : ''}" placeholder="—" onblur="updateField('${p.id}','hourlyRate',this.value)" /></td>
-      <td data-label="Hire date"><input type="date" value="${escapeHtml(p.hireDate || '')}" onblur="updateField('${p.id}','hireDate',this.value)" /></td>
-      <td data-label="Address"><input type="text" value="${escapeHtml(p.address || '')}" placeholder="—" onblur="updateField('${p.id}','address',this.value)" /></td>
+      <td data-label="${tr('th.nameShort')}"><input type="text" value="${escapeHtml(p.name)}" onblur="updateField('${p.id}','name',this.value)" /></td>
+      <td data-label="${tr('th.phoneShort')}"><input type="tel" value="${escapeHtml(p.phone)}" onblur="updateField('${p.id}','phone',this.value)" /></td>
+      <td data-label="${tr('th.rolesShort')}"><input type="text" value="${escapeHtml((p.roles || []).join(', '))}" onblur="updateRoles('${p.id}',this.value)" /></td>
+      <td data-label="${tr('th.rateShort')}"><input type="text" class="rate-input num" value="${p.hourlyRate !== null ? p.hourlyRate : ''}" placeholder="—" onblur="updateField('${p.id}','hourlyRate',this.value)" /></td>
+      <td data-label="${tr('th.hire')}"><input type="date" value="${escapeHtml(p.hireDate || '')}" onblur="updateField('${p.id}','hireDate',this.value)" /></td>
+      <td data-label="${tr('th.address')}"><input type="text" value="${escapeHtml(p.address || '')}" placeholder="—" onblur="updateField('${p.id}','address',this.value)" /></td>
       <td class="row-actions">
-        <button class="action" style="padding:7px 10px" onclick="saveStaffRow('${p.id}')">Save</button>
-        <button class="ghost" style="padding:7px 10px" onclick="sendLoginSetup('${p.id}')" ${p.hasLogin ? 'title="Already has a login — sends a fresh setup link"' : ""}>${p.hasLogin ? "Resend login" : "Send login"}</button>
-        <button class="del-cell-btn" onclick="deleteStaff('${p.id}')" title="Delete">✕</button>
+        <button class="action" style="padding:7px 10px" onclick="saveStaffRow('${p.id}')">${tr("staff.save")}</button>
+        <button class="ghost" style="padding:7px 10px" onclick="sendLoginSetup('${p.id}')" ${p.hasLogin ? `title="${escapeHtml(tr("staff.hasLoginTip"))}"` : ""}>${p.hasLogin ? tr("staff.resendLogin") : tr("staff.sendLogin")}</button>
+        <button class="del-cell-btn" onclick="deleteStaff('${p.id}')" title="${escapeHtml(tr("staff.delete"))}">✕</button>
       </td>
     </tr>
   `).join("");
@@ -447,10 +536,10 @@ async function saveStaffRow(id) {
     hireDate: orNull(hireI.value),
     address: orNull(addrI.value),
   };
-  if (!body.name || !body.phone) return showBanner("Name and phone are required", "warn");
+  if (!body.name || !body.phone) return showBanner(tr("msg.nameRequired"), "warn");
   const result = await api(`/api/staff/${id}`, { method: "PATCH", body: JSON.stringify(body) });
   if (result.ok) {
-    showBanner(`Saved ${body.name}`, "success");
+    showBanner(tr("msg.savedName", body.name), "success");
     const idx = staff.findIndex(s => s.id === id);
     if (idx !== -1) staff[idx] = result.data;
   } else {
@@ -461,7 +550,7 @@ async function saveStaffRow(id) {
 async function sendLoginSetup(id) {
   const person = staff.find(s => s.id === id);
   const result = await api(`/api/staff/${id}/send-login-setup`, { method: "POST" });
-  if (result.ok) showBanner(`Login link texted to ${person ? person.name : "staff member"}`, "success");
+  if (result.ok) showBanner(tr("msg.loginSent", person ? person.name : tr("staff.member")), "success");
   else showBanner(result.error, "warn");
 }
 
@@ -480,7 +569,7 @@ async function updateField(id, field, value) {
   body[field] = value.trim() === "" ? null : value.trim();
   const result = await api(`/api/staff/${id}`, { method: "PATCH", body: JSON.stringify(body) });
   if (result.ok) {
-    showBanner("Saved", "success");
+    showBanner(tr("msg.saved"), "success");
     const idx = staff.findIndex(s => s.id === id);
     if (idx !== -1) staff[idx] = result.data;
   } else {
@@ -493,7 +582,7 @@ async function updateRoles(id, value) {
   const roles = value.split(",").map(r => r.trim()).filter(Boolean);
   const result = await api(`/api/staff/${id}`, { method: "PATCH", body: JSON.stringify({ roles }) });
   if (result.ok) {
-    showBanner("Saved", "success");
+    showBanner(tr("msg.saved"), "success");
     const idx = staff.findIndex(s => s.id === id);
     if (idx !== -1) staff[idx] = result.data;
   } else {
@@ -509,8 +598,8 @@ async function addStaffRow() {
   const rate = document.getElementById("newRate").value.trim();
   const hireDate = document.getElementById("newHireDate").value;
   const address = document.getElementById("newAddress").value.trim();
-  if (!name) return showBanner("Enter a name first", "warn");
-  if (!phone) return showBanner("Enter a phone number first", "warn");
+  if (!name) return showBanner(tr("msg.needName"), "warn");
+  if (!phone) return showBanner(tr("msg.needPhone"), "warn");
   const roles = rolesRaw ? rolesRaw.split(",").map(r => r.trim()).filter(Boolean) : [];
 
   const result = await api("/api/staff", {
@@ -518,7 +607,7 @@ async function addStaffRow() {
     body: JSON.stringify({ name, phone, roles, hourlyRate: rate || null, hireDate: hireDate || null, address: address || null }),
   });
   if (result.ok) {
-    showBanner(`Added ${name}`, "success");
+    showBanner(tr("msg.added", name), "success");
     document.getElementById("newName").value = "";
     document.getElementById("newPhone").value = "";
     document.getElementById("newRoles").value = "";
@@ -532,7 +621,7 @@ async function addStaffRow() {
 }
 
 async function deleteStaff(id) {
-  if (!confirm("Delete this staff member? This can't be undone.")) return;
+  if (!confirm(tr("staff.confirmDelete"))) return;
   await api(`/api/staff/${id}`, { method: "DELETE" });
   loadStaff();
 }
@@ -552,15 +641,10 @@ function toISODate(d) {
 }
 
 function formatShort(d) {
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return I18N.lang === "fr" ? d.toLocaleDateString("fr-CA", { month: "short", day: "numeric" }) : d.toLocaleDateString(I18N.lang === "es" ? "es-US" : "en-CA", { month: "short", day: "numeric" });
 }
 
-function formatTime(t) {
-  const [h, m] = t.split(":").map(Number);
-  const period = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
-}
+function formatTime(t) { return I18N.formatTime(t); }
 
 function computeHours(start, end) {
   const [sh, sm] = start.split(":").map(Number);
@@ -702,11 +786,11 @@ function renderDayCell(staffMember, dateStr) {
       <div class="chip-top">
         <div class="times">${formatTime(s.startTime)}–${formatTime(s.endTime)}</div>
         <div class="chip-actions">
-          <button class="chip-btn" onclick="copyShiftFromChip(this)" title="Copy">⧉</button>
-          <button class="chip-btn" onclick="deleteScheduleShift('${s.id}')" title="Delete">✕</button>
+          <button class="chip-btn" onclick="copyShiftFromChip(this)" title="${escapeHtml(tr("common.copy"))}">⧉</button>
+          <button class="chip-btn" onclick="deleteScheduleShift('${s.id}')" title="${escapeHtml(tr("common.delete"))}">✕</button>
         </div>
       </div>
-      ${s.role ? `<div class="role-tag">${escapeHtml(s.role)}</div>` : ""}
+      ${s.role ? `<div class="role-tag">${escapeHtml(roleLabel(s.role))}</div>` : ""}
     </div>
   `).join("");
 
@@ -716,19 +800,19 @@ function renderDayCell(staffMember, dateStr) {
         <input type="time" id="shiftStart-${staffMember.id}-${dateStr}" />
         <input type="time" id="shiftEnd-${staffMember.id}-${dateStr}" />
         <select id="shiftRoleSel-${staffMember.id}-${dateStr}">
-          <option value="">Role (optional)</option>
-          ${ROLES.map(r => `<option value="${r}">${r}</option>`).join("")}
+          <option value="">${tr("sched.rolePh")}</option>
+          ${ROLES.map(r => `<option value="${r}">${escapeHtml(roleLabel(r))}</option>`).join("")}
         </select>
         <div class="form-actions">
-          <button style="background:var(--green);color:#fff" onclick="submitAddShift('${staffMember.id}','${dateStr}')">Save</button>
-          <button style="background:var(--rail);color:var(--text-bright)" onclick="cancelAddShift()">Cancel</button>
+          <button style="background:var(--green);color:#fff" onclick="submitAddShift('${staffMember.id}','${dateStr}')">${tr("common.save")}</button>
+          <button style="background:var(--rail);color:var(--text-bright)" onclick="cancelAddShift()">${tr("common.cancel")}</button>
         </div>
       </div>
     `;
   } else {
-    html += `<button class="add-shift-btn" onclick="showAddShiftForm('${staffMember.id}','${dateStr}')">+ Add</button>`;
+    html += `<button class="add-shift-btn" onclick="showAddShiftForm('${staffMember.id}','${dateStr}')">${tr("sched.addShift")}</button>`;
     if (copiedShift) {
-      html += `<button class="paste-btn" onclick="pasteShift('${staffMember.id}','${dateStr}')">Paste here</button>`;
+      html += `<button class="paste-btn" onclick="pasteShift('${staffMember.id}','${dateStr}')">${tr("sched.paste")}</button>`;
     }
   }
   return html;
@@ -748,7 +832,7 @@ async function submitAddShift(staffId, dateStr) {
   const startInput = document.getElementById(`shiftStart-${staffId}-${dateStr}`);
   const endInput = document.getElementById(`shiftEnd-${staffId}-${dateStr}`);
   const roleInput = document.getElementById(`shiftRoleSel-${staffId}-${dateStr}`);
-  if (!startInput.value || !endInput.value) return showBanner("Pick a start and end time", "warn");
+  if (!startInput.value || !endInput.value) return showBanner(tr("msg.needTimes"), "warn");
   const result = await api("/api/schedule", {
     method: "POST",
     body: JSON.stringify({ staffId, date: dateStr, startTime: startInput.value, endTime: endInput.value, role: roleInput.value }),
@@ -773,7 +857,7 @@ function renderScheduleGrid() {
     d.setDate(d.getDate() + i);
     weekDates.push(d);
   }
-  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const dayNames = [0,1,2,3,4,5,6].map(i => tr("days." + i));
   const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
   const visibleStaff = staff.filter(p => {
     const primaryRole = (p.roles || [])[0];
@@ -781,15 +865,15 @@ function renderScheduleGrid() {
   });
 
   const headerRow = document.getElementById("scheduleHeaderRow");
-  headerRow.innerHTML = `<th style="text-align:left">Staff</th>` +
+  headerRow.innerHTML = `<th style="text-align:left">${tr("sched.staffCol")}</th>` +
     weekDates.map((d, i) => `<th>${dayNames[i]}<span class="day-date">${d.getMonth() + 1}/${d.getDate()}</span></th>`).join("") +
-    `<th>Total</th>`;
+    `<th>${tr("sched.total")}</th>`;
 
   // AI forecast row (placeholder — needs real sales history, not available yet)
   const aiRow = document.getElementById("scheduleAiRow");
-  aiRow.innerHTML = `<td class="row-label">AI forecast</td>` +
+  aiRow.innerHTML = `<td class="row-label">${tr("sched.aiForecast")}</td>` +
     weekDates.map(() => `<td>—</td>`).join("") +
-    `<td>not yet available</td>`;
+    `<td>${tr("sched.notYet")}</td>`;
 
   // Actual sales row — read-only, populated automatically once a POS integration exists.
   // Empty/placeholder until then; this is the slot that future integration writes into.
@@ -801,7 +885,7 @@ function renderScheduleGrid() {
     if (val !== undefined && val !== null) { weekActualTotal += val; anyActual = true; }
     return `<td style="text-align:center">${val !== undefined && val !== null ? "$" + val.toFixed(2) : "—"}</td>`;
   }).join("");
-  actualRow.innerHTML = `<td class="row-label">Actual sales</td>${actualCells}<td class="day-total">${anyActual ? "$" + weekActualTotal.toFixed(2) : "—"}</td>`;
+  actualRow.innerHTML = `<td class="row-label">${tr("sched.actual")}</td>${actualCells}<td class="day-total">${anyActual ? "$" + weekActualTotal.toFixed(2) : "—"}</td>`;
 
   // Projected sales row (manual entry, shared across both house views)
   const projRow = document.getElementById("scheduleProjRow");
@@ -812,12 +896,12 @@ function renderScheduleGrid() {
     if (val !== undefined && val !== null) { weekProjTotal += val; anyProj = true; }
     return `<td><input type="text" inputmode="decimal" value="${val !== undefined && val !== null ? val : ''}" placeholder="$" onblur="saveProjection('${dateStr}', this.value)" /></td>`;
   }).join("");
-  projRow.innerHTML = `<td class="row-label">Projected sales</td>${projCells}<td class="day-total">${anyProj ? "$" + weekProjTotal.toFixed(2) : "—"}</td>`;
+  projRow.innerHTML = `<td class="row-label">${tr("sched.projected")}</td>${projCells}<td class="day-total">${anyProj ? "$" + weekProjTotal.toFixed(2) : "—"}</td>`;
 
   const body = document.getElementById("scheduleBody");
   if (visibleStaff.length === 0) {
-    const label = houseView === "foh" ? "Front of House" : "Back of House";
-    body.innerHTML = `<tr><td colspan="9" class="empty-note">No staff tagged with ${label} roles yet. Add roles in the Staff tab.</td></tr>`;
+    const label = houseLabel();
+    body.innerHTML = `<tr><td colspan="9" class="empty-note">${tr("sched.noStaff", label)}</td></tr>`;
   } else {
     body.innerHTML = visibleStaff.map(p => {
       let weekHours = 0, weekCost = 0;
@@ -861,7 +945,7 @@ function renderScheduleGrid() {
     grandCost += dayCost;
     return `<td class="day-total">${dayHours.toFixed(1)}h<br>$${dayCost.toFixed(2)}</td>`;
   }).join("");
-  totalsRow.innerHTML = `<td style="text-align:left">Daily totals</td>${dayTotalsHtml}<td class="day-total">${grandHours.toFixed(1)}h<br>$${grandCost.toFixed(2)}</td>`;
+  totalsRow.innerHTML = `<td style="text-align:left">${tr("sched.dailyTotals")}</td>${dayTotalsHtml}<td class="day-total">${grandHours.toFixed(1)}h<br>$${grandCost.toFixed(2)}</td>`;
 
   // Labor cost index row — uses real sales once a POS feeds them in, otherwise falls back to the manual projection
   const indexRow = document.getElementById("scheduleIndexRow");
@@ -879,11 +963,11 @@ function renderScheduleGrid() {
   }).join("");
   const weekIndex = anyIndexBasis && weekIndexBasis > 0 ? (grandCost / weekIndexBasis) * 100 : null;
   const weekIndexCls = weekIndex === null ? "" : weekIndex < 25 ? "index-ok" : weekIndex < 35 ? "index-warn" : "index-bad";
-  indexRow.innerHTML = `<td class="row-label">Labor cost index</td>${indexCells}<td class="${weekIndexCls}">${weekIndex !== null ? weekIndex.toFixed(1) + "%" : "—"}</td>`;
+  indexRow.innerHTML = `<td class="row-label">${tr("sched.laborIndex")}</td>${indexCells}<td class="${weekIndexCls}">${weekIndex !== null ? weekIndex.toFixed(1) + "%" : "—"}</td>`;
 
   document.getElementById("grandTotalBar").innerHTML = `
-    <div class="item"><span class="num">${grandHours.toFixed(1)}</span><span class="label">${houseView === "foh" ? "FOH" : "BOH"} hours this week</span></div>
-    <div class="item"><span class="num">$${grandCost.toFixed(2)}</span><span class="label">${houseView === "foh" ? "FOH" : "BOH"} labor cost this week</span></div>
+    <div class="item"><span class="num">${grandHours.toFixed(1)}</span><span class="label">${tr("sched.hoursWeek", houseShort())}</span></div>
+    <div class="item"><span class="num">$${grandCost.toFixed(2)}</span><span class="label">${tr("sched.costWeek", houseShort())}</span></div>
   `;
 }
 
@@ -894,9 +978,19 @@ function renderScheduleGrid() {
     return;
   }
   document.getElementById("app").style.display = "block";
-  document.getElementById("restaurantHeading").textContent = `${me.data.restaurant.name} — Back Office`;
+  document.getElementById("restaurantHeading").textContent = tr("headingOf", me.data.restaurant.name);
+  window.__restaurantName = me.data.restaurant.name;
   loadStaff();
 })();
+
+I18N.onChange(() => {
+  const h = document.getElementById("restaurantHeading");
+  h.textContent = window.__restaurantName ? tr("headingOf", window.__restaurantName) : tr("heading");
+  renderStaffTable();
+  if (scheduleLoaded) renderScheduleGrid();
+  I18N.apply();
+});
+I18N.apply();
 </script>
 </body>
 </html>

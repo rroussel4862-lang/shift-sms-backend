@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-title-key="title">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Set up your account — Open Shift Rail</title>
+<script src="/i18n-lite.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
@@ -44,11 +45,11 @@
 </head>
 <body>
 
-<div class="card" id="loading">Loading…</div>
+<div class="card" id="loading" data-i18n="loading">Loading…</div>
 
 <div class="card" id="notFound" style="display:none">
-  <h1>Link not valid</h1>
-  <div class="sub">This setup link has already been used or has expired. Ask your manager to send a new one.</div>
+  <h1 data-i18n="bad.title">Link not valid</h1>
+  <div class="sub" data-i18n="bad.sub">This setup link has already been used or has expired. Ask your manager to send a new one.</div>
 </div>
 
 <div class="card" id="formCard" style="display:none">
@@ -56,23 +57,53 @@
   <div class="sub" id="welcomeSub"></div>
 
   <div id="claimForm">
-    <label>Email</label>
+    <label data-i18n="form.email">Email</label>
     <input type="text" id="email" placeholder="you@example.com" />
-    <label>Password</label>
-    <input type="password" id="password" placeholder="At least 8 characters" />
-    <button onclick="submitClaim()">Create my account</button>
+    <label data-i18n="form.password">Password</label>
+    <input type="password" id="password" data-i18n-ph="form.passwordPh" placeholder="At least 8 characters" />
+    <button onclick="submitClaim()" data-i18n="form.create">Create my account</button>
     <div id="status"></div>
   </div>
 
   <div id="successPanel">
     <div class="check">✓</div>
-    <h1>You're all set</h1>
-    <div class="sub">Your account is ready. Head to your staff portal and log in.</div>
-    <a class="goto-link" href="/staff-portal.html">Go to my staff portal →</a>
+    <h1 data-i18n="ok.title">You're all set</h1>
+    <div class="sub" data-i18n="ok.sub">Your account is ready. Head to your staff portal and log in.</div>
+    <a class="goto-link" href="/staff-portal.html" data-i18n="ok.go">Go to my staff portal →</a>
   </div>
+  <div class="i18n-switch" style="margin-top:18px"></div>
 </div>
 
 <script>
+I18N.add({
+  en: { title: "Set up your account — Open Shift Rail", loading: "Loading…",
+    "bad.title": "Link not valid", "bad.sub": "This setup link has already been used or has expired. Ask your manager to send a new one.",
+    welcome: n => `Welcome, ${n}`, welcomeSub: r => `Set up your login for ${r}.`,
+    "form.email": "Email", "form.password": "Password", "form.passwordPh": "At least 8 characters", "form.create": "Create my account",
+    "ok.title": "You're all set", "ok.sub": "Your account is ready. Head to your staff portal and log in.", "ok.go": "Go to my staff portal →",
+    errEmail: "Enter your email.", errPassword: "Password must be at least 8 characters.", errGeneric: "Something went wrong.", errNetwork: "Network error — please try again." },
+  fr: { title: "Créez votre compte — Open Shift Rail", loading: "Chargement…",
+    "bad.title": "Lien non valide", "bad.sub": "Ce lien a déjà été utilisé ou a expiré. Demandez à votre gestionnaire de vous en envoyer un nouveau.",
+    welcome: n => `Bienvenue, ${n}`, welcomeSub: r => `Configurez votre connexion pour ${r}.`,
+    "form.email": "Courriel", "form.password": "Mot de passe", "form.passwordPh": "Au moins 8 caractères", "form.create": "Créer mon compte",
+    "ok.title": "Tout est prêt", "ok.sub": "Votre compte est prêt. Rendez-vous sur votre portail employé et connectez-vous.", "ok.go": "Aller à mon portail employé →",
+    errEmail: "Entrez votre courriel.", errPassword: "Le mot de passe doit contenir au moins 8 caractères.", errGeneric: "Une erreur est survenue.", errNetwork: "Erreur réseau — veuillez réessayer." },
+  es: { title: "Configura tu cuenta — Open Shift Rail", loading: "Cargando…",
+    "bad.title": "Enlace no válido", "bad.sub": "Este enlace ya se usó o expiró. Pide a tu gerente que te envíe uno nuevo.",
+    welcome: n => `Bienvenido/a, ${n}`, welcomeSub: r => `Configura tu acceso para ${r}.`,
+    "form.email": "Correo", "form.password": "Contraseña", "form.passwordPh": "Al menos 8 caracteres", "form.create": "Crear mi cuenta",
+    "ok.title": "Todo listo", "ok.sub": "Tu cuenta está lista. Ve a tu portal de empleado e inicia sesión.", "ok.go": "Ir a mi portal de empleado →",
+    errEmail: "Ingresa tu correo.", errPassword: "La contraseña debe tener al menos 8 caracteres.", errGeneric: "Algo salió mal.", errNetwork: "Error de red — inténtalo de nuevo." },
+});
+const tr = (k, ...a) => I18N.t(k, ...a);
+let claimInfo = null;
+function renderWelcome() {
+  if (!claimInfo) return;
+  document.getElementById("welcomeTitle").textContent = tr("welcome", claimInfo.name.split(" ")[0]);
+  document.getElementById("welcomeSub").textContent = tr("welcomeSub", claimInfo.restaurantName);
+}
+I18N.onChange(renderWelcome);
+I18N.apply();
 const params = new URLSearchParams(location.search);
 const claimToken = params.get("token");
 
@@ -82,8 +113,8 @@ async function loadClaim() {
     const res = await fetch(`/api/staff-auth/claim/${claimToken}`);
     if (!res.ok) return showNotFound();
     const data = await res.json();
-    document.getElementById("welcomeTitle").textContent = `Welcome, ${data.name.split(" ")[0]}`;
-    document.getElementById("welcomeSub").textContent = `Set up your login for ${data.restaurantName}.`;
+    claimInfo = data;
+    renderWelcome();
     document.getElementById("loading").style.display = "none";
     document.getElementById("formCard").style.display = "block";
   } catch (e) {
@@ -102,8 +133,8 @@ async function submitClaim() {
   const status = document.getElementById("status");
   status.className = ""; status.textContent = "";
 
-  if (!email) { status.className = "error"; status.textContent = "Enter your email."; return; }
-  if (!password || password.length < 8) { status.className = "error"; status.textContent = "Password must be at least 8 characters."; return; }
+  if (!email) { status.className = "error"; status.textContent = tr("errEmail"); return; }
+  if (!password || password.length < 8) { status.className = "error"; status.textContent = tr("errPassword"); return; }
 
   try {
     const res = await fetch("/api/staff-auth/claim", {
@@ -113,11 +144,11 @@ async function submitClaim() {
       body: JSON.stringify({ token: claimToken, email, password }),
     });
     const data = await res.json();
-    if (!res.ok) { status.className = "error"; status.textContent = data.error || "Something went wrong."; return; }
+    if (!res.ok) { status.className = "error"; status.textContent = data.error || tr("errGeneric"); return; }
     document.getElementById("claimForm").style.display = "none";
     document.getElementById("successPanel").style.display = "block";
   } catch (e) {
-    status.className = "error"; status.textContent = "Network error — please try again.";
+    status.className = "error"; status.textContent = tr("errNetwork");
   }
 }
 

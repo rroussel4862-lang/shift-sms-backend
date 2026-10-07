@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-title-key="title">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Apply — Open Shift Rail</title>
+<script src="/i18n-lite.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
@@ -49,11 +50,11 @@
 </head>
 <body>
 
-<div class="card" id="loading">Loading…</div>
+<div class="card" id="loading" data-i18n="loading">Loading…</div>
 
 <div class="card" id="notFound" style="display:none">
-  <h1>Not available</h1>
-  <div class="desc">This job posting isn't accepting applications right now.</div>
+  <h1 data-i18n="na.title">Not available</h1>
+  <div class="desc" data-i18n="na.desc">This job posting isn't accepting applications right now.</div>
 </div>
 
 <div class="card" id="formCard" style="display:none">
@@ -62,26 +63,45 @@
   <div class="desc" id="postingDesc"></div>
 
   <div id="applyForm">
-    <label>Full name</label>
+    <label data-i18n="f.name">Full name</label>
     <input type="text" id="name" placeholder="Jane Doe" />
-    <label>Email</label>
+    <label data-i18n="f.email">Email</label>
     <input type="text" id="email" placeholder="jane@example.com" />
-    <label>Phone</label>
+    <label data-i18n="f.phone">Phone</label>
     <input type="tel" id="phone" placeholder="+15551234567" />
-    <label>Anything else you'd like to share (optional)</label>
-    <textarea rows="3" id="note" placeholder="Availability, experience, etc."></textarea>
-    <button onclick="submitApplication()">Submit application</button>
+    <label data-i18n="f.note">Anything else you'd like to share (optional)</label>
+    <textarea rows="3" id="note" data-i18n-ph="f.notePh" placeholder="Availability, experience, etc."></textarea>
+    <button onclick="submitApplication()" data-i18n="f.submit">Submit application</button>
     <div id="status"></div>
   </div>
 
   <div id="successPanel">
     <div class="check">✓</div>
-    <h1>Application sent</h1>
-    <div class="desc">Thanks for applying — the hiring manager will be in touch if it's a fit.</div>
+    <h1 data-i18n="ok.title">Application sent</h1>
+    <div class="desc" data-i18n="ok.desc">Thanks for applying — the hiring manager will be in touch if it's a fit.</div>
   </div>
+  <div class="i18n-switch" style="margin-top:18px"></div>
 </div>
 
 <script>
+I18N.add({
+  en: { title: "Apply — Open Shift Rail", loading: "Loading…", "na.title": "Not available", "na.desc": "This job posting isn't accepting applications right now.",
+    "f.name": "Full name", "f.email": "Email", "f.phone": "Phone", "f.note": "Anything else you'd like to share (optional)", "f.notePh": "Availability, experience, etc.", "f.submit": "Submit application",
+    "ok.title": "Application sent", "ok.desc": "Thanks for applying — the hiring manager will be in touch if it's a fit.",
+    docTitle: (t, r) => `${t} at ${r} — Apply`, errName: "Enter your name.", errContact: "Enter an email or phone number.", errGeneric: "Something went wrong.", errNetwork: "Network error — please try again." },
+  fr: { title: "Postuler — Open Shift Rail", loading: "Chargement…", "na.title": "Non disponible", "na.desc": "Cette offre d'emploi n'accepte pas de candidatures pour le moment.",
+    "f.name": "Nom complet", "f.email": "Courriel", "f.phone": "Téléphone", "f.note": "Autre chose à ajouter (facultatif)", "f.notePh": "Disponibilités, expérience, etc.", "f.submit": "Envoyer ma candidature",
+    "ok.title": "Candidature envoyée", "ok.desc": "Merci d'avoir postulé — le gestionnaire vous contactera si votre profil correspond.",
+    docTitle: (t, r) => `${t} chez ${r} — Postuler`, errName: "Entrez votre nom.", errContact: "Entrez un courriel ou un numéro de téléphone.", errGeneric: "Une erreur est survenue.", errNetwork: "Erreur réseau — veuillez réessayer." },
+  es: { title: "Postular — Open Shift Rail", loading: "Cargando…", "na.title": "No disponible", "na.desc": "Esta oferta de empleo no acepta solicitudes por ahora.",
+    "f.name": "Nombre completo", "f.email": "Correo", "f.phone": "Teléfono", "f.note": "Algo más que quieras compartir (opcional)", "f.notePh": "Disponibilidad, experiencia, etc.", "f.submit": "Enviar solicitud",
+    "ok.title": "Solicitud enviada", "ok.desc": "Gracias por postular — el gerente se pondrá en contacto si encajas.",
+    docTitle: (t, r) => `${t} en ${r} — Postular`, errName: "Ingresa tu nombre.", errContact: "Ingresa un correo o número de teléfono.", errGeneric: "Algo salió mal.", errNetwork: "Error de red — inténtalo de nuevo." },
+});
+const tr = (k, ...a) => I18N.t(k, ...a);
+function renderPostingTitle() { if (posting) document.title = tr("docTitle", posting.title, posting.restaurantName); }
+I18N.onChange(renderPostingTitle);
+I18N.apply();
 const params = new URLSearchParams(location.search);
 const postingId = params.get("id");
 let posting = null;
@@ -92,7 +112,7 @@ async function loadPosting() {
     const res = await fetch(`/api/public/postings/${postingId}`);
     if (!res.ok) return showNotFound();
     posting = await res.json();
-    document.title = `${posting.title} at ${posting.restaurantName} — Apply`;
+    renderPostingTitle();
     document.getElementById("postingTitle").textContent = posting.title;
     document.getElementById("postingMeta").textContent = posting.restaurantName + (posting.role ? " · " + posting.role : "");
     document.getElementById("postingDesc").textContent = posting.description || "";
@@ -116,8 +136,8 @@ async function submitApplication() {
   const status = document.getElementById("status");
   status.className = ""; status.textContent = "";
 
-  if (!name) { status.className = "error"; status.textContent = "Enter your name."; return; }
-  if (!email && !phone) { status.className = "error"; status.textContent = "Enter an email or phone number."; return; }
+  if (!name) { status.className = "error"; status.textContent = tr("errName"); return; }
+  if (!email && !phone) { status.className = "error"; status.textContent = tr("errContact"); return; }
 
   try {
     const res = await fetch("/api/public/applications", {
@@ -126,11 +146,11 @@ async function submitApplication() {
       body: JSON.stringify({ postingId, name, email, phone, note }),
     });
     const data = await res.json();
-    if (!res.ok) { status.className = "error"; status.textContent = data.error || "Something went wrong."; return; }
+    if (!res.ok) { status.className = "error"; status.textContent = data.error || tr("errGeneric"); return; }
     document.getElementById("applyForm").style.display = "none";
     document.getElementById("successPanel").style.display = "block";
   } catch (e) {
-    status.className = "error"; status.textContent = "Network error — please try again.";
+    status.className = "error"; status.textContent = tr("errNetwork");
   }
 }
 

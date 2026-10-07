@@ -1288,7 +1288,7 @@ async function askAi() {
   const thinkingEl = document.createElement("div");
   thinkingEl.className = "chat-thinking";
   thinkingEl.id = "chatThinking";
-  thinkingEl.textContent = "Thinking…";
+  thinkingEl.textContent = t("comms.thinking");
   document.getElementById("chatThread").appendChild(thinkingEl);
 
   const result = await api("/api/ai/ask", { method: "POST", body: JSON.stringify({ question }) });
@@ -2067,7 +2067,7 @@ async function removeShift(shiftId) {
   }
 }
 
-const STAGE_LABELS = { applied: "Applied", screening: "Screening", interview: "Interview", offer: "Offer sent", rejected: "Rejected" };
+const stageLabel = k => t("hiring.stage." + k);
 const STAGE_ORDER = ["applied", "screening", "interview", "offer"];
 
 let expandedShareIds = new Set();
@@ -2080,33 +2080,33 @@ function toggleShare(id) {
 function renderPostings() {
   const div = document.getElementById("postingsList");
   div.innerHTML = postings.length === 0
-    ? '<p class="empty">No postings yet.</p>'
+    ? `<p class="empty">${t("hiring.noPostings")}</p>`
     : postings.map(p => {
         const applyUrl = `${location.origin}/apply.html?id=${p.id}`;
         return `
           <div class="ticket">
-            <div class="stamp${p.status === 'open' ? '' : ' filled'}">${p.status === 'open' ? 'Open' : 'Closed'}</div>
+            <div class="stamp${p.status === 'open' ? '' : ' filled'}">${p.status === 'open' ? t('hiring.openStamp') : t('hiring.closedStamp')}</div>
             <div class="role">${escapeHtml(p.title)}</div>
-            <div class="meta">${p.role ? escapeHtml(p.role) + " · " : ""}${p.applicantCount} applicant${p.applicantCount === 1 ? "" : "s"}</div>
+            <div class="meta">${p.role ? escapeHtml(p.role) + " · " : ""}${t("hiring.applicantCount", p.applicantCount)}</div>
             ${p.description ? `<div class="note">${escapeHtml(p.description)}</div>` : ""}
             <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
               <input type="text" readonly value="${escapeHtml(applyUrl)}" style="flex:1;min-width:160px;background:rgba(35,38,31,0.08);border:1px solid rgba(35,38,31,0.2);border-radius:4px;padding:6px 8px;font-size:11px;color:var(--ink)" onclick="this.select()" />
-              <button class="remove-btn" style="margin-top:0" onclick="copyApplyLink('${applyUrl}')">Copy link</button>
+              <button class="remove-btn" style="margin-top:0" onclick="copyApplyLink('${applyUrl}')">${t('hiring.copyLink')}</button>
               ${p.status === 'open'
-                ? `<button class="remove-btn" style="margin-top:0" onclick="setPostingStatus('${p.id}','closed')">Close posting</button>`
-                : `<button class="remove-btn" style="margin-top:0" onclick="setPostingStatus('${p.id}','open')">Reopen</button>`}
-              <button class="remove-btn" style="margin-top:0" onclick="deletePosting('${p.id}')">Delete</button>
-              <button class="remove-btn" style="margin-top:0" onclick="toggleShare('${p.id}')">Share externally</button>
+                ? `<button class="remove-btn" style="margin-top:0" onclick="setPostingStatus('${p.id}','closed')">${t('hiring.closePosting')}</button>`
+                : `<button class="remove-btn" style="margin-top:0" onclick="setPostingStatus('${p.id}','open')">${t('hiring.reopen')}</button>`}
+              <button class="remove-btn" style="margin-top:0" onclick="deletePosting('${p.id}')">${t('hiring.delete')}</button>
+              <button class="remove-btn" style="margin-top:0" onclick="toggleShare('${p.id}')">${t('hiring.shareExternally')}</button>
             </div>
             <div id="share-${p.id}" style="display:${expandedShareIds.has(p.id) ? 'block' : 'none'};margin-top:10px;padding-top:10px;border-top:1px dashed rgba(35,38,31,0.2)">
               <textarea readonly rows="6" id="shareText-${p.id}" style="width:100%;background:rgba(35,38,31,0.08);border:1px solid rgba(35,38,31,0.2);border-radius:4px;padding:8px;font-size:11.5px;color:var(--ink)">${escapeHtml(buildShareText(p, applyUrl))}</textarea>
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-                <button class="remove-btn" style="margin-top:0" onclick="copyShareText('${p.id}')">Copy job text</button>
-                <a href="https://employers.indeed.com/" target="_blank" rel="noopener" class="remove-btn" style="margin-top:0;text-decoration:underline;display:inline-block">Open Indeed</a>
-                <a href="https://www.craigslist.org/" target="_blank" rel="noopener" class="remove-btn" style="margin-top:0;text-decoration:underline;display:inline-block">Open Craigslist</a>
+                <button class="remove-btn" style="margin-top:0" onclick="copyShareText('${p.id}')">${t('hiring.copyJobText')}</button>
+                <a href="https://employers.indeed.com/" target="_blank" rel="noopener" class="remove-btn" style="margin-top:0;text-decoration:underline;display:inline-block">${t('hiring.openIndeed')}</a>
+                <a href="https://www.craigslist.org/" target="_blank" rel="noopener" class="remove-btn" style="margin-top:0;text-decoration:underline;display:inline-block">${t('hiring.openCraigslist')}</a>
               </div>
               <div style="font-size:11px;color:var(--ink);opacity:0.65;margin-top:8px;line-height:1.4">
-                Paste the copied text into each site's own posting form. Facebook job posts can only be created from the Facebook phone app (Marketplace → Jobs), not a computer. Craigslist job posts are paid in most cities ($10–75).
+                ${t('hiring.shareNote')}
               </div>
             </div>
           </div>
@@ -2121,7 +2121,7 @@ function buildShareText(p, applyUrl) {
     "",
     p.description || "",
     "",
-    `To apply: ${applyUrl}`,
+    t("hiring.toApply", applyUrl),
   ];
   return lines.join("\n");
 }
@@ -2129,8 +2129,8 @@ function buildShareText(p, applyUrl) {
 function copyShareText(postingId) {
   const el = document.getElementById(`shareText-${postingId}`);
   navigator.clipboard.writeText(el.value).then(
-    () => showBanner("Job text copied", "success"),
-    () => showBanner("Couldn't copy — select the text manually", "warn")
+    () => showBanner(t("hiring.bannerJobTextCopied"), "success"),
+    () => showBanner(t("hiring.bannerJobCopyFail"), "warn")
   );
 }
 
@@ -2138,7 +2138,7 @@ function renderApplicants() {
   const filterDiv = document.getElementById("applicantFilter");
   filterDiv.innerHTML = `
     <select id="applicantPostingFilter" onchange="applicantFilterPostingId = this.value || null; renderApplicants();" style="background:var(--bg);color:var(--text-bright);border:1px solid var(--rail);border-radius:5px;padding:8px 10px;font-size:13px;width:100%">
-      <option value="">All postings</option>
+      <option value="">${t("hiring.allPostings")}</option>
       ${postings.map(p => `<option value="${p.id}" ${applicantFilterPostingId === p.id ? "selected" : ""}>${escapeHtml(p.title)}</option>`).join("")}
     </select>
   `;
@@ -2146,31 +2146,31 @@ function renderApplicants() {
   const list = applicantFilterPostingId ? applications.filter(a => a.postingId === applicantFilterPostingId) : applications;
   const div = document.getElementById("applicantsList");
   div.innerHTML = list.length === 0
-    ? '<p class="empty">No applications yet.</p>'
+    ? `<p class="empty">${t("hiring.noApplications")}</p>`
     : list.map(a => {
         const posting = postings.find(p => p.id === a.postingId);
         const existingInput = document.getElementById(`interviewInput-${a.id}`);
         const preservedValue = existingInput ? existingInput.value : "";
         return `
           <div class="ticket">
-            <div class="stamp${a.stage === 'rejected' ? ' filled' : ''}">${STAGE_LABELS[a.stage] || a.stage}</div>
+            <div class="stamp${a.stage === 'rejected' ? ' filled' : ''}">${stageLabel(a.stage)}</div>
             <div class="role">${escapeHtml(a.name)}</div>
             <div class="meta">${posting ? escapeHtml(posting.title) : ""} · ${escapeHtml(a.email || a.phone || "")}</div>
             ${a.email && a.phone ? `<div class="meta" style="margin-top:2px">${escapeHtml(a.phone)}</div>` : ""}
             ${a.note ? `<div class="note">${escapeHtml(a.note)}</div>` : ""}
             <div style="margin-top:10px">
-              <label style="font-size:10px;text-transform:uppercase;letter-spacing:0.04em;opacity:0.6;display:block;margin-bottom:4px">Interview time</label>
-              ${a.interviewTime ? `<div class="meta" style="margin-bottom:6px">Currently: ${escapeHtml(a.interviewTime)}</div>` : ""}
+              <label style="font-size:10px;text-transform:uppercase;letter-spacing:0.04em;opacity:0.6;display:block;margin-bottom:4px">${t("hiring.interviewTime")}</label>
+              ${a.interviewTime ? `<div class="meta" style="margin-bottom:6px">${t("hiring.currently", escapeHtml(a.interviewTime))}</div>` : ""}
               <div style="display:flex;gap:6px">
                 <input type="datetime-local" id="interviewInput-${a.id}" value="${preservedValue}" style="flex:1;background:rgba(35,38,31,0.08);border:1px solid rgba(35,38,31,0.2);border-radius:4px;padding:6px 8px;font-size:12px;color:var(--ink)" />
-                <button class="assign-btn" style="background:var(--green);color:#fff;white-space:nowrap" onclick="submitInterviewTime('${a.id}')">Save & text</button>
+                <button class="assign-btn" style="background:var(--green);color:#fff;white-space:nowrap" onclick="submitInterviewTime('${a.id}')">${t("hiring.saveAndText")}</button>
               </div>
             </div>
             <div class="stub-actions" style="border-top:1px dashed var(--rail);margin-top:10px;padding-top:10px">
               ${STAGE_ORDER.map(s => `
-                <button class="assign-btn" style="background:${a.stage === s ? 'var(--green)' : 'transparent'};border:1px solid var(--rail);color:${a.stage === s ? '#fff' : 'var(--ink)'}" onclick="setApplicationField('${a.id}','stage','${s}')">${STAGE_LABELS[s]}</button>
+                <button class="assign-btn" style="background:${a.stage === s ? 'var(--green)' : 'transparent'};border:1px solid var(--rail);color:${a.stage === s ? '#fff' : 'var(--ink)'}" onclick="setApplicationField('${a.id}','stage','${s}')">${stageLabel(s)}</button>
               `).join("")}
-              <button class="assign-btn" style="background:transparent;border:1px solid var(--rail);color:var(--ink)" onclick="setApplicationField('${a.id}','stage','rejected')">Reject</button>
+              <button class="assign-btn" style="background:transparent;border:1px solid var(--rail);color:var(--ink)" onclick="setApplicationField('${a.id}','stage','rejected')">${t('hiring.reject')}</button>
             </div>
           </div>
         `;
@@ -2181,10 +2181,10 @@ async function createPosting() {
   const title = document.getElementById("postingTitle").value.trim();
   const role = document.getElementById("postingRole").value;
   const description = document.getElementById("postingDescription").value.trim();
-  if (!title) return showBanner("Enter a title for the posting", "warn");
+  if (!title) return showBanner(t("hiring.bannerTitleRequired"), "warn");
   const result = await api("/api/hiring/postings", { method: "POST", body: JSON.stringify({ title, role, description }) });
   if (result.ok) {
-    showBanner("Posting created", "success");
+    showBanner(t("hiring.bannerPostingCreated"), "success");
     document.getElementById("postingTitle").value = "";
     document.getElementById("postingDescription").value = "";
     loadAll();
@@ -2200,7 +2200,7 @@ async function setPostingStatus(id, status) {
 }
 
 async function deletePosting(id) {
-  if (!confirm("Delete this posting? Its applications will be removed too.")) return;
+  if (!confirm(t("hiring.confirmDeletePosting"))) return;
   await api(`/api/hiring/postings/${id}`, { method: "DELETE" });
   loadAll();
 }
@@ -2213,7 +2213,7 @@ function formatInterviewTime(isoLocal) {
 
 async function submitInterviewTime(id) {
   const input = document.getElementById(`interviewInput-${id}`);
-  if (!input.value) return showBanner("Pick a date and time first", "warn");
+  if (!input.value) return showBanner(t("hiring.bannerPickDateTime"), "warn");
   await setApplicationField(id, "interviewTime", formatInterviewTime(input.value));
 }
 
@@ -2222,8 +2222,8 @@ async function setApplicationField(id, field, value) {
   if (result.ok) {
     if (field === "interviewTime" && result.data.notified) {
       const n = result.data.notified;
-      if (n.ok) showBanner(`Texted ${result.data.name.split(" ")[0]} the interview time`, "success");
-      else showBanner(`Saved, but couldn't text ${result.data.name.split(" ")[0]}: ${n.error}`, "warn");
+      if (n.ok) showBanner(t("hiring.bannerTextedInterview", result.data.name.split(" ")[0]), "success");
+      else showBanner(t("hiring.bannerSavedNoText", result.data.name.split(" ")[0], n.error), "warn");
     }
     loadAll();
   } else {
@@ -2233,8 +2233,8 @@ async function setApplicationField(id, field, value) {
 
 function copyApplyLink(url) {
   navigator.clipboard.writeText(url).then(
-    () => showBanner("Link copied", "success"),
-    () => showBanner("Couldn't copy — select and copy manually", "warn")
+    () => showBanner(t("hiring.bannerLinkCopied"), "success"),
+    () => showBanner(t("hiring.bannerCopyFail"), "warn")
   );
 }
 
@@ -2247,7 +2247,7 @@ function setAuthMode(mode) {
   document.getElementById("authTabLogin").classList.toggle("active", mode === "login");
   document.getElementById("authTabSignup").classList.toggle("active", mode === "signup");
   document.getElementById("signupFields").style.display = mode === "signup" ? "block" : "none";
-  document.getElementById("authSubmitBtn").textContent = mode === "signup" ? "Create account" : "Log in";
+  document.getElementById("authSubmitBtn").textContent = mode === "signup" ? t("landing.createAccount") : t("landing.loginTab");
   document.getElementById("authError").textContent = "";
 }
 
@@ -2259,9 +2259,9 @@ async function submitAuth() {
 
   if (authMode === "signup") {
     const name = document.getElementById("authRestaurantName").value.trim();
-    if (!name) return (errorDiv.textContent = "Enter your restaurant's name");
-    if (!email) return (errorDiv.textContent = "Enter an email");
-    if (!password || password.length < 8) return (errorDiv.textContent = "Password must be at least 8 characters");
+    if (!name) return (errorDiv.textContent = t("landing.errRestaurantName"));
+    if (!email) return (errorDiv.textContent = t("landing.errEmail"));
+    if (!password || password.length < 8) return (errorDiv.textContent = t("landing.errPassword"));
     const result = await api("/api/auth/signup", {
       method: "POST",
       body: JSON.stringify({ restaurantName: name, email, password }),
@@ -2271,7 +2271,7 @@ async function submitAuth() {
     restaurantAddress = result.data.restaurant.address || "";
     enterApp();
   } else {
-    if (!email || !password) return (errorDiv.textContent = "Enter your email and password");
+    if (!email || !password) return (errorDiv.textContent = t("landing.errEmailPassword"));
     const result = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
     if (!result.ok) return (errorDiv.textContent = result.error);
     restaurantName = result.data.restaurant.name;
@@ -2290,7 +2290,7 @@ async function saveRestaurantAddress() {
   const result = await api("/api/restaurant", { method: "PATCH", body: JSON.stringify({ address }) });
   if (result.ok) {
     restaurantAddress = result.data.address || "";
-    showBanner("Restaurant info saved", "success");
+    showBanner(t("hiring.bannerRestaurantSaved"), "success");
   } else {
     showBanner(result.error, "warn");
   }
