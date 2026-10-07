@@ -12,12 +12,14 @@ let A, B, ana, ben, cal, bStaff;
 const realFetch = global.fetch;
 let lastBody = null;
 let nextReply = null;
+let replyQueue = []; // when set, successive model calls get successive replies
 
 function fakeAnthropic() {
   global.fetch = jest.fn(async (url, opts) => {
     if (!String(url).includes("api.anthropic.com")) return realFetch(url, opts);
     lastBody = JSON.parse(opts.body);
-    return { ok: true, status: 200, json: async () => ({ content: [{ type: "text", text: JSON.stringify(nextReply) }] }) };
+    const reply = replyQueue.length ? replyQueue.shift() : nextReply;
+    return { ok: true, status: 200, json: async () => ({ content: [{ type: "text", text: typeof reply === "string" ? reply : JSON.stringify(reply) }] }) };
   });
 }
 
@@ -42,7 +44,7 @@ beforeAll(async () => {
   );
 });
 
-beforeEach(() => { fakeAnthropic(); lastBody = null; });
+beforeEach(() => { fakeAnthropic(); lastBody = null; replyQueue = []; });
 afterEach(() => { global.fetch = realFetch; });
 afterAll(async () => { await pool.end(); });
 
@@ -136,5 +138,57 @@ describe("bulk apply and undo", () => {
     expect((await A.agent.post("/api/schedule/bulk-delete").send({ ids: [] })).status).toBe(400);
     const tooMany = Array.from({ length: 251 }, () => sh(ana, "2026-03-12", "10:00", "11:00"));
     expect((await A.agent.post("/api/schedule/bulk").send({ shifts: tooMany })).status).toBe(400);
+  });
+});
+
+describe("scheduling from the Comms chat", () => {
+  test("a scheduling request becomes a preview proposal for the right week and house — nothing saved", async () => {
+    replyQueue = [
+      { action: "schedule", weekStart: "2026-03-04", house: "foh", request: "Put two servers on Wednesday dinner" }, // a Wednesday: server snaps to Monday
+      { summary: "Two servers on Wednesday.", shifts: [sh(ana, "2026-03-04", "17:00", "23:00"), sh(ben, "2026-03-04", "17:00", "23:00")] },
+    ];
+    const res = await A.agent.post("/api/ai/ask").send({ question: "schedule two servers wednesday night", lang: "en" });
+    expect(res.status).toBe(200);
+    expect(res.body.answer).toBe("Two servers on Wednesday.");
+    expect(res.body.proposal.weekStart).toBe("2026-03-02");
+    expect(res.body.proposal.shifts).toHaveLength(2);
+    expect(res.body.proposal.totalHours).toBe(12);
+    expect(res.body.proposal.estCost).toBe(240);       // 12h x $20
+    // the scheduling call only saw front-of-house staff and the restated request
+    expect(lastBody.system).toContain("Ana Server");
+    expect(lastBody.system).not.toContain("Cal Cook");
+    expect(lastBody.messages[0].content).toBe("Put two servers on Wednesday dinner");
+    const grid = await A.agent.get("/api/schedule?start=2026-03-02&end=2026-03-08&x=1");
+    expect(grid.body.filter((g) => g.date === "2026-03-04")).toHaveLength(0);
+  });
+
+  test("the proposal from chat is applied through the same bulk endpoint, and undo works", async () => {
+    const proposal = [sh(ana, "2026-03-04", "17:00", "23:00")];
+    const applied = await A.agent.post("/api/schedule/bulk").send({ shifts: proposal });
+    expect(applied.body.created).toHaveLength(1);
+    const undo = await A.agent.post("/api/schedule/bulk-delete").send({ ids: applied.body.created.map((c) => c.id) });
+    expect(undo.body.deleted).toBe(1);
+  });
+
+  test("a normal question is answered in prose with no proposal", async () => {
+    replyQueue = ["Ana works Monday."];
+    const res = await A.agent.post("/api/ai/ask").send({ question: "who works monday?" });
+    expect(res.body).toEqual({ answer: "Ana works Monday." });
+  });
+
+  test("a malformed action is shown as plain text instead of crashing", async () => {
+    replyQueue = ['{"action":"schedule","weekStart":"someday"}'];
+    const res = await A.agent.post("/api/ai/ask").send({ question: "fill the week" });
+    expect(res.status).toBe(200);
+    expect(res.body.proposal).toBeUndefined();
+  });
+
+  test("a house with no staff gives a clear error, not a crash", async () => {
+    replyQueue = [{ action: "schedule", weekStart: "2026-03-02", house: "boh", request: "fill the kitchen" }];
+    const empty = await createRestaurant(() => request.agent(app));
+    await empty.agent.post("/api/staff").send({ name: "Only Server", phone: uniquePhone(), roles: ["Server"] });
+    const res = await empty.agent.post("/api/ai/ask").send({ question: "fill the kitchen" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no staff/i);
   });
 });

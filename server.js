@@ -1890,7 +1890,13 @@ app.post("/api/ai/ask", requireAuth, aiLimiter, async (req, res) => {
       2
     );
 
-    const systemPrompt = `You are a helpful operations assistant for a restaurant manager, built into their staff/scheduling/hiring app. Answer the manager's question using ONLY the restaurant data provided below — don't invent numbers or people that aren't in it. If the data doesn't cover what they're asking, say so plainly rather than guessing. Keep answers short and concrete (a few sentences), like a sharp assistant who already knows the business, not a generic chatbot. Dates are in YYYY-MM-DD format; "today" tells you the current date for relative reasoning.\n\nRESTAURANT DATA:\n${contextBlock}`;
+    const thisMonday = mondayOfIso(toDate(today));
+    const systemPrompt = `You are a helpful operations assistant for a restaurant manager, built into their staff/scheduling/hiring app. Answer the manager's question using ONLY the restaurant data provided below — don't invent numbers or people that aren't in it. If the data doesn't cover what they're asking, say so plainly rather than guessing. Keep answers short and concrete (a few sentences), like a sharp assistant who already knows the business, not a generic chatbot. Dates are in YYYY-MM-DD format; "today" tells you the current date for relative reasoning. Reply in the language the manager writes in.
+
+SCHEDULING: if (and only if) the manager is asking you to CREATE, FILL, BUILD or ADD TO a work schedule (for example "fill next week", "schedule 3 servers on Friday night"), do not answer in prose. Reply with ONLY this JSON object: {"action":"schedule","weekStart":"YYYY-MM-DD","house":"foh"|"boh"|"all","request":"<the manager's scheduling instructions, restated clearly and completely>"}. weekStart must be a Monday: this week's Monday is ${thisMonday} and next week's is ${addDaysIso(thisMonday, 7)}. Use "foh" for front of house (servers, hosts, bartenders, bussers), "boh" for kitchen, otherwise "all". Questions ABOUT the schedule ("who works Friday?") are normal questions — answer them in prose.
+
+RESTAURANT DATA:
+${contextBlock}`;
 
     const aiStartedAt = Date.now();
     const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
@@ -1921,6 +1927,30 @@ app.post("/api/ai/ask", requireAuth, aiLimiter, async (req, res) => {
     const answer = textBlock ? textBlock.text : "I couldn't generate a response for that.";
 
     logActivity({ restaurantId: req.restaurantId, eventType: "ai_answered", detail: question.trim().slice(0, 200), durationMs: aiDurationMs });
+
+    // The model flags scheduling requests with a JSON action. We validate it ourselves, then build a PROPOSAL
+    // (never saved here) for the manager to preview and apply — same as the Back Office scheduler.
+    const trimmed = answer.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("```")) {
+      const action = extractJsonObject(trimmed);
+      if (action && action.action === "schedule" && isIsoDate(action.weekStart)) {
+        const roles = action.house === "foh" ? FOH_ROLES : action.house === "boh" ? BOH_ROLES : null;
+        const staffIds = roles ? staffRows.rows.filter((p) => (p.roles || [])[0] && roles.includes(p.roles[0])).map((p) => p.id) : null;
+        try {
+          const proposal = await buildScheduleProposal({
+            restaurantId: req.restaurantId,
+            prompt: String(action.request || question).trim().slice(0, 1500),
+            weekStart: mondayOfIso(action.weekStart),
+            staffIds,
+            lang: req.body.lang,
+          });
+          return res.json({ answer: proposal.summary || "", proposal });
+        } catch (e) {
+          if (e.http) return res.status(e.http.status).json({ error: e.http.message });
+          throw e;
+        }
+      }
+    }
     res.json({ answer });
   } catch (e) {
     console.error("AI agent error:", e.message);
@@ -2031,46 +2061,55 @@ app.post("/api/ai/board-translate", requireAuth, aiLimiter, async (req, res) => 
   }
 });
 
-// Manager describes the week in plain words; the AI proposes shifts. NOTHING is saved here — the manager
-// previews the proposal and applies it through /api/schedule/bulk.
-app.post("/api/ai/schedule", requireAuth, aiLimiter, async (req, res) => {
-  if (!aiBoardGuard(req, res)) return;
-  const prompt = String((req.body && req.body.prompt) || "").trim();
-  const weekStart = req.body && req.body.weekStart;
-  if (!prompt) return res.status(400).json({ error: "prompt is required" });
-  if (prompt.length > 1500) return res.status(400).json({ error: "prompt must be 1500 characters or fewer" });
-  if (!isIsoDate(weekStart)) return res.status(400).json({ error: "weekStart (YYYY-MM-DD) is required" });
+// Builds a schedule PROPOSAL for one week (nothing is saved). Throws an Error carrying .http = { status, message }
+// for problems the manager should see. Used by the Back Office scheduler and by the Comms chat.
+const FOH_ROLES = ["Server", "Host", "Bartender", "Busser"];
+const BOH_ROLES = ["Line Cook", "Dishwasher", "Prep Cook", "Expo"];
+
+function httpError(status, message) {
+  const e = new Error(message);
+  e.http = { status, message };
+  return e;
+}
+
+function mondayOfIso(dateStr) {
+  const dow = new Date(dateStr + "T00:00:00Z").getUTCDay(); // 0 = Sunday
+  return addDaysIso(dateStr, -((dow + 6) % 7));
+}
+
+async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds, lang }) {
+  if (!prompt) throw httpError(400, "prompt is required");
+  if (prompt.length > 1500) throw httpError(400, "prompt must be 1500 characters or fewer");
+  if (!isIsoDate(weekStart)) throw httpError(400, "weekStart (YYYY-MM-DD) is required");
   const weekEnd = addDaysIso(weekStart, 6);
-  const wanted = Array.isArray(req.body.staffIds) ? new Set(req.body.staffIds.map(String)) : null;
+  const wanted = Array.isArray(staffIds) ? new Set(staffIds.map(String)) : null;
 
-  try {
-    const { rows: allStaff } = await pool.query("SELECT * FROM staff WHERE restaurant_id = $1", [req.restaurantId]);
-    const pool_ = allStaff.filter((p) => !wanted || wanted.has(p.id));
-    if (pool_.length === 0) return res.status(400).json({ error: "There is no staff to schedule here yet." });
-    const staffById = {};
-    pool_.forEach((p) => { staffById[p.id] = { name: p.name, roles: p.roles || [] }; });
-    const availabilityByStaff = await loadAvailabilityMap(req.restaurantId, pool_.map((p) => p.id));
-    const [existingRes, projRes, salesRes] = await Promise.all([
-      pool.query("SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3", [req.restaurantId, weekStart, weekEnd]),
-      pool.query("SELECT * FROM sales_projections WHERE restaurant_id = $1 AND proj_date >= $2 AND proj_date <= $3", [req.restaurantId, weekStart, weekEnd]),
-      pool.query("SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date >= $2 AND sale_date < $3 ORDER BY sale_date", [req.restaurantId, addDaysIso(weekStart, -28), weekStart]),
-    ]);
-    const existing = existingRes.rows.map(scheduleShiftRowToJson);
-    const dayName = (d) => weekdayKey(d);
+  const { rows: allStaff } = await pool.query("SELECT * FROM staff WHERE restaurant_id = $1", [restaurantId]);
+  const pool_ = allStaff.filter((p) => !wanted || wanted.has(p.id));
+  if (pool_.length === 0) throw httpError(400, "There is no staff to schedule here yet.");
+  const staffById = {};
+  pool_.forEach((p) => { staffById[p.id] = { name: p.name, roles: p.roles || [], rate: p.hourly_rate !== null ? Number(p.hourly_rate) : 0 }; });
+  const availabilityByStaff = await loadAvailabilityMap(restaurantId, pool_.map((p) => p.id));
+  const [existingRes, projRes, salesRes] = await Promise.all([
+    pool.query("SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3", [restaurantId, weekStart, weekEnd]),
+    pool.query("SELECT * FROM sales_projections WHERE restaurant_id = $1 AND proj_date >= $2 AND proj_date <= $3", [restaurantId, weekStart, weekEnd]),
+    pool.query("SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date >= $2 AND sale_date < $3 ORDER BY sale_date", [restaurantId, addDaysIso(weekStart, -28), weekStart]),
+  ]);
+  const existing = existingRes.rows.map(scheduleShiftRowToJson);
 
-    const context = {
-      week: Array.from({ length: 7 }, (_, i) => { const d = addDaysIso(weekStart, i); return { date: d, weekday: dayName(d) }; }),
-      staff: pool_.map((p) => ({
-        id: p.id, name: p.name, roles: p.roles || [],
-        hourlyRate: p.hourly_rate !== null ? Number(p.hourly_rate) : null,
-        availability: Object.fromEntries(Object.entries(availabilityByStaff[p.id] || {}).map(([k, v]) => [k, { free: v.available, note: v.note || "" }])),
-      })),
-      alreadyScheduledThisWeek: existing.filter((e) => staffById[e.staffId]).map((e) => ({ staffId: e.staffId, date: e.date, start: e.startTime, end: e.endTime, role: e.role })),
-      projectedSales: projRes.rows.map((r) => ({ date: r.proj_date instanceof Date ? r.proj_date.toISOString().slice(0, 10) : r.proj_date, amount: r.projected_amount !== null ? Number(r.projected_amount) : null })),
-      recentActualSales: salesRes.rows.map((r) => ({ date: r.sale_date instanceof Date ? r.sale_date.toISOString().slice(0, 10) : r.sale_date, total: r.amount !== null ? Number(r.amount) : null })),
-    };
+  const context = {
+    week: Array.from({ length: 7 }, (_, i) => { const d = addDaysIso(weekStart, i); return { date: d, weekday: weekdayKey(d) }; }),
+    staff: pool_.map((p) => ({
+      id: p.id, name: p.name, roles: p.roles || [],
+      hourlyRate: p.hourly_rate !== null ? Number(p.hourly_rate) : null,
+      availability: Object.fromEntries(Object.entries(availabilityByStaff[p.id] || {}).map(([k, v]) => [k, { free: v.available, note: v.note || "" }])),
+    })),
+    alreadyScheduledThisWeek: existing.filter((e) => staffById[e.staffId]).map((e) => ({ staffId: e.staffId, date: e.date, start: e.startTime, end: e.endTime, role: e.role })),
+    projectedSales: projRes.rows.map((r) => ({ date: r.proj_date instanceof Date ? r.proj_date.toISOString().slice(0, 10) : r.proj_date, amount: r.projected_amount !== null ? Number(r.projected_amount) : null })),
+    recentActualSales: salesRes.rows.map((r) => ({ date: r.sale_date instanceof Date ? r.sale_date.toISOString().slice(0, 10) : r.sale_date, total: r.amount !== null ? Number(r.amount) : null })),
+  };
 
-    const system = `You build weekly shift schedules for a restaurant manager. Follow the manager's request exactly, using ONLY the staff and dates in the data.
+  const system = `You build weekly shift schedules for a restaurant manager. Follow the manager's request exactly, using ONLY the staff and dates in the data.
 Rules:
 - Use each person's id exactly as given. Never invent staff.
 - A staff member's "role" must be one of their listed roles.
@@ -2080,25 +2119,59 @@ Rules:
 - Use projected/recent sales to size crews when the manager asks for it; busier days get more people.
 - Times are 24-hour "HH:MM". Dates are YYYY-MM-DD and must fall inside the week.
 - If the request can't be fully met (not enough staff, conflicts), schedule what you can and say so briefly in "summary".
-Reply with ONLY a JSON object: {"summary":"<one or two sentences, in ${LANG_NAMES[req.body.lang] || "English"}>","shifts":[{"staffId":"","date":"","startTime":"","endTime":"","role":""}]}.
+Reply with ONLY a JSON object: {"summary":"<one or two sentences, in ${LANG_NAMES[lang] || "English"}>","shifts":[{"staffId":"","date":"","startTime":"","endTime":"","role":""}]}.
 
 DATA:
 ${JSON.stringify(context)}`;
 
-    const { text, durationMs } = await callClaude({ system, user: prompt, maxTokens: 6000 });
-    const parsed = extractJsonObject(text);
-    if (!parsed || !Array.isArray(parsed.shifts)) {
-      logActivity({ restaurantId: req.restaurantId, eventType: "ai_failed", level: "error", detail: "schedule: unparseable reply", durationMs });
-      return res.status(502).json({ error: "The AI agent couldn't build that schedule — try rephrasing." });
-    }
-    const candidates = parsed.shifts.slice(0, SCHEDULE_BULK_MAX).map((c) => ({
-      staffId: c && c.staffId, date: c && c.date, startTime: c && c.startTime, endTime: c && c.endTime, role: c && c.role,
-    }));
-    const { ok, skipped } = checkScheduleCandidates(candidates, { staffById, existing, availabilityByStaff, windowStart: weekStart, windowEnd: weekEnd });
-    logActivity({ restaurantId: req.restaurantId, eventType: "ai_answered", detail: `schedule: ${prompt.slice(0, 120)} (${ok.length} shifts)`, durationMs });
-    res.json({ summary: String(parsed.summary || "").slice(0, 600), shifts: ok, skipped });
+  const { text, durationMs } = await callClaude({ system, user: prompt, maxTokens: 6000 });
+  const parsed = extractJsonObject(text);
+  if (!parsed || !Array.isArray(parsed.shifts)) {
+    logActivity({ restaurantId, eventType: "ai_failed", level: "error", detail: "schedule: unparseable reply", durationMs });
+    throw httpError(502, "The AI agent couldn't build that schedule — try rephrasing.");
+  }
+  const candidates = parsed.shifts.slice(0, SCHEDULE_BULK_MAX).map((c) => ({
+    staffId: c && c.staffId, date: c && c.date, startTime: c && c.startTime, endTime: c && c.endTime, role: c && c.role,
+  }));
+  const { ok, skipped } = checkScheduleCandidates(candidates, { staffById, existing, availabilityByStaff, windowStart: weekStart, windowEnd: weekEnd });
+  logActivity({ restaurantId, eventType: "ai_answered", detail: `schedule: ${prompt.slice(0, 120)} (${ok.length} shifts)`, durationMs });
+  let totalHours = 0, estCost = 0;
+  ok.forEach((sh) => {
+    const [a, b] = shiftRange(sh.startTime, sh.endTime);
+    const h = (b - a) / 60;
+    totalHours += h;
+    estCost += h * (staffById[sh.staffId].rate || 0);
+  });
+  return {
+    weekStart,
+    summary: String(parsed.summary || "").slice(0, 600),
+    shifts: ok,
+    skipped,
+    totalHours: Math.round(totalHours * 10) / 10,
+    estCost: Math.round(estCost),
+  };
+}
+
+function scheduleErrorResponse(res, req, e) {
+  if (e.http) return res.status(e.http.status).json({ error: e.http.message });
+  return handleAiBoardError(res, req, "ai_failed", e);
+}
+
+// Manager describes the week in plain words; the AI proposes shifts. NOTHING is saved here — the manager
+// previews the proposal and applies it through /api/schedule/bulk.
+app.post("/api/ai/schedule", requireAuth, aiLimiter, async (req, res) => {
+  if (!aiBoardGuard(req, res)) return;
+  try {
+    const proposal = await buildScheduleProposal({
+      restaurantId: req.restaurantId,
+      prompt: String((req.body && req.body.prompt) || "").trim(),
+      weekStart: req.body && req.body.weekStart,
+      staffIds: req.body && req.body.staffIds,
+      lang: req.body && req.body.lang,
+    });
+    res.json(proposal);
   } catch (e) {
-    handleAiBoardError(res, req, "ai_failed", e);
+    scheduleErrorResponse(res, req, e);
   }
 });
 

@@ -477,6 +477,12 @@
     background: var(--panel-light); border: 1px solid var(--rail); color: var(--text-dim);
   }
   .chat-msg.user .chat-avatar { background: var(--comms); color: #fff; border-color: var(--comms); }
+  .chat-proposal { margin: -6px 0 16px 42px; background: #fff; color: var(--ink); border: 1px solid rgba(35,38,31,0.25); border-radius: 6px; padding: 12px 14px; font-size: 13px; }
+  .chat-proposal .pd { margin-top: 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; opacity: .6; }
+  .chat-proposal .pl { display: flex; gap: 10px; padding: 3px 0; border-bottom: 1px dashed rgba(35,38,31,0.2); }
+  .chat-proposal .pl .nm { flex: 1; } .chat-proposal .pl .rl { opacity: .6; }
+  .chat-proposal .sk { margin-top: 8px; font-size: 12px; opacity: .7; }
+  .chat-proposal .acts { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
   .chat-bubble {
     background: var(--panel-light); border: 1px solid var(--rail); border-radius: 8px;
     padding: 10px 13px; font-size: 13.5px; line-height: 1.5; max-width: 480px; white-space: pre-wrap;
@@ -971,6 +977,10 @@ const T = {
       placeholder: "e.g. Which shift is understaffed this week?", ask: "Ask",
       emptyChat: "Ask anything about your staffing, schedule, costs, or hiring pipeline.",
       thinking: "Thinking…", sorry: err => `Sorry — ${err}`, you: "You", ai: "AI",
+      schedDefault: "Here's a proposed schedule — nothing is saved until you apply it.", schedProposal: n => `${n} shift${n === 1 ? "" : "s"} proposed — not saved yet`, schedHours: (h, c) => `${h}h total · about $${c} labor`,
+      schedApply: "Apply to grid", schedDiscard: "Discard", schedApplied: n => `${n} shift${n === 1 ? "" : "s"} added to the schedule.`, schedUndo: "Undo", schedUndone: "Undone — the shifts were removed.", schedDiscarded: "Discarded — nothing was saved.",
+      schedSkipped: "Left out:", schedNone: "No shifts could be proposed.", schedWeek: d => `Week of ${d}`, schedOpenBo: "Open in Back Office",
+      skip: { unavailable: "marked unavailable", overlap: "already has a shift then", bad_time: "invalid times", bad_date: "date outside this week", unknown_staff: "unknown staff member" },
     },
   },
   fr: {
@@ -1100,6 +1110,10 @@ const T = {
       placeholder: "ex. Quel quart manque de personnel cette semaine ?", ask: "Demander",
       emptyChat: "Posez une question sur votre personnel, l'horaire, les coûts ou l'embauche.",
       thinking: "Réflexion en cours…", sorry: err => `Désolé — ${err}`, you: "Vous", ai: "IA",
+      schedDefault: "Voici un horaire proposé — rien n'est enregistré avant que vous l'appliquiez.", schedProposal: n => `${n} quart${n === 1 ? "" : "s"} proposé${n === 1 ? "" : "s"} — pas encore enregistré${n === 1 ? "" : "s"}`, schedHours: (h, c) => `${h} h au total · environ ${c} $ de main-d'œuvre`,
+      schedApply: "Appliquer à la grille", schedDiscard: "Annuler", schedApplied: n => `${n} quart${n === 1 ? "" : "s"} ajouté${n === 1 ? "" : "s"} à l'horaire.`, schedUndo: "Annuler l'ajout", schedUndone: "Annulé — les quarts ont été retirés.", schedDiscarded: "Annulé — rien n'a été enregistré.",
+      schedSkipped: "Exclus :", schedNone: "Aucun quart n'a pu être proposé.", schedWeek: d => `Semaine du ${d}`, schedOpenBo: "Ouvrir dans l'arrière-boutique",
+      skip: { unavailable: "marqué indisponible", overlap: "a déjà un quart à ce moment", bad_time: "heures invalides", bad_date: "date hors de cette semaine", unknown_staff: "employé inconnu" },
     },
   },
   es: {
@@ -1229,6 +1243,10 @@ const T = {
       placeholder: "ej. ¿Qué turno tiene poco personal esta semana?", ask: "Preguntar",
       emptyChat: "Pregunta lo que sea sobre tu personal, horario, costos o contrataciones.",
       thinking: "Pensando…", sorry: err => `Lo siento — ${err}`, you: "Tú", ai: "IA",
+      schedDefault: "Aquí tienes un horario propuesto — no se guarda nada hasta que lo apliques.", schedProposal: n => `${n} turno${n === 1 ? "" : "s"} propuesto${n === 1 ? "" : "s"} — aún sin guardar`, schedHours: (h, c) => `${h} h en total · unos $${c} de mano de obra`,
+      schedApply: "Aplicar a la cuadrícula", schedDiscard: "Descartar", schedApplied: n => `${n} turno${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} al horario.`, schedUndo: "Deshacer", schedUndone: "Deshecho — se quitaron los turnos.", schedDiscarded: "Descartado — no se guardó nada.",
+      schedSkipped: "Omitidos:", schedNone: "No se pudo proponer ningún turno.", schedWeek: d => `Semana del ${d}`, schedOpenBo: "Abrir en Administración",
+      skip: { unavailable: "marcado como no disponible", overlap: "ya tiene un turno a esa hora", bad_time: "horas no válidas", bad_date: "fecha fuera de esta semana", unknown_staff: "empleado desconocido" },
     },
   },
 };
@@ -1355,16 +1373,70 @@ function showBanner(text, tone) {
 
 let chatHistory = [];
 
+function chatProposalHtml(m, idx) {
+  const p = m.proposal;
+  if (!p) return "";
+  if (m.status === "applied") return `<div class="chat-proposal">${escapeHtml(t("comms.schedApplied", m.ids.length))}
+    <div class="acts"><button class="mini" onclick="undoChatProposal(${idx})">${t("comms.schedUndo")}</button><a class="mini outline" style="text-decoration:none" href="/backoffice.html">${t("comms.schedOpenBo")}</a></div></div>`;
+  if (m.status === "undone") return `<div class="chat-proposal">${escapeHtml(t("comms.schedUndone"))}</div>`;
+  if (m.status === "discarded") return `<div class="chat-proposal">${escapeHtml(t("comms.schedDiscarded"))}</div>`;
+  const byDay = {};
+  p.shifts.forEach(sh => { (byDay[sh.date] = byDay[sh.date] || []).push(sh); });
+  const days = Object.keys(byDay).sort().map(d => {
+    const dt = new Date(d + "T00:00:00");
+    const label = `${t("days")[(dt.getDay() + 6) % 7]} ${dt.getMonth() + 1}/${dt.getDate()}`;
+    return `<div class="pd">${escapeHtml(label)}</div>` + byDay[d].sort((a, b) => a.startTime.localeCompare(b.startTime)).map(sh =>
+      `<div class="pl"><span class="nm">${escapeHtml(sh.staffName)}</span><span>${escapeHtml(fmtClock(sh.startTime))} – ${escapeHtml(fmtClock(sh.endTime))}</span><span class="rl">${escapeHtml(sh.role || "")}</span></div>`).join("");
+  }).join("");
+  const skipped = p.skipped.length ? `<div class="sk">${escapeHtml(t("comms.schedSkipped"))} ` + p.skipped.map(k => `${escapeHtml(k.staffName || "?")} ${escapeHtml(k.date || "")} (${escapeHtml(t("comms.skip")[k.code] || k.code)})`).join("; ") + `</div>` : "";
+  return `<div class="chat-proposal">
+    <div><b>${p.shifts.length ? escapeHtml(t("comms.schedProposal", p.shifts.length)) : escapeHtml(t("comms.schedNone"))}</b></div>
+    <div style="opacity:.7;font-size:12px">${escapeHtml(t("comms.schedWeek", p.weekStart))}${p.shifts.length ? " · " + escapeHtml(t("comms.schedHours", p.totalHours, p.estCost)) : ""}</div>
+    ${days}${skipped}
+    <div class="acts">
+      ${p.shifts.length ? `<button class="mini" id="chatApply-${idx}" onclick="applyChatProposal(${idx})">${t("comms.schedApply")}</button>` : ""}
+      <button class="mini outline" onclick="discardChatProposal(${idx})">${t("comms.schedDiscard")}</button>
+    </div></div>`;
+}
+
 function renderChatThread() {
   const el = document.getElementById("chatThread");
   if (!el) return;
-  el.innerHTML = chatHistory.map(m => `
+  el.innerHTML = chatHistory.map((m, i) => `
     <div class="chat-msg ${m.role}">
-      <div class="chat-avatar">${m.role === "user" ? "You" : "AI"}</div>
+      <div class="chat-avatar">${m.role === "user" ? t("comms.you") : t("comms.ai")}</div>
       <div class="chat-bubble">${escapeHtml(m.text)}</div>
-    </div>
-  `).join("") || `<p class="empty">Ask anything about your staffing, schedule, costs, or hiring pipeline.</p>`;
+    </div>${chatProposalHtml(m, i)}
+  `).join("") || `<p class="empty">${t("comms.emptyChat")}</p>`;
   el.scrollTop = el.scrollHeight;
+}
+
+async function applyChatProposal(idx) {
+  const m = chatHistory[idx];
+  if (!m || !m.proposal || m.status) return;
+  const btn = document.getElementById(`chatApply-${idx}`);
+  if (btn) btn.disabled = true;
+  const r = await api("/api/schedule/bulk", { method: "POST", body: JSON.stringify({ shifts: m.proposal.shifts }) });
+  if (!r.ok) { if (btn) btn.disabled = false; return showBanner(r.error, "warn"); }
+  m.status = "applied";
+  m.ids = r.data.created.map(c => c.id);
+  renderChatThread();
+}
+
+async function undoChatProposal(idx) {
+  const m = chatHistory[idx];
+  if (!m || m.status !== "applied") return;
+  const r = await api("/api/schedule/bulk-delete", { method: "POST", body: JSON.stringify({ ids: m.ids }) });
+  if (!r.ok) return showBanner(r.error, "warn");
+  m.status = "undone";
+  renderChatThread();
+}
+
+function discardChatProposal(idx) {
+  const m = chatHistory[idx];
+  if (!m || m.status) return;
+  m.status = "discarded";
+  renderChatThread();
 }
 
 async function askAi() {
@@ -1381,14 +1453,16 @@ async function askAi() {
   thinkingEl.textContent = t("comms.thinking");
   document.getElementById("chatThread").appendChild(thinkingEl);
 
-  const result = await api("/api/ai/ask", { method: "POST", body: JSON.stringify({ question }) });
+  const result = await api("/api/ai/ask", { method: "POST", body: JSON.stringify({ question, lang: LANG }) });
   const thinking = document.getElementById("chatThinking");
   if (thinking) thinking.remove();
 
-  if (result.ok) {
+  if (result.ok && result.data.proposal) {
+    chatHistory.push({ role: "ai", text: result.data.answer || t("comms.schedDefault"), proposal: result.data.proposal, status: null });
+  } else if (result.ok) {
     chatHistory.push({ role: "ai", text: result.data.answer });
   } else {
-    chatHistory.push({ role: "ai", text: `Sorry — ${result.error}` });
+    chatHistory.push({ role: "ai", text: t("comms.sorry", result.error) });
   }
   renderChatThread();
 }
