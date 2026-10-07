@@ -235,6 +235,7 @@ async function initDb() {
     );
   `);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS board_seen_at BIGINT;`);
+  await pool.query(`ALTER TABLE board_posts ADD COLUMN IF NOT EXISTS translations JSONB;`);
 
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS password_hash TEXT;`);
@@ -1481,8 +1482,25 @@ function boardPostToJson(row, extra = {}) {
     pinned: row.pinned,
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
+    translations: row.translations || null,
     ...extra,
   };
+}
+
+const BOARD_LANGS = ["en", "fr", "es"];
+
+// {en:{title,body}, fr:{...}, es:{...}} — anything malformed is dropped rather than stored.
+function cleanTranslations(input) {
+  if (!input || typeof input !== "object") return null;
+  const out = {};
+  for (const code of BOARD_LANGS) {
+    const v = input[code];
+    if (!v || typeof v !== "object") continue;
+    const title = String(v.title || "").trim().slice(0, BOARD_TITLE_MAX);
+    const body = String(v.body || "").trim().slice(0, BOARD_BODY_MAX);
+    if (body) out[code] = { title, body };
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 function parseBoardFields(body, { requireBody }) {
@@ -1500,6 +1518,7 @@ function parseBoardFields(body, { requireBody }) {
     out.body = b;
   }
   if (pinned !== undefined) out.pinned = !!pinned;
+  if (body && body.translations !== undefined) out.translations = cleanTranslations(body.translations);
   return { fields: out };
 }
 
@@ -1532,8 +1551,8 @@ app.post("/api/board", requireAuth, async (req, res) => {
   const f = parsed.fields;
   const now = Date.now();
   const { rows } = await pool.query(
-    "INSERT INTO board_posts (id, restaurant_id, title, body, pinned, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$6) RETURNING *",
-    [id(), req.restaurantId, f.title || "", f.body, !!f.pinned, now]
+    "INSERT INTO board_posts (id, restaurant_id, title, body, pinned, translations, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$7) RETURNING *",
+    [id(), req.restaurantId, f.title || "", f.body, !!f.pinned, f.translations ? JSON.stringify(f.translations) : null, now]
   );
   res.status(201).json(boardPostToJson(rows[0], { ackedBy: [], ackCount: 0 }));
 });
@@ -1545,9 +1564,14 @@ app.patch("/api/board/:id", requireAuth, async (req, res) => {
   const { rows: existing } = await pool.query("SELECT * FROM board_posts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
   if (existing.length === 0) return res.status(404).json({ error: "post not found" });
   const cur = existing[0];
+  // Editing the text makes old translations stale, so they're dropped unless fresh ones are sent along.
+  const textChanged = (f.title !== undefined && f.title !== cur.title) || (f.body !== undefined && f.body !== cur.body);
+  let newTranslations;
+  if (f.translations !== undefined) newTranslations = f.translations ? JSON.stringify(f.translations) : null;
+  else newTranslations = textChanged ? null : (cur.translations ? JSON.stringify(cur.translations) : null);
   const { rows } = await pool.query(
-    "UPDATE board_posts SET title = $1, body = $2, pinned = $3, updated_at = $4 WHERE id = $5 AND restaurant_id = $6 RETURNING *",
-    [f.title !== undefined ? f.title : cur.title, f.body !== undefined ? f.body : cur.body, f.pinned !== undefined ? f.pinned : cur.pinned, Date.now(), req.params.id, req.restaurantId]
+    "UPDATE board_posts SET title = $1, body = $2, pinned = $3, translations = $4, updated_at = $5 WHERE id = $6 AND restaurant_id = $7 RETURNING *",
+    [f.title !== undefined ? f.title : cur.title, f.body !== undefined ? f.body : cur.body, f.pinned !== undefined ? f.pinned : cur.pinned, newTranslations, Date.now(), req.params.id, req.restaurantId]
   );
   res.json(boardPostToJson(rows[0]));
 });
@@ -1606,15 +1630,20 @@ app.post("/api/ai/ask", requireAuth, aiLimiter, async (req, res) => {
     weekAgo.setDate(weekAgo.getDate() - 7);
     const twoWeeksOut = new Date(today);
     twoWeeksOut.setDate(twoWeeksOut.getDate() + 14);
+    const twoWeeksAgo = new Date(today);
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
     const toDate = (d) => d.toISOString().slice(0, 10);
 
-    const [staffRows, openShiftRows, scheduleRows, postingRows, appRows, projRows] = await Promise.all([
+    const [staffRows, openShiftRows, scheduleRows, postingRows, appRows, projRows, boardRows, ackRows, salesRows] = await Promise.all([
       pool.query("SELECT * FROM staff WHERE restaurant_id = $1", [req.restaurantId]),
       pool.query("SELECT * FROM shifts WHERE restaurant_id = $1 AND status = 'open'", [req.restaurantId]),
       pool.query("SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3", [req.restaurantId, toDate(weekAgo), toDate(twoWeeksOut)]),
       pool.query("SELECT * FROM job_postings WHERE restaurant_id = $1 AND status = 'open'", [req.restaurantId]),
       pool.query("SELECT a.*, p.title AS posting_title FROM applications a JOIN job_postings p ON p.id = a.posting_id WHERE a.restaurant_id = $1 ORDER BY a.created_at DESC LIMIT 25", [req.restaurantId]),
       pool.query("SELECT * FROM sales_projections WHERE restaurant_id = $1 AND proj_date >= $2 AND proj_date <= $3", [req.restaurantId, toDate(weekAgo), toDate(twoWeeksOut)]),
+      pool.query("SELECT * FROM board_posts WHERE restaurant_id = $1 ORDER BY pinned DESC, created_at DESC LIMIT 15", [req.restaurantId]),
+      pool.query("SELECT a.post_id, a.staff_id FROM board_acks a JOIN board_posts p ON p.id = a.post_id WHERE p.restaurant_id = $1", [req.restaurantId]),
+      pool.query("SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date >= $2 AND sale_date <= $3 ORDER BY sale_date", [req.restaurantId, toDate(twoWeeksAgo), toDate(today)]),
     ]);
 
     const staffSummary = staffRows.rows.map((s) => ({
@@ -1646,9 +1675,31 @@ app.post("/api/ai/ask", requireAuth, aiLimiter, async (req, res) => {
       projectedSales: p.projected_amount !== null ? Number(p.projected_amount) : null,
     }));
 
+    const staffWithLogin = staffRows.rows.filter((s) => s.password_hash);
+    const boardSummary = boardRows.rows.map((p) => {
+      const ackedIds = new Set(ackRows.rows.filter((a) => a.post_id === p.id).map((a) => a.staff_id));
+      return {
+        title: p.title || null,
+        message: String(p.body).slice(0, 500),
+        pinned: p.pinned,
+        postedOn: new Date(Number(p.created_at)).toISOString().slice(0, 10),
+        gotItCount: ackedIds.size,
+        staffWithLoginCount: staffWithLogin.length,
+        notYetGotIt: staffWithLogin.filter((s) => !ackedIds.has(s.id)).map((s) => s.name),
+      };
+    });
+    const salesSummary = salesRows.rows.map((r) => ({
+      date: r.sale_date instanceof Date ? r.sale_date.toISOString().slice(0, 10) : r.sale_date,
+      totalSales: r.amount !== null ? Number(r.amount) : null,
+      foodSales: r.food_amount !== null ? Number(r.food_amount) : null,
+      beverageSales: r.bev_amount !== null ? Number(r.bev_amount) : null,
+    }));
+
     const contextBlock = JSON.stringify(
       {
         today: toDate(today),
+        teamMessageBoard: boardSummary,
+        actualSalesLast14Days: salesSummary,
         staff: staffSummary,
         openReplacementShifts: openShiftSummary,
         weeklySchedule: scheduleSummary,
@@ -1671,7 +1722,7 @@ app.post("/api/ai/ask", requireAuth, aiLimiter, async (req, res) => {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-5",
+        model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
         max_tokens: 500,
         system: systemPrompt,
         messages: [{ role: "user", content: question.trim() }],
@@ -1696,6 +1747,108 @@ app.post("/api/ai/ask", requireAuth, aiLimiter, async (req, res) => {
     console.error("AI agent error:", e.message);
     logActivity({ restaurantId: req.restaurantId, eventType: "ai_failed", level: "error", detail: e.message });
     res.status(500).json({ error: "Something went wrong answering that question." });
+  }
+});
+
+// One place that talks to Anthropic for the board helpers. Throws an Error with .status for the caller to map.
+async function callClaude({ system, user, maxTokens = 700 }) {
+  const startedAt = Date.now();
+  const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: "user", content: user }],
+    }),
+  });
+  const durationMs = Date.now() - startedAt;
+  if (!aiRes.ok) {
+    const errBody = await aiRes.text();
+    console.error("Anthropic API error:", aiRes.status, errBody);
+    const err = new Error(`HTTP ${aiRes.status}: ${errBody.slice(0, 300)}`);
+    err.upstream = true;
+    err.durationMs = durationMs;
+    throw err;
+  }
+  const data = await aiRes.json();
+  const block = (data.content || []).find((b) => b.type === "text");
+  return { text: block ? block.text : "", durationMs };
+}
+
+// Models sometimes wrap JSON in prose or code fences; take the outermost {...}.
+function extractJsonObject(text) {
+  const a = text.indexOf("{");
+  const b = text.lastIndexOf("}");
+  if (a === -1 || b <= a) return null;
+  try { return JSON.parse(text.slice(a, b + 1)); } catch (e) { return null; }
+}
+
+function aiBoardGuard(req, res) {
+  if (!ANTHROPIC_API_KEY) {
+    res.status(503).json({ error: "The AI agent isn't configured yet — ask your developer to set ANTHROPIC_API_KEY." });
+    return false;
+  }
+  return true;
+}
+
+function handleAiBoardError(res, req, eventType, e) {
+  logActivity({ restaurantId: req.restaurantId, eventType, level: "error", detail: e.message, durationMs: e.durationMs || null });
+  if (e.upstream) return res.status(502).json({ error: "The AI agent couldn't respond right now — try again shortly." });
+  return res.status(500).json({ error: "Something went wrong with the AI request." });
+}
+
+// Manager types a rough idea; the AI returns a clean announcement they can edit before posting.
+app.post("/api/ai/board-draft", requireAuth, aiLimiter, async (req, res) => {
+  if (!aiBoardGuard(req, res)) return;
+  const idea = String((req.body && req.body.idea) || "").trim();
+  if (!idea) return res.status(400).json({ error: "idea is required" });
+  if (idea.length > 1500) return res.status(400).json({ error: "idea must be 1500 characters or fewer" });
+  const langCode = BOARD_LANGS.includes(req.body.lang) ? req.body.lang : "en";
+  const langName = { en: "English", fr: "French", es: "Spanish" }[langCode];
+  try {
+    const { text, durationMs } = await callClaude({
+      system: `You help a restaurant manager write announcements for the team message board that every staff member reads on their phone. Turn the manager's rough note into a clear, friendly, direct announcement in ${langName}. Keep every fact the manager gave (dates, times, names, numbers) and do not invent any new ones. Short sentences, no emojis, no hashtags, at most ${Math.min(BOARD_BODY_MAX, 900)} characters in the body. Reply with ONLY a JSON object: {"title": "<short title, max 60 characters>", "body": "<the announcement>"}.`,
+      user: idea,
+    });
+    const parsed = extractJsonObject(text);
+    if (!parsed || !String(parsed.body || "").trim()) {
+      logActivity({ restaurantId: req.restaurantId, eventType: "ai_failed", level: "error", detail: "board-draft: unparseable reply", durationMs });
+      return res.status(502).json({ error: "The AI agent couldn't draft that — try rephrasing." });
+    }
+    logActivity({ restaurantId: req.restaurantId, eventType: "ai_answered", detail: `board-draft: ${idea.slice(0, 150)}`, durationMs });
+    res.json({
+      title: String(parsed.title || "").trim().slice(0, BOARD_TITLE_MAX),
+      body: String(parsed.body).trim().slice(0, BOARD_BODY_MAX),
+    });
+  } catch (e) {
+    handleAiBoardError(res, req, "ai_failed", e);
+  }
+});
+
+// Translate a post into English, French and Spanish so each staff member reads it in their own language.
+app.post("/api/ai/board-translate", requireAuth, aiLimiter, async (req, res) => {
+  if (!aiBoardGuard(req, res)) return;
+  const title = String((req.body && req.body.title) || "").trim();
+  const body = String((req.body && req.body.body) || "").trim();
+  if (!body) return res.status(400).json({ error: "message is required" });
+  if (title.length > BOARD_TITLE_MAX || body.length > BOARD_BODY_MAX) return res.status(400).json({ error: "post is too long" });
+  try {
+    const { text, durationMs } = await callClaude({
+      system: `You translate restaurant team announcements. Translate the post into English (en), Canadian French (fr) and Spanish (es). Keep the meaning, tone, names, dates, times and numbers exactly; a language the post is already in is returned unchanged. Reply with ONLY a JSON object: {"en":{"title":"","body":""},"fr":{"title":"","body":""},"es":{"title":"","body":""}}. If the title is empty, keep it empty.`,
+      user: JSON.stringify({ title, body }),
+      maxTokens: 1800,
+    });
+    const translations = cleanTranslations(extractJsonObject(text));
+    if (!translations || !BOARD_LANGS.every((c) => translations[c])) {
+      logActivity({ restaurantId: req.restaurantId, eventType: "ai_failed", level: "error", detail: "board-translate: unparseable reply", durationMs });
+      return res.status(502).json({ error: "The AI agent couldn't translate that — try again." });
+    }
+    logActivity({ restaurantId: req.restaurantId, eventType: "ai_answered", detail: "board-translate", durationMs });
+    res.json({ translations });
+  } catch (e) {
+    handleAiBoardError(res, req, "ai_failed", e);
   }
 });
 

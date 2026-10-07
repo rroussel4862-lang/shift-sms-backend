@@ -406,6 +406,12 @@ function renderBoardBadge(unread) {
   document.getElementById("boardBadge").textContent = unread > 0 && currentStaffTab !== "board" ? String(unread) : "";
 }
 
+// Show the post in the reader's language when the manager had it translated; otherwise the original.
+function shown(p) {
+  const loc = p.translations && p.translations[I18N.lang];
+  return loc && loc.body ? loc : { title: p.title, body: p.body };
+}
+
 function renderBoard() {
   const list = document.getElementById("boardList");
   list.innerHTML = boardPosts.length === 0
@@ -416,9 +422,9 @@ function renderBoard() {
         return `
           <div class="ticket">
             ${stamp ? `<div class="stamp">${escapeHtml(stamp)}</div>` : ""}
-            ${p.title ? `<h3>${escapeHtml(p.title)}</h3>` : ""}
+            ${(shown(p).title) ? `<h3>${escapeHtml(shown(p).title)}</h3>` : ""}
             <div class="meta">${escapeHtml(when)}${p.updatedAt > p.createdAt + 1000 ? ` · ${tr("board.edited")}` : ""}</div>
-            <div class="note board-body">${escapeHtml(p.body)}</div>
+            <div class="note board-body">${escapeHtml(shown(p).body)}</div>
             <button class="claim-btn" ${p.acked ? "disabled" : ""} onclick="ackBoard('${p.id}')">${p.acked ? tr("board.gotItDone") : tr("board.gotIt")}</button>
           </div>`;
       }).join("");

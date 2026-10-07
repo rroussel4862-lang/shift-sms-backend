@@ -793,13 +793,15 @@
     <div class="stub plain" style="--accent:var(--comms)" id="boardCard">
       <div class="tag" data-i18n="board.tag">Team board</div>
       <h3 data-i18n="board.h3">Post to your whole team</h3>
-      <div class="meta" data-i18n="board.hint">Every staff member sees this in their staff portal. Tip: write French first, then English.</div>
+      <div class="meta" data-i18n="board.hint">Every staff member sees this in their staff portal. With translation on, each person reads it in their own language.</div>
       <label data-i18n="board.titleLabel">Title (optional)</label>
       <input type="text" id="boardTitle" maxlength="120" placeholder="e.g. Staff meeting Friday" data-i18n-ph="board.titlePh" />
       <label data-i18n="board.bodyLabel">Message</label>
       <textarea rows="5" id="boardBody" maxlength="2000" style="min-height:110px;resize:vertical" placeholder="What does the team need to know?" data-i18n-ph="board.bodyPh"></textarea>
+      <button class="mini outline" id="boardDraftBtn" type="button" onclick="draftBoardWithAI()" data-i18n="board.draftBtn" style="margin-top:8px">✨ Draft with AI</button>
       <label class="board-pin"><input type="checkbox" id="boardPin" /> <span data-i18n="board.pin">Pin to the top</span></label>
-      <button class="primary amber" onclick="postBoard()" data-i18n="board.postBtn">Post to the board</button>
+      <label class="board-pin"><input type="checkbox" id="boardTranslate" checked /> <span data-i18n="board.translateOpt">Translate for staff (EN / FR / ES) with AI</span></label>
+      <button class="primary amber" id="boardPostBtn" onclick="postBoard()" data-i18n="board.postBtn">Post to the board</button>
     </div>
     <div id="boardList"></div>
 
@@ -952,13 +954,15 @@ const T = {
       reject: "Reject",
     },
     board: {
-      tag: "Team board", h3: "Post to your whole team", hint: "Every staff member sees this in their staff portal. Tip: write French first, then English.",
+      tag: "Team board", h3: "Post to your whole team", hint: "Every staff member sees this in their staff portal. With translation on, each person reads it in their own language.",
       titleLabel: "Title (optional)", titlePh: "e.g. Staff meeting Friday", bodyLabel: "Message", bodyPh: "What does the team need to know?",
       pin: "Pin to the top", postBtn: "Post to the board", pinnedTag: "Pinned", postsHeader: "Posted to the team",
       pinAction: "Pin", unpinAction: "Unpin", edit: "Edit", delete: "Delete", save: "Save", cancel: "Cancel",
       confirmDelete: "Delete this post for everyone?", empty: "Nothing posted yet.", edited: "edited",
       gotIt: (a, n) => `${a}/${n} got it`, noLogins: "No staff have a login yet", who: "Who?", hideWho: "Hide",
       bannerPosted: "Posted to the board", bannerUpdated: "Post updated", bannerDeleted: "Post deleted", bodyRequired: "Write a message first",
+      draftBtn: "✨ Draft with AI", drafting: "Drafting…", draftHint: "Type a rough idea in the message box, then let the AI polish it.", draftNeedsIdea: "Type a rough idea in the message box first",
+      translateOpt: "Translate for staff (EN / FR / ES) with AI", translating: "Translating…", translateFailed: "Posted, but the translation failed — staff will see the original only.", translatedTag: "🌐 EN · FR · ES",
     },
     comms: {
       eyebrow: "Communications", h2: "Team messages & AI agent", aiTag: "AI agent", askHeader: "Ask about your restaurant",
@@ -1079,13 +1083,15 @@ const T = {
       reject: "Refuser",
     },
     board: {
-      tag: "Babillard d'équipe", h3: "Publier pour toute l'équipe", hint: "Chaque employé le voit dans son portail. Astuce : écrivez d'abord en français, puis en anglais.",
+      tag: "Babillard d'équipe", h3: "Publier pour toute l'équipe", hint: "Chaque employé le voit dans son portail. Avec la traduction activée, chacun le lit dans sa langue.",
       titleLabel: "Titre (facultatif)", titlePh: "ex. Réunion d'équipe vendredi", bodyLabel: "Message", bodyPh: "Que doit savoir l'équipe ?",
       pin: "Épingler en haut", postBtn: "Publier au babillard", pinnedTag: "Épinglé", postsHeader: "Publié à l'équipe",
       pinAction: "Épingler", unpinAction: "Désépingler", edit: "Modifier", delete: "Supprimer", save: "Enregistrer", cancel: "Annuler",
       confirmDelete: "Supprimer cette publication pour tout le monde ?", empty: "Rien de publié pour l'instant.", edited: "modifié",
       gotIt: (a, n) => `${a}/${n} ont lu`, noLogins: "Aucun employé n'a encore d'accès", who: "Qui ?", hideWho: "Masquer",
       bannerPosted: "Publié au babillard", bannerUpdated: "Publication modifiée", bannerDeleted: "Publication supprimée", bodyRequired: "Écrivez d'abord un message",
+      draftBtn: "✨ Rédiger avec l'IA", drafting: "Rédaction…", draftHint: "Écrivez une idée brute dans le message, puis laissez l'IA la peaufiner.", draftNeedsIdea: "Écrivez d'abord une idée dans le message",
+      translateOpt: "Traduire pour l'équipe (EN / FR / ES) avec l'IA", translating: "Traduction…", translateFailed: "Publié, mais la traduction a échoué — l'équipe verra seulement l'original.", translatedTag: "🌐 EN · FR · ES",
     },
     comms: {
       eyebrow: "Communications", h2: "Messages d'équipe & agent IA", aiTag: "Agent IA", askHeader: "Posez une question sur votre restaurant",
@@ -1206,13 +1212,15 @@ const T = {
       reject: "Rechazar",
     },
     board: {
-      tag: "Tablero del equipo", h3: "Publica para todo tu equipo", hint: "Todo el personal lo ve en su portal. Consejo: escribe primero en francés y luego en inglés.",
+      tag: "Tablero del equipo", h3: "Publica para todo tu equipo", hint: "Todo el personal lo ve en su portal. Con la traducción activada, cada persona lo lee en su idioma.",
       titleLabel: "Título (opcional)", titlePh: "ej. Reunión de equipo el viernes", bodyLabel: "Mensaje", bodyPh: "¿Qué necesita saber el equipo?",
       pin: "Fijar arriba", postBtn: "Publicar en el tablero", pinnedTag: "Fijado", postsHeader: "Publicado al equipo",
       pinAction: "Fijar", unpinAction: "Quitar fijado", edit: "Editar", delete: "Eliminar", save: "Guardar", cancel: "Cancelar",
       confirmDelete: "¿Eliminar esta publicación para todos?", empty: "Aún no hay publicaciones.", edited: "editado",
       gotIt: (a, n) => `${a}/${n} lo vieron`, noLogins: "Aún ningún empleado tiene acceso", who: "¿Quién?", hideWho: "Ocultar",
       bannerPosted: "Publicado en el tablero", bannerUpdated: "Publicación actualizada", bannerDeleted: "Publicación eliminada", bodyRequired: "Escribe primero un mensaje",
+      draftBtn: "✨ Redactar con IA", drafting: "Redactando…", draftHint: "Escribe una idea en bruto en el mensaje y deja que la IA la pula.", draftNeedsIdea: "Escribe primero una idea en el mensaje",
+      translateOpt: "Traducir para el equipo (EN / FR / ES) con IA", translating: "Traduciendo…", translateFailed: "Publicado, pero la traducción falló — el equipo verá solo el original.", translatedTag: "🌐 EN · FR · ES",
     },
     comms: {
       eyebrow: "Comunicaciones", h2: "Mensajes del equipo y agente IA", aiTag: "Agente IA", askHeader: "Pregunta sobre tu restaurante",
@@ -1971,7 +1979,7 @@ function renderBoard() {
         ${p.pinned ? `<div class="tag">📌 ${t("board.pinnedTag")}</div>` : ""}
         ${p.title ? `<h3>${escapeHtml(p.title)}</h3>` : ""}
         <div class="note" style="white-space:pre-wrap;font-size:13.5px;line-height:1.45;margin:4px 0 8px">${escapeHtml(p.body)}</div>
-        <div class="meta">${boardDate(p.createdAt)}${p.updatedAt > p.createdAt + 1000 ? ` · ${t("board.edited")}` : ""} · ${p.loginCount > 0 ? t("board.gotIt", p.ackCount, p.loginCount) : t("board.noLogins")}
+        <div class="meta">${boardDate(p.createdAt)}${p.updatedAt > p.createdAt + 1000 ? ` · ${t("board.edited")}` : ""}${p.translations ? ` · ${t("board.translatedTag")}` : ""} · ${p.loginCount > 0 ? t("board.gotIt", p.ackCount, p.loginCount) : t("board.noLogins")}
           ${p.loginCount > 0 ? ` · <a href="#" onclick="event.preventDefault(); toggleBoardWho('${p.id}')" style="color:inherit;text-decoration:underline">${boardOpenWho.has(p.id) ? t("board.hideWho") : t("board.who")}</a>` : ""}</div>
         ${who}
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
@@ -1988,16 +1996,44 @@ function toggleBoardWho(id) {
   renderBoard();
 }
 
+async function translateBoardText(title, body) {
+  const r = await api("/api/ai/board-translate", { method: "POST", body: JSON.stringify({ title, body }) });
+  return r.ok ? r.data.translations : null;
+}
+
+async function draftBoardWithAI() {
+  const idea = document.getElementById("boardBody").value.trim();
+  if (!idea) return showBanner(t("board.draftNeedsIdea"), "warn");
+  const btn = document.getElementById("boardDraftBtn");
+  btn.disabled = true; btn.textContent = t("board.drafting");
+  const r = await api("/api/ai/board-draft", { method: "POST", body: JSON.stringify({ idea, lang: LANG }) });
+  btn.disabled = false; btn.textContent = t("board.draftBtn");
+  if (!r.ok) return showBanner(r.error, "warn");
+  const titleEl = document.getElementById("boardTitle");
+  if (!titleEl.value.trim()) titleEl.value = r.data.title;
+  document.getElementById("boardBody").value = r.data.body;
+}
+
 async function postBoard() {
   const title = document.getElementById("boardTitle").value.trim();
   const body = document.getElementById("boardBody").value.trim();
   if (!body) return showBanner(t("board.bodyRequired"), "warn");
-  const result = await api("/api/board", { method: "POST", body: JSON.stringify({ title, body, pinned: document.getElementById("boardPin").checked }) });
+  const btn = document.getElementById("boardPostBtn");
+  btn.disabled = true;
+  let translations = null, translateFailed = false;
+  if (document.getElementById("boardTranslate").checked) {
+    btn.textContent = t("board.translating");
+    translations = await translateBoardText(title, body);
+    translateFailed = !translations;
+  }
+  btn.textContent = t("board.postBtn");
+  const result = await api("/api/board", { method: "POST", body: JSON.stringify({ title, body, pinned: document.getElementById("boardPin").checked, translations }) });
+  btn.disabled = false;
   if (!result.ok) return showBanner(result.error, "warn");
   document.getElementById("boardTitle").value = "";
   document.getElementById("boardBody").value = "";
   document.getElementById("boardPin").checked = false;
-  showBanner(t("board.bannerPosted"), "success");
+  showBanner(translateFailed ? t("board.translateFailed") : t("board.bannerPosted"), translateFailed ? "warn" : "success");
   await loadAll();
 }
 
@@ -2018,10 +2054,18 @@ async function saveBoardEdit() {
   const e = boardEditing;
   if (!e) return;
   if (!e.body.trim()) return showBanner(t("board.bodyRequired"), "warn");
-  const result = await api(`/api/board/${e.id}`, { method: "PATCH", body: JSON.stringify({ title: e.title.trim(), body: e.body.trim() }) });
+  const orig = boardPosts.find(x => x.id === e.id);
+  const payload = { title: e.title.trim(), body: e.body.trim() };
+  let translateFailed = false;
+  // Text changed on a post that had translations: refresh them so staff never read a stale version.
+  if (orig && orig.translations && (orig.title !== payload.title || orig.body !== payload.body)) {
+    payload.translations = await translateBoardText(payload.title, payload.body);
+    translateFailed = !payload.translations;
+  }
+  const result = await api(`/api/board/${e.id}`, { method: "PATCH", body: JSON.stringify(payload) });
   if (!result.ok) return showBanner(result.error, "warn");
   boardEditing = null;
-  showBanner(t("board.bannerUpdated"), "success");
+  showBanner(translateFailed ? t("board.translateFailed") : t("board.bannerUpdated"), translateFailed ? "warn" : "success");
   await loadAll();
 }
 
