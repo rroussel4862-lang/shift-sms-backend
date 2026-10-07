@@ -179,6 +179,9 @@ async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS actual_sales_restaurant_idx ON actual_sales (restaurant_id);`);
+  // Food / beverage split of each day's sales. `amount` stays the day's total (food + beverage, or a POS total with no split).
+  await pool.query(`ALTER TABLE actual_sales ADD COLUMN IF NOT EXISTS food_amount NUMERIC;`);
+  await pool.query(`ALTER TABLE actual_sales ADD COLUMN IF NOT EXISTS bev_amount NUMERIC;`);
 
   // Food / beverage cost as a percent of sales (entered by the manager until a POS/inventory integration exists)
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS food_cost_pct NUMERIC;`);
@@ -546,36 +549,10 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
 
 // ---------- restaurant settings ----------
 
-function costPctOrNull(v) {
-  return v !== null && v !== undefined ? Number(v) : null;
-}
-
 app.get("/api/restaurant", requireAuth, async (req, res) => {
-  const { rows } = await pool.query("SELECT id, name, address, food_cost_pct, bev_cost_pct FROM restaurants WHERE id = $1", [req.restaurantId]);
+  const { rows } = await pool.query("SELECT id, name, address FROM restaurants WHERE id = $1", [req.restaurantId]);
   if (rows.length === 0) return res.status(404).json({ error: "restaurant not found" });
-  res.json({
-    id: rows[0].id, name: rows[0].name, address: rows[0].address || "",
-    foodCostPct: costPctOrNull(rows[0].food_cost_pct), bevCostPct: costPctOrNull(rows[0].bev_cost_pct),
-  });
-});
-
-// Food / beverage cost percentages used by the Payroll & Sales tab.
-app.put("/api/restaurant/costs", requireAuth, async (req, res) => {
-  const parsed = {};
-  for (const [key, col] of [["foodCostPct", "food_cost_pct"], ["bevCostPct", "bev_cost_pct"]]) {
-    const raw = (req.body || {})[key];
-    if (raw === undefined) continue;
-    if (raw === null || raw === "") { parsed[col] = null; continue; }
-    const n = Number(raw);
-    if (isNaN(n) || n < 0 || n > 100) return res.status(400).json({ error: `${key} must be between 0 and 100` });
-    parsed[col] = n;
-  }
-  const { rows: existing } = await pool.query("SELECT food_cost_pct, bev_cost_pct FROM restaurants WHERE id = $1", [req.restaurantId]);
-  if (existing.length === 0) return res.status(404).json({ error: "restaurant not found" });
-  const food = "food_cost_pct" in parsed ? parsed.food_cost_pct : existing[0].food_cost_pct;
-  const bev = "bev_cost_pct" in parsed ? parsed.bev_cost_pct : existing[0].bev_cost_pct;
-  await pool.query("UPDATE restaurants SET food_cost_pct = $1, bev_cost_pct = $2 WHERE id = $3", [food, bev, req.restaurantId]);
-  res.json({ foodCostPct: costPctOrNull(food), bevCostPct: costPctOrNull(bev) });
+  res.json({ id: rows[0].id, name: rows[0].name, address: rows[0].address || "" });
 });
 
 // ---------- training: courses, manuals, contracts (scoped to the logged-in restaurant) ----------
@@ -1400,6 +1377,17 @@ app.put("/api/sales-projections", requireAuth, async (req, res) => {
 
 // ---------- actual sales (empty until a POS integration exists; this is the slot it will write into) ----------
 
+function actualSalesRowToJson(r) {
+  const num = (v) => (v !== null && v !== undefined ? Number(v) : null);
+  return {
+    date: r.sale_date instanceof Date ? r.sale_date.toISOString().slice(0, 10) : r.sale_date,
+    amount: num(r.amount),
+    foodAmount: num(r.food_amount),
+    bevAmount: num(r.bev_amount),
+    source: r.source,
+  };
+}
+
 app.get("/api/actual-sales", requireAuth, async (req, res) => {
   const { start, end } = req.query;
   if (!start || !end) return res.status(400).json({ error: "start and end date query params are required (YYYY-MM-DD)" });
@@ -1407,38 +1395,54 @@ app.get("/api/actual-sales", requireAuth, async (req, res) => {
     "SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date >= $2 AND sale_date <= $3",
     [req.restaurantId, start, end]
   );
-  res.json(
-    rows.map((r) => ({
-      date: r.sale_date instanceof Date ? r.sale_date.toISOString().slice(0, 10) : r.sale_date,
-      amount: r.amount !== null ? Number(r.amount) : null,
-      source: r.source,
-    }))
-  );
+  res.json(rows.map(actualSalesRowToJson));
 });
 
-// Not called by the UI yet — this is the endpoint a future POS sync integration
-// (Lightspeed, Veloce, Maître'D, etc.) would call to write real daily sales in.
+// Two ways to write a day's sales:
+//  - foodAmount and/or bevAmount: the manager's entry (or a POS that reports categories). The day's total is food + beverage.
+//  - amount only: a POS total with no split. The food/beverage split is cleared so the total stays authoritative.
+// Empty string or null clears a value.
 app.put("/api/actual-sales", requireAuth, async (req, res) => {
-  const { date, amount, source } = req.body || {};
+  const { date, amount, foodAmount, bevAmount, source } = req.body || {};
   if (!date) return res.status(400).json({ error: "date is required" });
-  let amt = null;
-  if (amount !== undefined && amount !== "" && amount !== null) {
-    amt = Number(amount);
-    if (isNaN(amt) || amt < 0) return res.status(400).json({ error: "amount must be a positive number" });
+
+  const parseMoney = (raw, label) => {
+    if (raw === undefined) return { provided: false };
+    if (raw === null || raw === "") return { provided: true, value: null };
+    const n = Number(raw);
+    if (isNaN(n) || n < 0) return { error: `${label} must be a positive number` };
+    return { provided: true, value: n };
+  };
+  const total = parseMoney(amount, "amount");
+  const food = parseMoney(foodAmount, "foodAmount");
+  const bev = parseMoney(bevAmount, "bevAmount");
+  for (const p of [total, food, bev]) if (p.error) return res.status(400).json({ error: p.error });
+
+  let foodVal = null, bevVal = null, amt = null;
+  if (food.provided || bev.provided) {
+    // Keep whichever half the request didn't mention.
+    const { rows: existing } = await pool.query(
+      "SELECT food_amount, bev_amount FROM actual_sales WHERE restaurant_id = $1 AND sale_date = $2",
+      [req.restaurantId, date]
+    );
+    const prev = existing[0] || {};
+    foodVal = food.provided ? food.value : (prev.food_amount !== undefined && prev.food_amount !== null ? Number(prev.food_amount) : null);
+    bevVal = bev.provided ? bev.value : (prev.bev_amount !== undefined && prev.bev_amount !== null ? Number(prev.bev_amount) : null);
+    amt = foodVal === null && bevVal === null ? null : (foodVal || 0) + (bevVal || 0);
+  } else {
+    amt = total.provided ? total.value : null;
   }
+
   const newId = id();
   const { rows } = await pool.query(
-    `INSERT INTO actual_sales (id, restaurant_id, sale_date, amount, source, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6)
-     ON CONFLICT (restaurant_id, sale_date) DO UPDATE SET amount = EXCLUDED.amount, source = EXCLUDED.source
+    `INSERT INTO actual_sales (id, restaurant_id, sale_date, amount, food_amount, bev_amount, source, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     ON CONFLICT (restaurant_id, sale_date) DO UPDATE
+       SET amount = EXCLUDED.amount, food_amount = EXCLUDED.food_amount, bev_amount = EXCLUDED.bev_amount, source = EXCLUDED.source
      RETURNING *`,
-    [newId, req.restaurantId, date, amt, (source || "manual").trim(), Date.now()]
+    [newId, req.restaurantId, date, amt, foodVal, bevVal, (source || "manual").trim(), Date.now()]
   );
-  res.json({
-    date: rows[0].sale_date instanceof Date ? rows[0].sale_date.toISOString().slice(0, 10) : rows[0].sale_date,
-    amount: rows[0].amount !== null ? Number(rows[0].amount) : null,
-    source: rows[0].source,
-  });
+  res.json(actualSalesRowToJson(rows[0]));
 });
 
 // ---------- AI agent (Communications) ----------

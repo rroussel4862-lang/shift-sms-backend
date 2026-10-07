@@ -535,8 +535,11 @@
   .stub .mini { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 600; padding: 6px 11px; border-radius: 4px; border: none; cursor: pointer; background: var(--accent); color: #fff; }
   .stub .mini.outline { background: transparent; border: 1px solid rgba(35,38,31,0.3); color: var(--ink); }
   .assign-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px dashed rgba(35,38,31,0.2); font-size: 13px; }
-  .cost-inputs { display: flex; gap: 10px; }
-  .cost-inputs > div { flex: 1; }
+  .sales-grid { display: grid; grid-template-columns: 56px 1fr 1fr; gap: 6px 8px; align-items: center; }
+  .sales-day { display: contents; }
+  .sales-day-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(35,38,31,0.6); }
+  .sales-col { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(35,38,31,0.6); }
+  .sales-grid input { width: 100%; min-width: 0; }
 
 
   /* ---------- Paper-card look for Hiring / Scheduling / Staff / Comms (same as mockup stubs) ---------- */
@@ -853,16 +856,16 @@ const T = {
     },
     payroll: {
       eyebrow: "Payroll & Sales", h2: "This week's numbers",
-      p: "Real-time labor, food, and beverage cost against sales — plus payroll that's already forecasted for next period.",
+      p: "Food and beverage sales against labor cost — plus payroll that's already forecasted for next period.",
       liveTag: "Live", salesLine: (total, labor) => labor === null ? `$${total} total` : `$${total} total · ${labor}% labor cost`,
       noSales: "No sales entered yet — add this week's daily sales below.", enterSales: "Daily sales", saveSales: "Save sales",
-      pnlTag: "P&L snapshot", costBreakdown: "Cost breakdown", pctOfSales: "Percent of this week's sales",
-      foodCost: "Food cost", bevCost: "Beverage cost", laborCost: "Labor cost", netMargin: "Net margin",
-      foodCostPct: "Food cost %", bevCostPct: "Beverage cost %", saveCosts: "Save costs", needSales: "—",
+      pnlTag: "Sales mix", costBreakdown: "Sales breakdown", pctOfSales: "Share of this week's sales",
+      foodSales: "Food sales", bevSales: "Beverage sales", notSplit: "Not split into food / beverage", totalSales: "Total sales", laborCost: "Labor cost", afterLabor: "Sales after labor",
+      foodShort: "Food", bevShort: "Bev", needSales: "—",
       forecastTag: "Forecast", nextPeriod: "Next pay period estimate", forecastNote: "Based on scheduled hours × hourly rate, next 14 days",
       hoursTag: "Hours", staffPayHeader: "Staff pay this week", hoursBasis: "Based on scheduled hours × hourly rate",
       noHours: "No scheduled shifts this week yet.", noRate: "no rate set",
-      bannerSalesSaved: "Sales saved", bannerCostsSaved: "Costs saved",
+      bannerSalesSaved: "Sales saved",
     },
     ovExtra: { coursesInProgress: "Courses in progress", coursesSub: n => `${n} course${n === 1 ? "" : "s"} total`, salesWeek: "Sales this week", laborPct: p => `${p}% labor cost`, laborUnknown: "Tap to add sales", },
     topbar: { backOffice: "Back Office", logout: "Log out" },
@@ -971,16 +974,16 @@ const T = {
     },
     payroll: {
       eyebrow: "Paie & Ventes", h2: "Les chiffres de la semaine",
-      p: "Coûts de main-d'œuvre, de nourriture et de boissons en temps réel par rapport aux ventes — plus une paie déjà prévue pour la prochaine période.",
+      p: "Ventes de nourriture et de boissons par rapport au coût de main-d'œuvre — plus une paie déjà prévue pour la prochaine période.",
       liveTag: "En direct", salesLine: (total, labor) => labor === null ? `${total} $ au total` : `${total} $ au total · ${labor}% coût de main-d'œuvre`,
       noSales: "Aucune vente saisie — ajoutez les ventes quotidiennes de la semaine ci-dessous.", enterSales: "Ventes quotidiennes", saveSales: "Enregistrer les ventes",
-      pnlTag: "Aperçu du bilan", costBreakdown: "Répartition des coûts", pctOfSales: "Pourcentage des ventes de la semaine",
-      foodCost: "Coût de la nourriture", bevCost: "Coût des boissons", laborCost: "Coût de main-d'œuvre", netMargin: "Marge nette",
-      foodCostPct: "Coût nourriture %", bevCostPct: "Coût boissons %", saveCosts: "Enregistrer les coûts", needSales: "—",
+      pnlTag: "Répartition des ventes", costBreakdown: "Détail des ventes", pctOfSales: "Part des ventes de la semaine",
+      foodSales: "Ventes de nourriture", bevSales: "Ventes de boissons", notSplit: "Non réparti nourriture / boissons", totalSales: "Ventes totales", laborCost: "Coût de main-d'œuvre", afterLabor: "Ventes après main-d'œuvre",
+      foodShort: "Nourr.", bevShort: "Boiss.", needSales: "—",
       forecastTag: "Prévision", nextPeriod: "Estimation de la prochaine paie", forecastNote: "Basé sur les heures prévues × taux horaire, 14 prochains jours",
       hoursTag: "Heures", staffPayHeader: "Paie du personnel cette semaine", hoursBasis: "Basé sur les heures prévues × taux horaire",
       noHours: "Aucun quart prévu cette semaine pour l'instant.", noRate: "aucun taux",
-      bannerSalesSaved: "Ventes enregistrées", bannerCostsSaved: "Coûts enregistrés",
+      bannerSalesSaved: "Ventes enregistrées",
     },
     ovExtra: { coursesInProgress: "Cours en cours", coursesSub: n => `${n} cours au total`, salesWeek: "Ventes cette semaine", laborPct: p => `${p}% coût de main-d'œuvre`, laborUnknown: "Touchez pour ajouter des ventes", },
     topbar: { backOffice: "Back Office", logout: "Déconnexion" },
@@ -1089,16 +1092,16 @@ const T = {
     },
     payroll: {
       eyebrow: "Nómina y Ventas", h2: "Los números de esta semana",
-      p: "Costo de mano de obra, comida y bebida en tiempo real frente a las ventas — además de una nómina ya pronosticada para el próximo período.",
+      p: "Ventas de comida y bebidas frente al costo de mano de obra — además de una nómina ya pronosticada para el próximo período.",
       liveTag: "En vivo", salesLine: (total, labor) => labor === null ? `$${total} total` : `$${total} total · ${labor}% costo de mano de obra`,
       noSales: "Aún no hay ventas — agrega las ventas diarias de esta semana abajo.", enterSales: "Ventas diarias", saveSales: "Guardar ventas",
-      pnlTag: "Resumen financiero", costBreakdown: "Desglose de costos", pctOfSales: "Porcentaje de las ventas de esta semana",
-      foodCost: "Costo de comida", bevCost: "Costo de bebidas", laborCost: "Costo de mano de obra", netMargin: "Margen neto",
-      foodCostPct: "Costo comida %", bevCostPct: "Costo bebidas %", saveCosts: "Guardar costos", needSales: "—",
+      pnlTag: "Mezcla de ventas", costBreakdown: "Desglose de ventas", pctOfSales: "Parte de las ventas de esta semana",
+      foodSales: "Ventas de comida", bevSales: "Ventas de bebidas", notSplit: "Sin dividir en comida / bebidas", totalSales: "Ventas totales", laborCost: "Costo de mano de obra", afterLabor: "Ventas después de mano de obra",
+      foodShort: "Comida", bevShort: "Bebida", needSales: "—",
       forecastTag: "Pronóstico", nextPeriod: "Estimado del próximo período de pago", forecastNote: "Basado en horas programadas × tarifa por hora, próximos 14 días",
       hoursTag: "Horas", staffPayHeader: "Pago del personal esta semana", hoursBasis: "Basado en horas programadas × tarifa por hora",
       noHours: "Aún no hay turnos programados esta semana.", noRate: "sin tarifa",
-      bannerSalesSaved: "Ventas guardadas", bannerCostsSaved: "Costos guardados",
+      bannerSalesSaved: "Ventas guardadas",
     },
     ovExtra: { coursesInProgress: "Cursos en progreso", coursesSub: n => `${n} curso${n === 1 ? "" : "s"} en total`, salesWeek: "Ventas esta semana", laborPct: p => `${p}% costo de mano de obra`, laborUnknown: "Toca para agregar ventas", },
     topbar: { backOffice: "Back Office", logout: "Cerrar sesión" },
@@ -1885,7 +1888,7 @@ async function deleteTraining(itemId) {
 }
 
 /* ============================== Payroll & Sales ============================== */
-let payroll = null; // { weekStart, sales:{date:amount}, shifts:[], foodCostPct, bevCostPct }
+let payroll = null; // { weekStart, sales:{date:{amount,food,bev}}, shifts:[] }
 
 function isoLocal(d) {
   const p = n => String(n).padStart(2, "0");
@@ -1909,20 +1912,17 @@ async function loadPayroll() {
   const start = isoLocal(mon);
   const sunday = isoLocal(addDaysLocal(mon, 6));
   const lastDay = isoLocal(addDaysLocal(mon, 20)); // this week + the next 14-day pay period
-  const [sch, sal, rest] = await Promise.all([
+  const [sch, sal] = await Promise.all([
     api(`/api/schedule?start=${start}&end=${lastDay}`),
     api(`/api/actual-sales?start=${start}&end=${sunday}`),
-    api("/api/restaurant"),
   ]);
   if (!sch.ok || !sal.ok) return;
   const sales = {};
-  sal.data.forEach(r => { sales[r.date] = r.amount; });
+  sal.data.forEach(r => { sales[r.date] = { amount: r.amount, food: r.foodAmount, bev: r.bevAmount }; });
   payroll = {
     weekStart: start,
     sales,
     shifts: sch.data,
-    foodCostPct: rest.ok ? rest.data.foodCostPct : null,
-    bevCostPct: rest.ok ? rest.data.bevCostPct : null,
   };
   renderPayroll();
   renderOverview();
@@ -1948,13 +1948,15 @@ function payrollNumbers() {
       nextPeriod += hrs * rate;
     }
   });
-  const daily = weekDates.map(dt => (payroll && payroll.sales[dt]) || 0);
+  const day = dt => (payroll && payroll.sales[dt]) || { amount: null, food: null, bev: null };
+  const daily = weekDates.map(dt => day(dt).amount || 0);
   const totalSales = daily.reduce((a, b) => a + b, 0);
+  const foodSales = weekDates.reduce((a, dt) => a + (day(dt).food || 0), 0);
+  const bevSales = weekDates.reduce((a, dt) => a + (day(dt).bev || 0), 0);
+  const unsplit = Math.max(0, Math.round((totalSales - foodSales - bevSales) * 100) / 100); // days entered as one total (e.g. from a POS)
   const laborPct = totalSales > 0 ? Math.round(laborCost / totalSales * 100) : null;
-  const food = payroll ? payroll.foodCostPct : null;
-  const bev = payroll ? payroll.bevCostPct : null;
-  const net = laborPct !== null && food !== null && bev !== null ? Math.round((100 - food - bev - laborPct) * 10) / 10 : null;
-  return { weekDates, daily, totalSales, laborCost, laborPct, food, bev, net, nextPeriod, perStaff };
+  const afterLabor = totalSales > 0 ? totalSales - laborCost : null;
+  return { weekDates, daily, totalSales, foodSales, bevSales, unsplit, laborCost, laborPct, afterLabor, nextPeriod, perStaff };
 }
 
 function money(n) { return Math.round(n).toLocaleString(localeForLang()); }
@@ -1973,7 +1975,6 @@ function renderPayroll(force) {
   const n = payrollNumbers();
   const max = Math.max(...n.daily, 1);
   const days = t("days");
-  const pct = v => (v === null ? t("payroll.needSales") : `${v}%`);
   const staffRows = Object.entries(n.perStaff).map(([sid, e]) => {
     const p = staff.find(s => s.id === sid);
     if (!p) return "";
@@ -1984,11 +1985,14 @@ function renderPayroll(force) {
       : `${hrs}h · ${t("payroll.noRate")}`;
     return `<div class="pay-row"><span>${escapeHtml(p.name)}${role}</span><span class="num">${right}</span></div>`;
   }).join("");
+  const dayOf = dt => (payroll && payroll.sales[dt]) || { amount: null, food: null, bev: null };
   const salesInputs = n.weekDates.map((dt, i) => `
-    <div style="flex:1;min-width:70px">
-      <label>${days[i]} ${Number(dt.slice(8))}</label>
-      <input type="text" inputmode="decimal" id="salesInput-${dt}" value="${dv("salesInput-" + dt, payroll && payroll.sales[dt] != null ? payroll.sales[dt] : "")}" placeholder="0" />
+    <div class="sales-day">
+      <span class="sales-day-label">${days[i]} ${Number(dt.slice(8))}</span>
+      <input type="text" inputmode="decimal" id="foodInput-${dt}" value="${dv("foodInput-" + dt, dayOf(dt).food != null ? dayOf(dt).food : "")}" placeholder="${escapeHtml(t("payroll.foodShort"))}" aria-label="${escapeHtml(t("payroll.foodSales"))}" />
+      <input type="text" inputmode="decimal" id="bevInput-${dt}" value="${dv("bevInput-" + dt, dayOf(dt).bev != null ? dayOf(dt).bev : "")}" placeholder="${escapeHtml(t("payroll.bevShort"))}" aria-label="${escapeHtml(t("payroll.bevSales"))}" />
     </div>`).join("");
+  const share = v => (n.totalSales > 0 ? ` · ${Math.round(v / n.totalSales * 100)}%` : "");
   el.innerHTML = `
     <div class="module-header" style="--accent:var(--payroll)">
       <div class="eyebrow">${t("payroll.eyebrow")}</div>
@@ -2009,22 +2013,22 @@ function renderPayroll(force) {
     </div>
     <div class="stub" style="--accent:var(--payroll)">
       <h3>${t("payroll.enterSales")}</h3>
-      <div style="display:flex;flex-wrap:wrap;gap:8px">${salesInputs}</div>
+      <div class="sales-grid">
+        <span></span><span class="sales-col">${t("payroll.foodShort")}</span><span class="sales-col">${t("payroll.bevShort")}</span>
+        ${salesInputs}
+      </div>
       <div style="margin-top:12px"><button class="mini" onclick="saveWeekSales()">${t("payroll.saveSales")}</button></div>
     </div>
     <div class="stub" style="--accent:var(--payroll)">
       <div class="tag">${t("payroll.pnlTag")}</div>
       <h3>${t("payroll.costBreakdown")}</h3>
       <div class="meta">${t("payroll.pctOfSales")}</div>
-      <div class="pay-row"><span>${t("payroll.foodCost")}</span><span class="num">${pct(n.food)}</span></div>
-      <div class="pay-row"><span>${t("payroll.bevCost")}</span><span class="num">${pct(n.bev)}</span></div>
-      <div class="pay-row"><span>${t("payroll.laborCost")}</span><span class="num">${pct(n.laborPct)}</span></div>
-      <div class="pay-row"><span><strong>${t("payroll.netMargin")}</strong></span><span class="num"><strong>${pct(n.net)}</strong></span></div>
-      <div class="cost-inputs" style="margin-top:10px">
-        <div><label>${t("payroll.foodCostPct")}</label><input type="text" inputmode="decimal" id="foodCostInput" value="${dv("foodCostInput", n.food !== null ? n.food : "")}" placeholder="30" /></div>
-        <div><label>${t("payroll.bevCostPct")}</label><input type="text" inputmode="decimal" id="bevCostInput" value="${dv("bevCostInput", n.bev !== null ? n.bev : "")}" placeholder="20" /></div>
-      </div>
-      <div style="margin-top:12px"><button class="mini" onclick="saveCostPcts()">${t("payroll.saveCosts")}</button></div>
+      <div class="pay-row"><span>${t("payroll.foodSales")}</span><span class="num">$${money(n.foodSales)}${share(n.foodSales)}</span></div>
+      <div class="pay-row"><span>${t("payroll.bevSales")}</span><span class="num">$${money(n.bevSales)}${share(n.bevSales)}</span></div>
+      ${n.unsplit > 0 ? `<div class="pay-row"><span style="opacity:0.7">${t("payroll.notSplit")}</span><span class="num">$${money(n.unsplit)}${share(n.unsplit)}</span></div>` : ""}
+      <div class="pay-row"><span><strong>${t("payroll.totalSales")}</strong></span><span class="num"><strong>$${money(n.totalSales)}</strong></span></div>
+      <div class="pay-row"><span>${t("payroll.laborCost")}</span><span class="num">$${money(n.laborCost)}${n.laborPct !== null ? ` · ${n.laborPct}%` : ""}</span></div>
+      <div class="pay-row"><span><strong>${t("payroll.afterLabor")}</strong></span><span class="num"><strong>${n.afterLabor !== null ? "$" + money(n.afterLabor) : t("payroll.needSales")}</strong></span></div>
     </div>
     <div class="stub" style="--accent:var(--payroll)">
       <div class="tag">${t("payroll.forecastTag")}</div>
@@ -2044,12 +2048,14 @@ function renderPayroll(force) {
 async function saveWeekSales() {
   const mon = mondayOf(new Date());
   const dates = Array.from({ length: 7 }, (_, i) => isoLocal(addDaysLocal(mon, i)));
+  const clean = id => document.getElementById(id).value.trim().replace(/[$,\s]/g, "");
   const writes = [];
   for (const dt of dates) {
-    const raw = document.getElementById(`salesInput-${dt}`).value.trim().replace(/[$,\s]/g, "");
-    const prev = payroll && payroll.sales[dt] != null ? String(payroll.sales[dt]) : "";
-    if (raw === prev) continue;
-    writes.push(api("/api/actual-sales", { method: "PUT", body: JSON.stringify({ date: dt, amount: raw === "" ? null : raw, source: "manual" }) }));
+    const food = clean(`foodInput-${dt}`), bev = clean(`bevInput-${dt}`);
+    const prev = (payroll && payroll.sales[dt]) || {};
+    const prevFood = prev.food != null ? String(prev.food) : "", prevBev = prev.bev != null ? String(prev.bev) : "";
+    if (food === prevFood && bev === prevBev) continue; // untouched day (also leaves POS-style totals alone)
+    writes.push(api("/api/actual-sales", { method: "PUT", body: JSON.stringify({ date: dt, foodAmount: food === "" ? null : food, bevAmount: bev === "" ? null : bev, source: "manual" }) }));
   }
   const results = await Promise.all(writes);
   const failed = results.find(r => !r.ok);
@@ -2058,23 +2064,6 @@ async function saveWeekSales() {
   payrollDraft = {};
   await loadPayroll();
   renderPayroll(true);
-}
-
-async function saveCostPcts() {
-  const result = await api("/api/restaurant/costs", {
-    method: "PUT",
-    body: JSON.stringify({
-      foodCostPct: document.getElementById("foodCostInput").value.trim(),
-      bevCostPct: document.getElementById("bevCostInput").value.trim(),
-    }),
-  });
-  if (!result.ok) return showBanner(result.error, "warn");
-  showBanner(t("payroll.bannerCostsSaved"), "success");
-  payrollDraft = {};
-  payroll.foodCostPct = result.data.foodCostPct;
-  payroll.bevCostPct = result.data.bevCostPct;
-  renderPayroll(true);
-  renderOverview();
 }
 
 function formatHireDate(dateStr) {
