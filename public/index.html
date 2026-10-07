@@ -487,6 +487,11 @@
   .chat-thinking { color: var(--text-dim); font-size: 12.5px; font-style: italic; padding: 4px 0; }
 
   /* ---------- Training + Payroll & Sales (paper "stub" cards, per mockup) ---------- */
+  .pos-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+  .pos-chip { font-size: 12px; border: 1px solid rgba(35,38,31,0.3); border-radius: 999px; padding: 3px 10px; background: rgba(35,38,31,0.05); }
+  .pos-chip b { font-family: 'Oswald', sans-serif; font-size: 13px; margin-right: 2px; }
+  .today-group { margin-top: 10px; }
+  .today-group-head { display: flex; justify-content: space-between; font-family: 'Oswald', sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; padding-bottom: 2px; }
   .file-pick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .stub label.file-btn { cursor: pointer; display: inline-block; text-transform: none; letter-spacing: 0; margin: 0; font-size: 12px; }
   .file-line a { color: inherit; text-decoration: underline; word-break: break-all; }
@@ -675,6 +680,11 @@
       <label data-i18n="scheduling.note">Note (optional)</label>
       <input type="text" id="shiftNote" placeholder="e.g. Jordan called out sick" data-i18n-ph="scheduling.notePh" />
       <button class="primary amber" onclick="postShift()" data-i18n="scheduling.sendBtn">Send to staff now</button>
+    </div>
+
+    <div class="section" id="todaySection">
+      <h2 data-i18n="scheduling.todayCard">Who's scheduled today</h2>
+      <div id="todayScheduled"></div>
     </div>
 
     <div class="section">
@@ -867,6 +877,8 @@ const T = {
       eyebrow: "Scheduling", h2: "Shifts & staffing", desc: "When someone doesn't show, post it here — every matching staff member gets a real text within seconds.",
       postCard: "Post an open shift", position: "Position", when: "When", whenPh: "e.g. Today, 5pm–close",
       note: "Note (optional)", notePh: "e.g. Jordan called out sick", sendBtn: "Send to staff now",
+      todayCard: "Who's scheduled today", todayTotal: n => `${n} staff scheduled`, todayEmpty: "No one is scheduled today.", todayEmptyHint: "Build the weekly schedule in the Back Office.", openBackOffice: "Open Back Office",
+      todayPositionCount: n => `${n} ${n === 1 ? "person" : "people"}`, todayUnknownPosition: "No position",
       openShiftsCard: "Open shifts", noOpenShifts: "No open shifts.", filledCard: "Recently filled", nothingFilled: "Nothing filled yet.",
       openStamp: "Open", filledStamp: "Filled", asap: "ASAP", postedAgo: t => `posted ${t}`,
       noResponders: "No one's responded yet", respondedCount: n => `${n} staff responded`,
@@ -983,6 +995,8 @@ const T = {
       eyebrow: "Horaire", h2: "Quarts et personnel", desc: "Quand quelqu'un ne se présente pas, publiez-le ici — chaque employé correspondant reçoit un vrai texto en quelques secondes.",
       postCard: "Publier un quart ouvert", position: "Poste", when: "Quand", whenPh: "ex. Aujourd'hui, 17h–fermeture",
       note: "Note (optionnel)", notePh: "ex. Jordan a appelé pour maladie", sendBtn: "Envoyer au personnel maintenant",
+      todayCard: "Qui travaille aujourd'hui", todayTotal: n => `${n} employé${n === 1 ? "" : "s"} à l'horaire`, todayEmpty: "Personne n'est à l'horaire aujourd'hui.", todayEmptyHint: "Préparez l'horaire de la semaine dans l'arrière-boutique.", openBackOffice: "Ouvrir l'arrière-boutique",
+      todayPositionCount: n => `${n} personne${n === 1 ? "" : "s"}`, todayUnknownPosition: "Sans poste",
       openShiftsCard: "Quarts ouverts", noOpenShifts: "Aucun quart ouvert.", filledCard: "Récemment comblés", nothingFilled: "Rien de comblé pour l'instant.",
       openStamp: "Ouvert", filledStamp: "Comblé", asap: "Dès que possible", postedAgo: t => `publié ${t}`,
       noResponders: "Personne n'a encore répondu", respondedCount: n => `${n} employés ont répondu`,
@@ -1099,6 +1113,8 @@ const T = {
       eyebrow: "Horario", h2: "Turnos y personal", desc: "Cuando alguien no se presenta, publícalo aquí — cada empleado correspondiente recibe un mensaje de texto real en segundos.",
       postCard: "Publicar un turno abierto", position: "Puesto", when: "Cuándo", whenPh: "ej. Hoy, 5pm–cierre",
       note: "Nota (opcional)", notePh: "ej. Jordan llamó por enfermedad", sendBtn: "Enviar al personal ahora",
+      todayCard: "Quién trabaja hoy", todayTotal: n => `${n} empleado${n === 1 ? "" : "s"} en el horario`, todayEmpty: "Nadie está programado hoy.", todayEmptyHint: "Arma el horario semanal en la Oficina.", openBackOffice: "Abrir Oficina",
+      todayPositionCount: n => `${n} persona${n === 1 ? "" : "s"}`, todayUnknownPosition: "Sin puesto",
       openShiftsCard: "Turnos abiertos", noOpenShifts: "No hay turnos abiertos.", filledCard: "Cubiertos recientemente", nothingFilled: "Nada cubierto todavía.",
       openStamp: "Abierto", filledStamp: "Cubierto", asap: "Lo antes posible", postedAgo: t => `publicado ${t}`,
       noResponders: "Nadie ha respondido todavía", respondedCount: n => `${n} empleados respondieron`,
@@ -1232,6 +1248,7 @@ function roleLabel(role) {
 let selectedRoles = [];
 let staff = [];
 let shifts = [];
+let todayShifts = []; // staff actually scheduled today (from the back-office schedule)
 let editingStaffId = null;
 let editDraftRoles = [];
 let staffRoleFilter = null;
@@ -1346,6 +1363,9 @@ async function loadAll() {
   if (ap.ok) applications = ap.data;
   const tr = await api("/api/training");
   if (tr.ok) trainingItems = tr.data;
+  const todayIso = isoLocal(new Date());
+  const td = await api(`/api/schedule?start=${todayIso}&end=${todayIso}`);
+  if (td.ok) todayShifts = td.data;
   render();
   if (!payroll || currentTab === "payroll") loadPayroll();
 }
@@ -1360,6 +1380,78 @@ function timeAgo(ts) {
   const m = Math.floor(s / 60);
   if (m < 60) return t("common.minAgo", m);
   return t("common.hourAgo", Math.floor(m / 60));
+}
+
+function fmtClock(hhmm) {
+  const p = String(hhmm || "").split(":").map(Number);
+  const h = p[0], m = p[1] || 0;
+  if (isNaN(h)) return hhmm || "";
+  if (LANG === "fr") return h + " h" + (m ? " " + String(m).padStart(2, "0") : "");
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+}
+
+// Staff on today's schedule, grouped by position, with a headcount per position.
+function renderToday() {
+  const el = document.getElementById("todayScheduled");
+  if (!el) return;
+  const byStaff = new Map(); // one row per person: they may have more than one shift today
+  todayShifts.forEach(sh => {
+    const person = staff.find(p => p.id === sh.staffId);
+    if (!person) return;
+    const role = sh.role || (person.roles && person.roles[0]) || "";
+    const key = person.id + "|" + role;
+    if (!byStaff.has(key)) byStaff.set(key, { person, role, times: [] });
+    byStaff.get(key).times.push({ start: sh.startTime, end: sh.endTime });
+  });
+  const entries = [...byStaff.values()];
+  const uniquePeople = new Set(entries.map(e => e.person.id)).size;
+  const dateLabel = new Date().toLocaleDateString(localeForLang(), { weekday: "long", month: "short", day: "numeric" });
+
+  if (entries.length === 0) {
+    el.innerHTML = `
+      <div class="stub plain">
+        <div class="meta" style="margin:0">${escapeHtml(dateLabel)}</div>
+        <h3>${t("scheduling.todayEmpty")}</h3>
+        <div class="meta">${t("scheduling.todayEmptyHint")}</div>
+        <a class="mini outline" style="text-decoration:none;display:inline-block" href="/backoffice.html">${t("scheduling.openBackOffice")}</a>
+      </div>`;
+    return;
+  }
+
+  const order = ["Server", "Host", "Bartender", "Busser", "Line Cook", "Prep Cook", "Dishwasher", "Expo"]; // front of house first
+  const groups = new Map();
+  entries.forEach(e => {
+    const k = e.role || "";
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(e);
+  });
+  const keys = [...groups.keys()].sort((a, b) => {
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
+  });
+
+  const chips = keys.map(k => `<span class="pos-chip"><b>${groups.get(k).length}</b> ${escapeHtml(k ? roleLabel(k) : t("scheduling.todayUnknownPosition"))}</span>`).join("");
+  const body = keys.map(k => {
+    const list = groups.get(k).sort((a, b) => (a.times[0].start || "").localeCompare(b.times[0].start || ""));
+    return `
+      <div class="today-group">
+        <div class="today-group-head"><span>${escapeHtml(k ? roleLabel(k) : t("scheduling.todayUnknownPosition"))}</span><span>${t("scheduling.todayPositionCount", list.length)}</span></div>
+        ${list.map(e => `
+          <div class="assign-row">
+            <span>${escapeHtml(e.person.name)}</span>
+            <span class="num" style="opacity:0.75;font-size:12px">${e.times.map(x => `${fmtClock(x.start)}–${fmtClock(x.end)}`).join(", ")}</span>
+          </div>`).join("")}
+      </div>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="stub" style="--accent:var(--scheduling)">
+      <div class="tag">${escapeHtml(t("scheduling.todayTotal", uniquePeople))}</div>
+      <div class="meta" style="margin:0 0 8px">${escapeHtml(dateLabel)}</div>
+      <div class="pos-chips">${chips}</div>
+      ${body}
+    </div>`;
 }
 
 function render() {
@@ -1506,6 +1598,8 @@ function render() {
           <button class="remove-btn" onclick="removeShift('${s.id}')">${t("scheduling.removeTicket")}</button>
         </div>
       `).join("");
+
+  renderToday();
 
   // filled shifts
   const filled = shifts.filter(s => s.status === "filled").slice(0, 6);
