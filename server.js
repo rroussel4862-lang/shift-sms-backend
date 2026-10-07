@@ -1330,6 +1330,129 @@ app.post("/api/schedule", requireAuth, async (req, res) => {
   res.status(201).json(scheduleShiftRowToJson(rows[0]));
 });
 
+// ---------- bulk schedule helpers (used by the AI scheduler and its Apply / Undo) ----------
+
+const SCHEDULE_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const SCHEDULE_BULK_MAX = 250;
+const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]; // index = Date#getUTCDay()
+
+function isIsoDate(v) {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const d = new Date(v + "T00:00:00Z");
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
+function weekdayKey(dateStr) {
+  return WEEKDAY_KEYS[new Date(dateStr + "T00:00:00Z").getUTCDay()];
+}
+
+function addDaysIso(dateStr, n) {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+// [startMinute, endMinute) with overnight shifts running past 24:00.
+function shiftRange(start, end) {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  const a = sh * 60 + sm;
+  let b = eh * 60 + em;
+  if (b <= a) b += 24 * 60;
+  return [a, b];
+}
+
+function rangesOverlap(r1, r2) {
+  return r1[0] < r2[1] && r2[0] < r1[1];
+}
+
+// Checks candidate shifts against the staff list, week window, availability and existing shifts.
+// Returns { ok: [...], skipped: [{code, staffName, date}] }. Pure — it writes nothing.
+function checkScheduleCandidates(candidates, { staffById, existing, availabilityByStaff, windowStart, windowEnd }) {
+  const ok = [];
+  const skipped = [];
+  const taken = {}; // `${staffId}|${date}` -> ranges already on the grid or accepted so far
+  existing.forEach((e) => {
+    const k = `${e.staffId}|${e.date}`;
+    (taken[k] = taken[k] || []).push(shiftRange(e.startTime, e.endTime));
+  });
+  for (const c of candidates) {
+    const person = staffById[c && c.staffId];
+    if (!person) { skipped.push({ code: "unknown_staff", staffName: "", date: (c && c.date) || "" }); continue; }
+    const base = { staffName: person.name, date: c.date };
+    if (!isIsoDate(c.date) || (windowStart && c.date < windowStart) || (windowEnd && c.date > windowEnd)) { skipped.push({ ...base, code: "bad_date" }); continue; }
+    if (!SCHEDULE_TIME_RE.test(String(c.startTime)) || !SCHEDULE_TIME_RE.test(String(c.endTime)) || c.startTime === c.endTime) { skipped.push({ ...base, code: "bad_time" }); continue; }
+    const range = shiftRange(c.startTime, c.endTime);
+    if (range[1] - range[0] > 16 * 60) { skipped.push({ ...base, code: "bad_time" }); continue; }
+    const avail = availabilityByStaff && availabilityByStaff[c.staffId];
+    const dayEntry = avail && avail[weekdayKey(c.date)];
+    if (dayEntry && dayEntry.available === false) { skipped.push({ ...base, code: "unavailable" }); continue; }
+    const k = `${c.staffId}|${c.date}`;
+    if ((taken[k] || []).some((r) => rangesOverlap(r, range))) { skipped.push({ ...base, code: "overlap" }); continue; }
+    (taken[k] = taken[k] || []).push(range);
+    const roles = person.roles || [];
+    const role = roles.includes(c.role) ? c.role : (roles[0] || "");
+    ok.push({ staffId: c.staffId, staffName: person.name, date: c.date, startTime: c.startTime, endTime: c.endTime, role });
+  }
+  return { ok, skipped };
+}
+
+async function loadAvailabilityMap(restaurantId, staffIds) {
+  if (staffIds.length === 0) return {};
+  const { rows } = await pool.query("SELECT staff_id, availability FROM staff_availability WHERE restaurant_id = $1 AND staff_id = ANY($2)", [restaurantId, staffIds]);
+  const map = {};
+  rows.forEach((r) => { map[r.staff_id] = r.availability || {}; });
+  return map;
+}
+
+// Insert several shifts at once (all or nothing). Conflicts with what's already on the grid are skipped, not errors.
+app.post("/api/schedule/bulk", requireAuth, async (req, res) => {
+  const list = req.body && req.body.shifts;
+  if (!Array.isArray(list) || list.length === 0) return res.status(400).json({ error: "shifts must be a non-empty array" });
+  if (list.length > SCHEDULE_BULK_MAX) return res.status(400).json({ error: `at most ${SCHEDULE_BULK_MAX} shifts at a time` });
+  const dates = list.map((c) => c && c.date).filter(isIsoDate).sort();
+  if (dates.length === 0) return res.status(400).json({ error: "valid dates are required" });
+  const { rows: staffRows } = await pool.query("SELECT id, name, roles FROM staff WHERE restaurant_id = $1", [req.restaurantId]);
+  const staffById = {};
+  staffRows.forEach((r) => { staffById[r.id] = { name: r.name, roles: r.roles || [] }; });
+  const { rows: existingRows } = await pool.query(
+    "SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3",
+    [req.restaurantId, dates[0], dates[dates.length - 1]]
+  );
+  const existing = existingRows.map(scheduleShiftRowToJson);
+  const { ok, skipped } = checkScheduleCandidates(
+    list.map((c) => ({ staffId: c && c.staffId, date: c && c.date, startTime: c && c.startTime, endTime: c && c.endTime, role: c && c.role })),
+    { staffById, existing, availabilityByStaff: null }
+  );
+  const client = await pool.connect();
+  const created = [];
+  try {
+    await client.query("BEGIN");
+    for (const sh of ok) {
+      const { rows } = await client.query(
+        "INSERT INTO schedule_shifts (id, restaurant_id, staff_id, shift_date, start_time, end_time, role, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
+        [id(), req.restaurantId, sh.staffId, sh.date, sh.startTime, sh.endTime, sh.role || null, Date.now()]
+      );
+      created.push(scheduleShiftRowToJson(rows[0]));
+    }
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+  res.status(201).json({ created, skipped });
+});
+
+// Undo for a bulk insert: removes exactly the shifts that were created.
+app.post("/api/schedule/bulk-delete", requireAuth, async (req, res) => {
+  const ids = req.body && req.body.ids;
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > SCHEDULE_BULK_MAX) return res.status(400).json({ error: "ids must be a non-empty array" });
+  const result = await pool.query("DELETE FROM schedule_shifts WHERE restaurant_id = $1 AND id = ANY($2)", [req.restaurantId, ids.map(String)]);
+  res.json({ deleted: result.rowCount });
+});
+
 app.patch("/api/schedule/:id", requireAuth, async (req, res) => {
   const { rows: existing } = await pool.query("SELECT * FROM schedule_shifts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
   if (existing.length === 0) return res.status(404).json({ error: "shift not found" });
@@ -1487,6 +1610,7 @@ function boardPostToJson(row, extra = {}) {
   };
 }
 
+const LANG_NAMES = { en: "English", fr: "French", es: "Spanish" };
 const BOARD_LANGS = ["en", "fr", "es"];
 
 // {en:{title,body}, fr:{...}, es:{...}} — anything malformed is dropped rather than stored.
@@ -1847,6 +1971,77 @@ app.post("/api/ai/board-translate", requireAuth, aiLimiter, async (req, res) => 
     }
     logActivity({ restaurantId: req.restaurantId, eventType: "ai_answered", detail: "board-translate", durationMs });
     res.json({ translations });
+  } catch (e) {
+    handleAiBoardError(res, req, "ai_failed", e);
+  }
+});
+
+// Manager describes the week in plain words; the AI proposes shifts. NOTHING is saved here — the manager
+// previews the proposal and applies it through /api/schedule/bulk.
+app.post("/api/ai/schedule", requireAuth, aiLimiter, async (req, res) => {
+  if (!aiBoardGuard(req, res)) return;
+  const prompt = String((req.body && req.body.prompt) || "").trim();
+  const weekStart = req.body && req.body.weekStart;
+  if (!prompt) return res.status(400).json({ error: "prompt is required" });
+  if (prompt.length > 1500) return res.status(400).json({ error: "prompt must be 1500 characters or fewer" });
+  if (!isIsoDate(weekStart)) return res.status(400).json({ error: "weekStart (YYYY-MM-DD) is required" });
+  const weekEnd = addDaysIso(weekStart, 6);
+  const wanted = Array.isArray(req.body.staffIds) ? new Set(req.body.staffIds.map(String)) : null;
+
+  try {
+    const { rows: allStaff } = await pool.query("SELECT * FROM staff WHERE restaurant_id = $1", [req.restaurantId]);
+    const pool_ = allStaff.filter((p) => !wanted || wanted.has(p.id));
+    if (pool_.length === 0) return res.status(400).json({ error: "There is no staff to schedule here yet." });
+    const staffById = {};
+    pool_.forEach((p) => { staffById[p.id] = { name: p.name, roles: p.roles || [] }; });
+    const availabilityByStaff = await loadAvailabilityMap(req.restaurantId, pool_.map((p) => p.id));
+    const [existingRes, projRes, salesRes] = await Promise.all([
+      pool.query("SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3", [req.restaurantId, weekStart, weekEnd]),
+      pool.query("SELECT * FROM sales_projections WHERE restaurant_id = $1 AND proj_date >= $2 AND proj_date <= $3", [req.restaurantId, weekStart, weekEnd]),
+      pool.query("SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date >= $2 AND sale_date < $3 ORDER BY sale_date", [req.restaurantId, addDaysIso(weekStart, -28), weekStart]),
+    ]);
+    const existing = existingRes.rows.map(scheduleShiftRowToJson);
+    const dayName = (d) => weekdayKey(d);
+
+    const context = {
+      week: Array.from({ length: 7 }, (_, i) => { const d = addDaysIso(weekStart, i); return { date: d, weekday: dayName(d) }; }),
+      staff: pool_.map((p) => ({
+        id: p.id, name: p.name, roles: p.roles || [],
+        hourlyRate: p.hourly_rate !== null ? Number(p.hourly_rate) : null,
+        availability: Object.fromEntries(Object.entries(availabilityByStaff[p.id] || {}).map(([k, v]) => [k, { free: v.available, note: v.note || "" }])),
+      })),
+      alreadyScheduledThisWeek: existing.filter((e) => staffById[e.staffId]).map((e) => ({ staffId: e.staffId, date: e.date, start: e.startTime, end: e.endTime, role: e.role })),
+      projectedSales: projRes.rows.map((r) => ({ date: r.proj_date instanceof Date ? r.proj_date.toISOString().slice(0, 10) : r.proj_date, amount: r.projected_amount !== null ? Number(r.projected_amount) : null })),
+      recentActualSales: salesRes.rows.map((r) => ({ date: r.sale_date instanceof Date ? r.sale_date.toISOString().slice(0, 10) : r.sale_date, total: r.amount !== null ? Number(r.amount) : null })),
+    };
+
+    const system = `You build weekly shift schedules for a restaurant manager. Follow the manager's request exactly, using ONLY the staff and dates in the data.
+Rules:
+- Use each person's id exactly as given. Never invent staff.
+- A staff member's "role" must be one of their listed roles.
+- Never schedule someone on a weekday where their availability free is false. Respect availability notes (e.g. "after 5pm") as best you can.
+- Do not duplicate or overlap shifts in "alreadyScheduledThisWeek"; fill around them.
+- One shift per person per day unless asked otherwise. Keep shifts between 3 and 12 hours. Avoid more than 40 hours a week per person unless asked.
+- Use projected/recent sales to size crews when the manager asks for it; busier days get more people.
+- Times are 24-hour "HH:MM". Dates are YYYY-MM-DD and must fall inside the week.
+- If the request can't be fully met (not enough staff, conflicts), schedule what you can and say so briefly in "summary".
+Reply with ONLY a JSON object: {"summary":"<one or two sentences, in ${LANG_NAMES[req.body.lang] || "English"}>","shifts":[{"staffId":"","date":"","startTime":"","endTime":"","role":""}]}.
+
+DATA:
+${JSON.stringify(context)}`;
+
+    const { text, durationMs } = await callClaude({ system, user: prompt, maxTokens: 6000 });
+    const parsed = extractJsonObject(text);
+    if (!parsed || !Array.isArray(parsed.shifts)) {
+      logActivity({ restaurantId: req.restaurantId, eventType: "ai_failed", level: "error", detail: "schedule: unparseable reply", durationMs });
+      return res.status(502).json({ error: "The AI agent couldn't build that schedule — try rephrasing." });
+    }
+    const candidates = parsed.shifts.slice(0, SCHEDULE_BULK_MAX).map((c) => ({
+      staffId: c && c.staffId, date: c && c.date, startTime: c && c.startTime, endTime: c && c.endTime, role: c && c.role,
+    }));
+    const { ok, skipped } = checkScheduleCandidates(candidates, { staffById, existing, availabilityByStaff, windowStart: weekStart, windowEnd: weekEnd });
+    logActivity({ restaurantId: req.restaurantId, eventType: "ai_answered", detail: `schedule: ${prompt.slice(0, 120)} (${ok.length} shifts)`, durationMs });
+    res.json({ summary: String(parsed.summary || "").slice(0, 600), shifts: ok, skipped });
   } catch (e) {
     handleAiBoardError(res, req, "ai_failed", e);
   }

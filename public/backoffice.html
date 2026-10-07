@@ -134,6 +134,17 @@
     --grid-text: #23261F;
     --grid-dim: #7A7566;
   }
+  .ai-sched { background: var(--panel); border: 1px solid var(--rail); border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; }
+  .ai-sched h3 { margin: 0 0 4px; font-size: 14px; font-family: 'Oswald', sans-serif; letter-spacing: 0.03em; text-transform: uppercase; color: var(--amber); }
+  .ai-sched .hint { color: var(--text-dim); font-size: 12.5px; margin-bottom: 8px; line-height: 1.45; }
+  .ai-sched textarea { width: 100%; min-height: 64px; resize: vertical; background: var(--ink); color: var(--text-bright); border: 1px solid var(--rail); border-radius: 6px; padding: 9px 10px; font-family: inherit; font-size: 13.5px; box-sizing: border-box; }
+  .ai-sched .row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+  .ai-sched .summary { font-size: 13px; line-height: 1.5; margin: 12px 0 8px; color: var(--text-bright); }
+  .ai-sched .prop-day { margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim); }
+  .ai-sched .prop-line { display: flex; gap: 10px; font-size: 12.5px; padding: 3px 0; border-bottom: 1px dashed var(--rail); }
+  .ai-sched .prop-line .nm { flex: 1; } .ai-sched .prop-line .rl { color: var(--text-dim); }
+  .ai-sched .skipped { margin-top: 10px; font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+  .ai-sched .done { margin-top: 12px; font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--text-bright); }
   .week-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
   .week-label { font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 600; }
   .house-toggle { display: flex; gap: 6px; margin-bottom: 14px; }
@@ -319,6 +330,14 @@
         <button class="ghost" onclick="goToThisWeek()" data-i18n="sched.today">This week</button>
       </div>
 
+      <div class="ai-sched" id="aiSched">
+        <h3 data-i18n="sched.aiTitle">✨ AI scheduler</h3>
+        <div class="hint" data-i18n="sched.aiHint">Describe the week in plain words. The AI fills the grid for the staff shown below, respecting their availability. You'll preview it before anything is saved.</div>
+        <textarea id="aiSchedPrompt" maxlength="1500" data-i18n-ph="sched.aiPh" placeholder="e.g. Cover lunch and dinner every day, 3 servers on Friday and Saturday nights, nobody over 40 hours."></textarea>
+        <div class="row"><button class="action" id="aiSchedBtn" onclick="buildAiSchedule()" data-i18n="sched.aiBuild">Build schedule</button></div>
+        <div id="aiSchedResult"></div>
+      </div>
+
       <div class="copy-bar" id="copyBar">
         <span data-i18n="sched.copied">Shift copied — click "Paste here" on any cell to duplicate it.</span>
         <button onclick="cancelCopy()" data-i18n="common.cancel">Cancel</button>
@@ -369,6 +388,13 @@ I18N.add({
     "sched.copied": "Shift copied — click \"Paste here\" on any cell to duplicate it.",
     "sched.staffCol": "Staff", "sched.total": "Total", "sched.aiForecast": "AI forecast", "sched.notYet": "not yet available", "sched.actual": "Actual sales", "sched.projected": "Projected sales",
     "sched.dailyTotals": "Daily totals", "sched.laborIndex": "Labor cost index",
+    "sched.aiTitle": "✨ AI scheduler", "sched.aiHint": "Describe the week in plain words. The AI fills the grid for the staff shown below, respecting their availability. You'll preview it before anything is saved.",
+    "sched.aiPh": "e.g. Cover lunch and dinner every day, 3 servers on Friday and Saturday nights, nobody over 40 hours.", "sched.aiBuild": "Build schedule", "sched.aiThinking": "Building…",
+    "sched.aiNeedPrompt": "Describe what you need first", "sched.aiNoShifts": "The AI didn't propose any shifts — try adding more detail.",
+    "sched.aiProposal": n => `${n} shift${n === 1 ? "" : "s"} proposed — not saved yet`, "sched.aiApply": "Apply to grid", "sched.aiDiscard": "Discard",
+    "sched.aiApplied": n => `${n} shift${n === 1 ? "" : "s"} added to the grid.`, "sched.aiUndo": "Undo", "sched.aiUndone": "Undone — the shifts were removed.",
+    "sched.aiSkipped": "Left out:", "sched.aiHours": (h, c) => `${h}h total · about $${c} labor`,
+    "sched.skip.unavailable": "marked unavailable", "sched.skip.overlap": "already has a shift then", "sched.skip.bad_time": "invalid times", "sched.skip.bad_date": "date outside this week", "sched.skip.unknown_staff": "unknown staff member",
     "sched.noStaff": h => `No staff tagged with ${h} roles yet. Add roles in the Staff tab.`,
     "sched.hoursWeek": h => `${h} hours this week`, "sched.costWeek": h => `${h} labor cost this week`,
     "sched.rolePh": "Role (optional)", "sched.addShift": "+ Add", "sched.paste": "Paste here", "common.cancel": "Cancel", "common.save": "Save", "common.copy": "Copy", "common.delete": "Delete",
@@ -396,6 +422,13 @@ I18N.add({
     "sched.copied": "Quart copié — cliquez sur « Coller ici » dans n'importe quelle case pour le dupliquer.",
     "sched.staffCol": "Personnel", "sched.total": "Total", "sched.aiForecast": "Prévision IA", "sched.notYet": "pas encore disponible", "sched.actual": "Ventes réelles", "sched.projected": "Ventes prévues",
     "sched.dailyTotals": "Totaux quotidiens", "sched.laborIndex": "Indice du coût de main-d'œuvre",
+    "sched.aiTitle": "✨ Planificateur IA", "sched.aiHint": "Décrivez la semaine en mots simples. L'IA remplit la grille pour le personnel affiché ci-dessous, selon leurs disponibilités. Vous verrez un aperçu avant l'enregistrement.",
+    "sched.aiPh": "ex. Couvrir le midi et le soir tous les jours, 3 serveurs les vendredis et samedis soir, personne au-delà de 40 heures.", "sched.aiBuild": "Créer l'horaire", "sched.aiThinking": "Création…",
+    "sched.aiNeedPrompt": "Décrivez d'abord ce qu'il vous faut", "sched.aiNoShifts": "L'IA n'a proposé aucun quart — ajoutez plus de détails.",
+    "sched.aiProposal": n => `${n} quart${n === 1 ? "" : "s"} proposé${n === 1 ? "" : "s"} — pas encore enregistré${n === 1 ? "" : "s"}`, "sched.aiApply": "Appliquer à la grille", "sched.aiDiscard": "Annuler",
+    "sched.aiApplied": n => `${n} quart${n === 1 ? "" : "s"} ajouté${n === 1 ? "" : "s"} à la grille.`, "sched.aiUndo": "Annuler l'ajout", "sched.aiUndone": "Annulé — les quarts ont été retirés.",
+    "sched.aiSkipped": "Exclus :", "sched.aiHours": (h, c) => `${h} h au total · environ ${c} $ de main-d'œuvre`,
+    "sched.skip.unavailable": "marqué indisponible", "sched.skip.overlap": "a déjà un quart à ce moment", "sched.skip.bad_time": "heures invalides", "sched.skip.bad_date": "date hors de cette semaine", "sched.skip.unknown_staff": "employé inconnu",
     "sched.noStaff": h => `Aucun employé n'a de poste en ${h} pour l'instant. Ajoutez des postes dans l'onglet Personnel.`,
     "sched.hoursWeek": h => `Heures ${h} cette semaine`, "sched.costWeek": h => `Coût de main-d'œuvre ${h} cette semaine`,
     "sched.rolePh": "Poste (facultatif)", "sched.addShift": "+ Ajouter", "sched.paste": "Coller ici", "common.cancel": "Annuler", "common.save": "Enregistrer", "common.copy": "Copier", "common.delete": "Supprimer",
@@ -423,6 +456,13 @@ I18N.add({
     "sched.copied": "Turno copiado — haz clic en «Pegar aquí» en cualquier celda para duplicarlo.",
     "sched.staffCol": "Personal", "sched.total": "Total", "sched.aiForecast": "Pronóstico IA", "sched.notYet": "aún no disponible", "sched.actual": "Ventas reales", "sched.projected": "Ventas proyectadas",
     "sched.dailyTotals": "Totales diarios", "sched.laborIndex": "Índice de costo laboral",
+    "sched.aiTitle": "✨ Planificador IA", "sched.aiHint": "Describe la semana con tus palabras. La IA llena la cuadrícula del personal mostrado abajo, respetando su disponibilidad. Verás una vista previa antes de guardar nada.",
+    "sched.aiPh": "ej. Cubrir almuerzo y cena todos los días, 3 meseros los viernes y sábados por la noche, nadie más de 40 horas.", "sched.aiBuild": "Crear horario", "sched.aiThinking": "Creando…",
+    "sched.aiNeedPrompt": "Describe primero lo que necesitas", "sched.aiNoShifts": "La IA no propuso ningún turno — agrega más detalles.",
+    "sched.aiProposal": n => `${n} turno${n === 1 ? "" : "s"} propuesto${n === 1 ? "" : "s"} — aún sin guardar`, "sched.aiApply": "Aplicar a la cuadrícula", "sched.aiDiscard": "Descartar",
+    "sched.aiApplied": n => `${n} turno${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} a la cuadrícula.`, "sched.aiUndo": "Deshacer", "sched.aiUndone": "Deshecho — se quitaron los turnos.",
+    "sched.aiSkipped": "Omitidos:", "sched.aiHours": (h, c) => `${h} h en total · unos $${c} de mano de obra`,
+    "sched.skip.unavailable": "marcado como no disponible", "sched.skip.overlap": "ya tiene un turno a esa hora", "sched.skip.bad_time": "horas no válidas", "sched.skip.bad_date": "fecha fuera de esta semana", "sched.skip.unknown_staff": "empleado desconocido",
     "sched.noStaff": h => `Aún no hay personal con puestos de ${h}. Agrega puestos en la pestaña Personal.`,
     "sched.hoursWeek": h => `Horas de ${h} esta semana`, "sched.costWeek": h => `Costo laboral de ${h} esta semana`,
     "sched.rolePh": "Puesto (opcional)", "sched.addShift": "+ Agregar", "sched.paste": "Pegar aquí", "common.cancel": "Cancelar", "common.save": "Guardar", "common.copy": "Copiar", "common.delete": "Eliminar",
@@ -654,6 +694,90 @@ function computeHours(start, end) {
   return (endMin - startMin) / 60;
 }
 
+/* ---------- AI scheduler: describe the week, preview the proposal, apply it to the grid (with undo) ---------- */
+let aiProposal = null;   // { summary, shifts, skipped } — not saved yet
+let aiApplied = null;    // { ids, count } — the last batch added, so it can be undone
+
+function visibleStaffForView() {
+  const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
+  return staff.filter(p => { const r = (p.roles || [])[0]; return r && activeRoles.includes(r); });
+}
+
+function renderAiSched() {
+  const box = document.getElementById("aiSchedResult");
+  if (!box) return;
+  if (aiApplied) {
+    box.innerHTML = `<div class="done"><span>${escapeHtml(tr("sched.aiApplied", aiApplied.count))}</span>
+      <button class="ghost" onclick="undoAiSchedule()">${escapeHtml(tr("sched.aiUndo"))}</button></div>`;
+    return;
+  }
+  if (!aiProposal) { box.innerHTML = ""; return; }
+  const byId = {}; staff.forEach(p => { byId[p.id] = p; });
+  const byDay = {};
+  aiProposal.shifts.forEach(sh => { (byDay[sh.date] = byDay[sh.date] || []).push(sh); });
+  let hours = 0, cost = 0;
+  aiProposal.shifts.forEach(sh => { const h = computeHours(sh.startTime, sh.endTime); hours += h; cost += h * ((byId[sh.staffId] && byId[sh.staffId].hourlyRate) || 0); });
+  const days = Object.keys(byDay).sort().map(d => {
+    const dt = new Date(d + "T00:00:00");
+    const label = `${tr("days." + ((dt.getDay() + 6) % 7))} ${dt.getMonth() + 1}/${dt.getDate()}`;
+    const lines = byDay[d].sort((a, b) => a.startTime.localeCompare(b.startTime)).map(sh =>
+      `<div class="prop-line"><span class="nm">${escapeHtml(sh.staffName)}</span><span>${escapeHtml(formatTime(sh.startTime))} – ${escapeHtml(formatTime(sh.endTime))}</span><span class="rl">${escapeHtml(sh.role || "")}</span></div>`).join("");
+    return `<div class="prop-day">${escapeHtml(label)}</div>${lines}`;
+  }).join("");
+  const skipped = aiProposal.skipped.length === 0 ? "" :
+    `<div class="skipped">${escapeHtml(tr("sched.aiSkipped"))} ` + aiProposal.skipped.map(k =>
+      `${escapeHtml(k.staffName || "?")} ${escapeHtml(k.date || "")} (${escapeHtml(tr("sched.skip." + k.code))})`).join("; ") + `</div>`;
+  box.innerHTML = `
+    ${aiProposal.summary ? `<div class="summary">${escapeHtml(aiProposal.summary)}</div>` : ""}
+    ${aiProposal.shifts.length === 0 ? `<div class="skipped">${escapeHtml(tr("sched.aiNoShifts"))}</div>` : `
+      <div class="summary"><b>${escapeHtml(tr("sched.aiProposal", aiProposal.shifts.length))}</b> · ${escapeHtml(tr("sched.aiHours", hours.toFixed(1), cost.toFixed(0)))}</div>
+      ${days}`}
+    ${skipped}
+    <div class="row">
+      ${aiProposal.shifts.length ? `<button class="action" id="aiApplyBtn" onclick="applyAiSchedule()">${escapeHtml(tr("sched.aiApply"))}</button>` : ""}
+      <button class="ghost" onclick="aiProposal=null; renderAiSched()">${escapeHtml(tr("sched.aiDiscard"))}</button>
+    </div>`;
+}
+
+async function buildAiSchedule() {
+  const promptEl = document.getElementById("aiSchedPrompt");
+  const prompt = promptEl.value.trim();
+  if (!prompt) return showBanner(tr("sched.aiNeedPrompt"), "warn");
+  const btn = document.getElementById("aiSchedBtn");
+  btn.disabled = true; btn.textContent = tr("sched.aiThinking");
+  aiApplied = null;
+  const result = await api("/api/ai/schedule", {
+    method: "POST",
+    body: JSON.stringify({ prompt, weekStart: toISODate(weekStart), staffIds: visibleStaffForView().map(p => p.id), lang: I18N.lang }),
+  });
+  btn.disabled = false; btn.textContent = tr("sched.aiBuild");
+  if (!result.ok) { aiProposal = null; renderAiSched(); return showBanner(result.error, "warn"); }
+  aiProposal = result.data;
+  renderAiSched();
+}
+
+async function applyAiSchedule() {
+  if (!aiProposal || aiProposal.shifts.length === 0) return;
+  const btn = document.getElementById("aiApplyBtn");
+  if (btn) btn.disabled = true;
+  const result = await api("/api/schedule/bulk", { method: "POST", body: JSON.stringify({ shifts: aiProposal.shifts }) });
+  if (!result.ok) { if (btn) btn.disabled = false; return showBanner(result.error, "warn"); }
+  aiApplied = { ids: result.data.created.map(c => c.id), count: result.data.created.length };
+  aiProposal = null;
+  renderAiSched();
+  loadSchedule();
+}
+
+async function undoAiSchedule() {
+  if (!aiApplied) return;
+  const result = await api("/api/schedule/bulk-delete", { method: "POST", body: JSON.stringify({ ids: aiApplied.ids }) });
+  if (!result.ok) return showBanner(result.error, "warn");
+  aiApplied = null;
+  renderAiSched();
+  showBanner(tr("sched.aiUndone"), "success");
+  loadSchedule();
+}
+
 function initSchedule() {
   loadSchedule();
 }
@@ -683,6 +807,7 @@ async function loadSchedule() {
 
 function setHouseView(view) {
   houseView = view;
+  aiProposal = null; aiApplied = null; renderAiSched();
   document.getElementById("houseBtnFoh").classList.toggle("active", view === "foh");
   document.getElementById("houseBtnBoh").classList.toggle("active", view === "boh");
   addingCell = null;
@@ -765,13 +890,13 @@ async function onDrop(e, staffId, dateStr) {
 
 function shiftWeek(delta) {
   weekStart.setDate(weekStart.getDate() + delta * 7);
-  addingCell = null;
+  addingCell = null; aiProposal = null; aiApplied = null; renderAiSched();
   loadSchedule();
 }
 
 function goToThisWeek() {
   weekStart = getMonday(new Date());
-  addingCell = null;
+  addingCell = null; aiProposal = null; aiApplied = null; renderAiSched();
   loadSchedule();
 }
 
@@ -988,6 +1113,7 @@ I18N.onChange(() => {
   h.textContent = window.__restaurantName ? tr("headingOf", window.__restaurantName) : tr("heading");
   renderStaffTable();
   if (scheduleLoaded) renderScheduleGrid();
+  renderAiSched();
   I18N.apply();
 });
 I18N.apply();
