@@ -55,8 +55,12 @@
   header p { color: var(--text-dim); font-size: 11px; margin: 2px 0 0; }
   #logoutBtn { background: none; border: 1px solid var(--rail); color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-family: inherit; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
 
-  .tabs { display: flex; gap: 6px; padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--rail); }
-  .tab-btn { flex: 1; background: var(--panel-light); border: 1px solid var(--rail); color: var(--text-dim); font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; padding: 10px 4px; border-radius: 6px; cursor: pointer; }
+  .tabs { display: flex; gap: 6px; padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--rail); overflow-x: auto; }
+  .tab-btn { flex: 1 0 auto; white-space: nowrap; position: relative; background: var(--panel-light); border: 1px solid var(--rail); color: var(--text-dim); font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; padding: 10px 4px; border-radius: 6px; cursor: pointer; }
+  .tab-badge { display: inline-block; min-width: 17px; padding: 1px 5px; margin-left: 6px; border-radius: 9px; background: #C8473A; color: #fff; font-size: 10.5px; line-height: 14px; font-family: 'IBM Plex Mono', monospace; vertical-align: 1px; }
+  .tab-badge:empty { display: none; }
+  .tab-btn.active .tab-badge { background: var(--ink); color: var(--amber); }
+  .ticket .note.board-body { white-space: pre-wrap; margin-top: 4px; }
   .tab-btn.active { background: var(--amber); color: var(--ink); border-color: var(--amber); }
 
   main { padding: 16px; max-width: 480px; margin: 0 auto; }
@@ -124,6 +128,7 @@
     <button class="tab-btn active" id="tabBtnSchedule" onclick="switchStaffTab('schedule')" data-i18n="tabs.schedule">My Schedule</button>
     <button class="tab-btn" id="tabBtnAvailability" onclick="switchStaffTab('availability')" data-i18n="tabs.availability">Availability</button>
     <button class="tab-btn" id="tabBtnOpen" onclick="switchStaffTab('open')" data-i18n="tabs.open">Open Shifts</button>
+    <button class="tab-btn" id="tabBtnBoard" onclick="switchStaffTab('board')"><span data-i18n="tabs.board">Board</span><span class="tab-badge" id="boardBadge"></span></button>
   </div>
 
   <main>
@@ -143,6 +148,13 @@
       </div>
     </div>
 
+    <div class="tab-panel" id="panelBoard">
+      <div class="card">
+        <h2 data-i18n="board.h2">Team board</h2>
+        <div id="boardList"><p class="empty" data-i18n="schedule.loading">Loading…</p></div>
+      </div>
+    </div>
+
     <div class="tab-panel" id="panelOpen">
       <div class="card">
         <h2 data-i18n="open.h2">Open shifts you can take</h2>
@@ -156,6 +168,8 @@
 I18N.add({
   en: {
     title: "My Shifts — Open Shift Rail",
+    "tabs.board": "Board", "board.h2": "Team board", "board.empty": "Nothing posted yet.", "board.pinned": "Pinned", "board.new": "New",
+    "board.gotIt": "Got it", "board.gotItDone": "✓ Got it", "board.edited": "edited",
     "role.Line Cook": "Line Cook", "role.Server": "Server", "role.Host": "Host", "role.Bartender": "Bartender", "role.Busser": "Busser", "role.Dishwasher": "Dishwasher", "role.Prep Cook": "Prep Cook", "role.Expo": "Expo",
     "landing.title": "My Shifts", "landing.sub": "Your schedule, your availability, and open shifts you can pick up — log in to get started.",
     "landing.email": "Email", "landing.password": "Password", "landing.login": "Log in",
@@ -175,6 +189,8 @@ I18N.add({
   },
   fr: {
     title: "Mes quarts — Open Shift Rail",
+    "tabs.board": "Babillard", "board.h2": "Babillard d'équipe", "board.empty": "Rien de publié pour l'instant.", "board.pinned": "Épinglé", "board.new": "Nouveau",
+    "board.gotIt": "C'est lu", "board.gotItDone": "✓ C'est lu", "board.edited": "modifié",
     "role.Line Cook": "Cuisinier de ligne", "role.Server": "Serveur/Serveuse", "role.Host": "Hôte/Hôtesse", "role.Bartender": "Barman/Barmaid", "role.Busser": "Aide-serveur", "role.Dishwasher": "Plongeur/Plongeuse", "role.Prep Cook": "Cuisinier de préparation", "role.Expo": "Expéditeur",
     "landing.title": "Mes quarts", "landing.sub": "Votre horaire, vos disponibilités et les quarts ouverts que vous pouvez prendre — connectez-vous pour commencer.",
     "landing.email": "Courriel", "landing.password": "Mot de passe", "landing.login": "Se connecter",
@@ -194,6 +210,8 @@ I18N.add({
   },
   es: {
     title: "Mis turnos — Open Shift Rail",
+    "tabs.board": "Tablero", "board.h2": "Tablero del equipo", "board.empty": "Aún no hay publicaciones.", "board.pinned": "Fijado", "board.new": "Nuevo",
+    "board.gotIt": "Enterado", "board.gotItDone": "✓ Enterado", "board.edited": "editado",
     "role.Line Cook": "Cocinero de línea", "role.Server": "Mesero/a", "role.Host": "Anfitrión/a", "role.Bartender": "Bartender", "role.Busser": "Ayudante de mesero", "role.Dishwasher": "Lavaplatos", "role.Prep Cook": "Cocinero de preparación", "role.Expo": "Expo",
     "landing.title": "Mis turnos", "landing.sub": "Tu horario, tu disponibilidad y los turnos abiertos que puedes tomar — inicia sesión para empezar.",
     "landing.email": "Correo", "landing.password": "Contraseña", "landing.login": "Iniciar sesión",
@@ -218,6 +236,7 @@ const roleLabel = r => { const k = "role." + r; const v = I18N.t(k); return v ==
 const dayLabel = k => I18N.t("days." + k);
 
 let myAvailability = {};
+let currentStaffTab = "schedule";
 const DAYS = DAY_KEYS.map(k => ({ key: k }));
 
 function showBanner(text, tone) {
@@ -264,12 +283,13 @@ async function logout() {
 }
 
 function switchStaffTab(name) {
-  document.getElementById("panelSchedule").classList.toggle("active", name === "schedule");
-  document.getElementById("panelAvailability").classList.toggle("active", name === "availability");
-  document.getElementById("panelOpen").classList.toggle("active", name === "open");
-  document.getElementById("tabBtnSchedule").classList.toggle("active", name === "schedule");
-  document.getElementById("tabBtnAvailability").classList.toggle("active", name === "availability");
-  document.getElementById("tabBtnOpen").classList.toggle("active", name === "open");
+  ["schedule", "availability", "open", "board"].forEach(n => {
+    const cap = n.charAt(0).toUpperCase() + n.slice(1);
+    document.getElementById("panel" + cap).classList.toggle("active", name === n);
+    document.getElementById("tabBtn" + cap).classList.toggle("active", name === n);
+  });
+  currentStaffTab = name;
+  if (name === "board") openBoard(); else boardNewIds = new Set();
 }
 
 function enterApp(name) {
@@ -280,6 +300,8 @@ function enterApp(name) {
   loadSchedule();
   loadAvailability();
   loadOpenShifts();
+  loadBoard();
+  if (!window.__boardTimer) window.__boardTimer = setInterval(loadBoard, 30000);
 }
 
 async function loadSchedule() {
@@ -376,11 +398,63 @@ async function claimShift(shiftId) {
 }
 
 let lastShifts = null;
+// ---------- team board ----------
+let boardPosts = [];
+let boardNewIds = new Set(); // posts that were new when the staff member opened the board (kept highlighted while they read)
+
+function renderBoardBadge(unread) {
+  document.getElementById("boardBadge").textContent = unread > 0 && currentStaffTab !== "board" ? String(unread) : "";
+}
+
+function renderBoard() {
+  const list = document.getElementById("boardList");
+  list.innerHTML = boardPosts.length === 0
+    ? `<p class="empty">${tr("board.empty")}</p>`
+    : boardPosts.map(p => {
+        const stamp = p.pinned ? tr("board.pinned") : (boardNewIds.has(p.id) ? tr("board.new") : "");
+        const when = new Date(p.createdAt).toLocaleString(I18N.lang === "fr" ? "fr-CA" : I18N.lang === "es" ? "es-US" : "en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        return `
+          <div class="ticket">
+            ${stamp ? `<div class="stamp">${escapeHtml(stamp)}</div>` : ""}
+            ${p.title ? `<h3>${escapeHtml(p.title)}</h3>` : ""}
+            <div class="meta">${escapeHtml(when)}${p.updatedAt > p.createdAt + 1000 ? ` · ${tr("board.edited")}` : ""}</div>
+            <div class="note board-body">${escapeHtml(p.body)}</div>
+            <button class="claim-btn" ${p.acked ? "disabled" : ""} onclick="ackBoard('${p.id}')">${p.acked ? tr("board.gotItDone") : tr("board.gotIt")}</button>
+          </div>`;
+      }).join("");
+}
+
+async function loadBoard() {
+  const result = await api("/api/staff-auth/board");
+  if (!result.ok) return;
+  boardPosts = result.data.posts;
+  if (currentStaffTab === "board") {
+    boardPosts.filter(p => p.isNew).forEach(p => boardNewIds.add(p.id));
+    if (result.data.unreadCount > 0) api("/api/staff-auth/board/seen", { method: "POST" });
+    renderBoard();
+  } else {
+    renderBoard();
+  }
+  renderBoardBadge(result.data.unreadCount);
+}
+
+async function openBoard() {
+  document.getElementById("boardBadge").textContent = "";
+  await loadBoard(); // marks anything new as seen once the tab is open
+}
+
+async function ackBoard(postId) {
+  const result = await api(`/api/staff-auth/board/${postId}/ack`, { method: "POST" });
+  if (!result.ok) return showBanner(result.error, "warn");
+  const p = boardPosts.find(x => x.id === postId);
+  if (p) p.acked = true;
+  renderBoard();
+}
 I18N.onChange(() => {
   if (document.getElementById("appShell").style.display === "block") {
     const h = document.getElementById("staffHeading");
     h.textContent = window.__myName ? tr("app.hi", window.__myName.split(" ")[0]) : tr("app.myShifts");
-    loadSchedule(); renderAvailability(); loadOpenShifts();
+    loadSchedule(); renderAvailability(); loadOpenShifts(); renderBoard();
   }
 });
 I18N.apply();

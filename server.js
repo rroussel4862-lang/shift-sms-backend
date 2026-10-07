@@ -213,6 +213,29 @@ async function initDb() {
     );
   `);
 
+  // Team message board: manager posts shown to every staff member, with a per-person "Got it"
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS board_posts (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      title TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL,
+      pinned BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS board_posts_restaurant_idx ON board_posts (restaurant_id);`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS board_acks (
+      post_id TEXT NOT NULL REFERENCES board_posts(id) ON DELETE CASCADE,
+      staff_id TEXT NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+      acked_at BIGINT NOT NULL,
+      PRIMARY KEY (post_id, staff_id)
+    );
+  `);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS board_seen_at BIGINT;`);
+
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS password_hash TEXT;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS claim_token TEXT UNIQUE;`);
@@ -1443,6 +1466,129 @@ app.put("/api/actual-sales", requireAuth, async (req, res) => {
     [newId, req.restaurantId, date, amt, foodVal, bevVal, (source || "manual").trim(), Date.now()]
   );
   res.json(actualSalesRowToJson(rows[0]));
+});
+
+// ---------- team message board (managers post, every staff member reads) ----------
+
+const BOARD_TITLE_MAX = 120;
+const BOARD_BODY_MAX = 2000;
+
+function boardPostToJson(row, extra = {}) {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    pinned: row.pinned,
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+    ...extra,
+  };
+}
+
+function parseBoardFields(body, { requireBody }) {
+  const out = {};
+  const { title, body: text, pinned } = body || {};
+  if (title !== undefined) {
+    const t = String(title || "").trim();
+    if (t.length > BOARD_TITLE_MAX) return { error: `title must be ${BOARD_TITLE_MAX} characters or fewer` };
+    out.title = t;
+  }
+  if (text !== undefined || requireBody) {
+    const b = String(text || "").trim();
+    if (!b) return { error: "message is required" };
+    if (b.length > BOARD_BODY_MAX) return { error: `message must be ${BOARD_BODY_MAX} characters or fewer` };
+    out.body = b;
+  }
+  if (pinned !== undefined) out.pinned = !!pinned;
+  return { fields: out };
+}
+
+// Manager: every post, pinned first, with how many staff have tapped "Got it".
+app.get("/api/board", requireAuth, async (req, res) => {
+  const { rows: posts } = await pool.query(
+    "SELECT * FROM board_posts WHERE restaurant_id = $1 ORDER BY pinned DESC, created_at DESC",
+    [req.restaurantId]
+  );
+  const { rows: acks } = await pool.query(
+    `SELECT a.post_id, a.staff_id FROM board_acks a JOIN board_posts p ON p.id = a.post_id WHERE p.restaurant_id = $1`,
+    [req.restaurantId]
+  );
+  const { rows: counts } = await pool.query(
+    "SELECT COUNT(*) AS n FROM staff WHERE restaurant_id = $1 AND password_hash IS NOT NULL",
+    [req.restaurantId]
+  );
+  const loginCount = Number(counts[0].n);
+  res.json(
+    posts.map((p) => {
+      const ackedBy = acks.filter((a) => a.post_id === p.id).map((a) => a.staff_id);
+      return boardPostToJson(p, { ackedBy, ackCount: ackedBy.length, loginCount });
+    })
+  );
+});
+
+app.post("/api/board", requireAuth, async (req, res) => {
+  const parsed = parseBoardFields(req.body, { requireBody: true });
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const f = parsed.fields;
+  const now = Date.now();
+  const { rows } = await pool.query(
+    "INSERT INTO board_posts (id, restaurant_id, title, body, pinned, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$6) RETURNING *",
+    [id(), req.restaurantId, f.title || "", f.body, !!f.pinned, now]
+  );
+  res.status(201).json(boardPostToJson(rows[0], { ackedBy: [], ackCount: 0 }));
+});
+
+app.patch("/api/board/:id", requireAuth, async (req, res) => {
+  const parsed = parseBoardFields(req.body, { requireBody: false });
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const f = parsed.fields;
+  const { rows: existing } = await pool.query("SELECT * FROM board_posts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  if (existing.length === 0) return res.status(404).json({ error: "post not found" });
+  const cur = existing[0];
+  const { rows } = await pool.query(
+    "UPDATE board_posts SET title = $1, body = $2, pinned = $3, updated_at = $4 WHERE id = $5 AND restaurant_id = $6 RETURNING *",
+    [f.title !== undefined ? f.title : cur.title, f.body !== undefined ? f.body : cur.body, f.pinned !== undefined ? f.pinned : cur.pinned, Date.now(), req.params.id, req.restaurantId]
+  );
+  res.json(boardPostToJson(rows[0]));
+});
+
+app.delete("/api/board/:id", requireAuth, async (req, res) => {
+  const result = await pool.query("DELETE FROM board_posts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  if (result.rowCount === 0) return res.status(404).json({ error: "post not found" });
+  res.json({ ok: true });
+});
+
+// Staff: the board for their own restaurant. Posts newer than the last time they opened the board are "new".
+app.get("/api/staff-auth/board", requireStaffAuth, async (req, res) => {
+  const { rows: me } = await pool.query("SELECT board_seen_at FROM staff WHERE id = $1 AND restaurant_id = $2", [req.staffId, req.restaurantId]);
+  if (me.length === 0) return res.status(401).json({ error: "not logged in" });
+  const seenAt = me[0].board_seen_at !== null ? Number(me[0].board_seen_at) : 0;
+  const { rows: posts } = await pool.query(
+    "SELECT * FROM board_posts WHERE restaurant_id = $1 ORDER BY pinned DESC, created_at DESC",
+    [req.restaurantId]
+  );
+  const { rows: mine } = await pool.query(
+    `SELECT a.post_id FROM board_acks a JOIN board_posts p ON p.id = a.post_id WHERE a.staff_id = $1 AND p.restaurant_id = $2`,
+    [req.staffId, req.restaurantId]
+  );
+  const acked = new Set(mine.map((a) => a.post_id));
+  const out = posts.map((p) => boardPostToJson(p, { isNew: Number(p.updated_at) > seenAt, acked: acked.has(p.id) }));
+  res.json({ posts: out, unreadCount: out.filter((p) => p.isNew).length });
+});
+
+app.post("/api/staff-auth/board/seen", requireStaffAuth, async (req, res) => {
+  await pool.query("UPDATE staff SET board_seen_at = $1 WHERE id = $2 AND restaurant_id = $3", [Date.now(), req.staffId, req.restaurantId]);
+  res.json({ ok: true });
+});
+
+app.post("/api/staff-auth/board/:id/ack", requireStaffAuth, async (req, res) => {
+  const { rows } = await pool.query("SELECT id FROM board_posts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  if (rows.length === 0) return res.status(404).json({ error: "post not found" });
+  await pool.query(
+    "INSERT INTO board_acks (post_id, staff_id, acked_at) VALUES ($1,$2,$3) ON CONFLICT (post_id, staff_id) DO NOTHING",
+    [req.params.id, req.staffId, Date.now()]
+  );
+  res.json({ ok: true, acked: true });
 });
 
 // ---------- AI agent (Communications) ----------

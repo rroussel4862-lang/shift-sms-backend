@@ -487,6 +487,9 @@
   .chat-thinking { color: var(--text-dim); font-size: 12.5px; font-style: italic; padding: 4px 0; }
 
   /* ---------- Training + Payroll & Sales (paper "stub" cards, per mockup) ---------- */
+  .board-header { margin: 20px 0 10px; font-size: 14px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; font-family: 'Oswald', sans-serif; font-weight: 500; }
+  .board-pin { display: flex; align-items: center; gap: 8px; margin-top: 10px; text-transform: none; letter-spacing: 0; font-size: 13px; }
+  .board-pin input { width: auto; }
   .pos-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
   .pos-chip { font-size: 12px; border: 1px solid rgba(35,38,31,0.3); border-radius: 999px; padding: 3px 10px; background: rgba(35,38,31,0.05); }
   .pos-chip b { font-family: 'Oswald', sans-serif; font-size: 13px; margin-right: 2px; }
@@ -787,6 +790,19 @@
       <h2 data-i18n="comms.h2">Team messages & AI agent</h2>
       <p data-i18n="comms.desc">Ask about staffing, labor cost, hiring, or anything else — answered from your restaurant's real data, not a canned script.</p>
     </div>
+    <div class="stub plain" style="--accent:var(--comms)" id="boardCard">
+      <div class="tag" data-i18n="board.tag">Team board</div>
+      <h3 data-i18n="board.h3">Post to your whole team</h3>
+      <div class="meta" data-i18n="board.hint">Every staff member sees this in their staff portal. Tip: write French first, then English.</div>
+      <label data-i18n="board.titleLabel">Title (optional)</label>
+      <input type="text" id="boardTitle" maxlength="120" placeholder="e.g. Staff meeting Friday" data-i18n-ph="board.titlePh" />
+      <label data-i18n="board.bodyLabel">Message</label>
+      <textarea rows="5" id="boardBody" maxlength="2000" style="min-height:110px;resize:vertical" placeholder="What does the team need to know?" data-i18n-ph="board.bodyPh"></textarea>
+      <label class="board-pin"><input type="checkbox" id="boardPin" /> <span data-i18n="board.pin">Pin to the top</span></label>
+      <button class="primary amber" onclick="postBoard()" data-i18n="board.postBtn">Post to the board</button>
+    </div>
+    <div id="boardList"></div>
+
     <div class="stub plain" style="--accent:var(--comms)">
       <div class="tag" data-i18n="comms.aiTag">AI agent</div>
       <h3 data-i18n="comms.askHeader">Ask about your restaurant</h3>
@@ -935,6 +951,15 @@ const T = {
       stage: { applied: "Applied", screening: "Screening", interview: "Interview", offer: "Offer sent", rejected: "Rejected" },
       reject: "Reject",
     },
+    board: {
+      tag: "Team board", h3: "Post to your whole team", hint: "Every staff member sees this in their staff portal. Tip: write French first, then English.",
+      titleLabel: "Title (optional)", titlePh: "e.g. Staff meeting Friday", bodyLabel: "Message", bodyPh: "What does the team need to know?",
+      pin: "Pin to the top", postBtn: "Post to the board", pinnedTag: "Pinned", postsHeader: "Posted to the team",
+      pinAction: "Pin", unpinAction: "Unpin", edit: "Edit", delete: "Delete", save: "Save", cancel: "Cancel",
+      confirmDelete: "Delete this post for everyone?", empty: "Nothing posted yet.", edited: "edited",
+      gotIt: (a, n) => `${a}/${n} got it`, noLogins: "No staff have a login yet", who: "Who?", hideWho: "Hide",
+      bannerPosted: "Posted to the board", bannerUpdated: "Post updated", bannerDeleted: "Post deleted", bodyRequired: "Write a message first",
+    },
     comms: {
       eyebrow: "Communications", h2: "Team messages & AI agent", aiTag: "AI agent", askHeader: "Ask about your restaurant",
       desc: "Ask about staffing, labor cost, hiring, or anything else — answered from your restaurant's real data, not a canned script.",
@@ -1052,6 +1077,15 @@ const T = {
       bannerJobTextCopied: "Texte du poste copié", bannerJobCopyFail: "Impossible de copier — sélectionnez le texte manuellement",
       stage: { applied: "Reçue", screening: "Présélection", interview: "Entrevue", offer: "Offre envoyée", rejected: "Refusée" },
       reject: "Refuser",
+    },
+    board: {
+      tag: "Babillard d'équipe", h3: "Publier pour toute l'équipe", hint: "Chaque employé le voit dans son portail. Astuce : écrivez d'abord en français, puis en anglais.",
+      titleLabel: "Titre (facultatif)", titlePh: "ex. Réunion d'équipe vendredi", bodyLabel: "Message", bodyPh: "Que doit savoir l'équipe ?",
+      pin: "Épingler en haut", postBtn: "Publier au babillard", pinnedTag: "Épinglé", postsHeader: "Publié à l'équipe",
+      pinAction: "Épingler", unpinAction: "Désépingler", edit: "Modifier", delete: "Supprimer", save: "Enregistrer", cancel: "Annuler",
+      confirmDelete: "Supprimer cette publication pour tout le monde ?", empty: "Rien de publié pour l'instant.", edited: "modifié",
+      gotIt: (a, n) => `${a}/${n} ont lu`, noLogins: "Aucun employé n'a encore d'accès", who: "Qui ?", hideWho: "Masquer",
+      bannerPosted: "Publié au babillard", bannerUpdated: "Publication modifiée", bannerDeleted: "Publication supprimée", bodyRequired: "Écrivez d'abord un message",
     },
     comms: {
       eyebrow: "Communications", h2: "Messages d'équipe & agent IA", aiTag: "Agent IA", askHeader: "Posez une question sur votre restaurant",
@@ -1171,6 +1205,15 @@ const T = {
       stage: { applied: "Recibida", screening: "Filtro", interview: "Entrevista", offer: "Oferta enviada", rejected: "Rechazada" },
       reject: "Rechazar",
     },
+    board: {
+      tag: "Tablero del equipo", h3: "Publica para todo tu equipo", hint: "Todo el personal lo ve en su portal. Consejo: escribe primero en francés y luego en inglés.",
+      titleLabel: "Título (opcional)", titlePh: "ej. Reunión de equipo el viernes", bodyLabel: "Mensaje", bodyPh: "¿Qué necesita saber el equipo?",
+      pin: "Fijar arriba", postBtn: "Publicar en el tablero", pinnedTag: "Fijado", postsHeader: "Publicado al equipo",
+      pinAction: "Fijar", unpinAction: "Quitar fijado", edit: "Editar", delete: "Eliminar", save: "Guardar", cancel: "Cancelar",
+      confirmDelete: "¿Eliminar esta publicación para todos?", empty: "Aún no hay publicaciones.", edited: "editado",
+      gotIt: (a, n) => `${a}/${n} lo vieron`, noLogins: "Aún ningún empleado tiene acceso", who: "¿Quién?", hideWho: "Ocultar",
+      bannerPosted: "Publicado en el tablero", bannerUpdated: "Publicación actualizada", bannerDeleted: "Publicación eliminada", bodyRequired: "Escribe primero un mensaje",
+    },
     comms: {
       eyebrow: "Comunicaciones", h2: "Mensajes del equipo y agente IA", aiTag: "Agente IA", askHeader: "Pregunta sobre tu restaurante",
       desc: "Pregunta sobre personal, costos, contratación o cualquier otra cosa — respondido con los datos reales de tu restaurante, no un guion.",
@@ -1251,6 +1294,9 @@ function roleLabel(role) {
 let selectedRoles = [];
 let staff = [];
 let shifts = [];
+let boardPosts = [];
+let boardEditing = null;      // { id, title, body } while a post is being edited
+let boardOpenWho = new Set(); // posts whose "who got it" list is expanded
 let todayShifts = []; // staff actually scheduled today (from the back-office schedule)
 let editingStaffId = null;
 let editDraftRoles = [];
@@ -1366,6 +1412,8 @@ async function loadAll() {
   if (ap.ok) applications = ap.data;
   const tr = await api("/api/training");
   if (tr.ok) trainingItems = tr.data;
+  const bd = await api("/api/board");
+  if (bd.ok) boardPosts = bd.data;
   const todayIso = isoLocal(new Date());
   const td = await api(`/api/schedule?start=${todayIso}&end=${todayIso}`);
   if (td.ok) todayShifts = td.data;
@@ -1603,6 +1651,7 @@ function render() {
       `).join("");
 
   renderToday();
+  renderBoard();
 
   // filled shifts
   const filled = shifts.filter(s => s.status === "filled").slice(0, 6);
@@ -1714,7 +1763,7 @@ async function removeItemFile(itemId) {
 function panelHasFocus(panelId) {
   const a = document.activeElement;
   const panel = document.getElementById(panelId);
-  return !!(a && panel && panel.contains(a) && (a.tagName === "INPUT" || a.tagName === "SELECT"));
+  return !!(a && panel && panel.contains(a) && (a.tagName === "INPUT" || a.tagName === "SELECT" || a.tagName === "TEXTAREA"));
 }
 
 async function loadTraining() {
@@ -1885,6 +1934,104 @@ async function deleteTraining(itemId) {
   trainingExpanded.delete(itemId);
   renderTraining(true);
   renderOverview();
+}
+
+
+/* ============================== Team board ============================== */
+function boardDate(ms) {
+  return new Date(ms).toLocaleString(localeForLang(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function renderBoard() {
+  const el = document.getElementById("boardList");
+  if (!el) return;
+  const a = document.activeElement;
+  if (a && el.contains(a) && (a.tagName === "INPUT" || a.tagName === "TEXTAREA")) return; // don't wipe an edit in progress
+  if (boardPosts.length === 0) { el.innerHTML = ""; return; }
+  const loginStaff = staff.filter(p => p.hasLogin);
+  el.innerHTML = `<h3 class="board-header">${t("board.postsHeader")}</h3>` + boardPosts.map(p => {
+    if (boardEditing && boardEditing.id === p.id) {
+      return `
+        <div class="stub" style="--accent:var(--comms)">
+          <label>${t("board.titleLabel")}</label>
+          <input type="text" id="boardEditTitle" maxlength="120" value="${escapeHtml(boardEditing.title)}" oninput="boardEditing.title=this.value" />
+          <label>${t("board.bodyLabel")}</label>
+          <textarea rows="5" id="boardEditBody" maxlength="2000" style="min-height:110px;resize:vertical" oninput="boardEditing.body=this.value">${escapeHtml(boardEditing.body)}</textarea>
+          <div style="margin-top:10px;display:flex;gap:8px">
+            <button class="mini" onclick="saveBoardEdit()">${t("board.save")}</button>
+            <button class="mini outline" onclick="boardEditing=null; renderBoard()">${t("board.cancel")}</button>
+          </div>
+        </div>`;
+    }
+    const who = boardOpenWho.has(p.id)
+      ? `<div style="margin-top:8px">${loginStaff.map(m => `<div class="assign-row"><span>${escapeHtml(m.name)}</span><span>${p.ackedBy.includes(m.id) ? "✓" : "—"}</span></div>`).join("")}</div>`
+      : "";
+    return `
+      <div class="stub" style="--accent:var(--comms)">
+        ${p.pinned ? `<div class="tag">📌 ${t("board.pinnedTag")}</div>` : ""}
+        ${p.title ? `<h3>${escapeHtml(p.title)}</h3>` : ""}
+        <div class="note" style="white-space:pre-wrap;font-size:13.5px;line-height:1.45;margin:4px 0 8px">${escapeHtml(p.body)}</div>
+        <div class="meta">${boardDate(p.createdAt)}${p.updatedAt > p.createdAt + 1000 ? ` · ${t("board.edited")}` : ""} · ${p.loginCount > 0 ? t("board.gotIt", p.ackCount, p.loginCount) : t("board.noLogins")}
+          ${p.loginCount > 0 ? ` · <a href="#" onclick="event.preventDefault(); toggleBoardWho('${p.id}')" style="color:inherit;text-decoration:underline">${boardOpenWho.has(p.id) ? t("board.hideWho") : t("board.who")}</a>` : ""}</div>
+        ${who}
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini outline" onclick="toggleBoardPin('${p.id}', ${!p.pinned})">${p.pinned ? t("board.unpinAction") : t("board.pinAction")}</button>
+          <button class="mini outline" onclick="startBoardEdit('${p.id}')">${t("board.edit")}</button>
+          <button class="mini outline" onclick="deleteBoardPost('${p.id}')">${t("board.delete")}</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function toggleBoardWho(id) {
+  if (boardOpenWho.has(id)) boardOpenWho.delete(id); else boardOpenWho.add(id);
+  renderBoard();
+}
+
+async function postBoard() {
+  const title = document.getElementById("boardTitle").value.trim();
+  const body = document.getElementById("boardBody").value.trim();
+  if (!body) return showBanner(t("board.bodyRequired"), "warn");
+  const result = await api("/api/board", { method: "POST", body: JSON.stringify({ title, body, pinned: document.getElementById("boardPin").checked }) });
+  if (!result.ok) return showBanner(result.error, "warn");
+  document.getElementById("boardTitle").value = "";
+  document.getElementById("boardBody").value = "";
+  document.getElementById("boardPin").checked = false;
+  showBanner(t("board.bannerPosted"), "success");
+  await loadAll();
+}
+
+async function toggleBoardPin(id, pinned) {
+  const result = await api(`/api/board/${id}`, { method: "PATCH", body: JSON.stringify({ pinned }) });
+  if (!result.ok) return showBanner(result.error, "warn");
+  await loadAll();
+}
+
+function startBoardEdit(id) {
+  const p = boardPosts.find(x => x.id === id);
+  if (!p) return;
+  boardEditing = { id, title: p.title, body: p.body };
+  renderBoard();
+}
+
+async function saveBoardEdit() {
+  const e = boardEditing;
+  if (!e) return;
+  if (!e.body.trim()) return showBanner(t("board.bodyRequired"), "warn");
+  const result = await api(`/api/board/${e.id}`, { method: "PATCH", body: JSON.stringify({ title: e.title.trim(), body: e.body.trim() }) });
+  if (!result.ok) return showBanner(result.error, "warn");
+  boardEditing = null;
+  showBanner(t("board.bannerUpdated"), "success");
+  await loadAll();
+}
+
+async function deleteBoardPost(id) {
+  if (!confirm(t("board.confirmDelete"))) return;
+  const result = await api(`/api/board/${id}`, { method: "DELETE" });
+  if (!result.ok) return showBanner(result.error, "warn");
+  boardPosts = boardPosts.filter(p => p.id !== id);
+  boardOpenWho.delete(id);
+  renderBoard();
 }
 
 /* ============================== Payroll & Sales ============================== */
