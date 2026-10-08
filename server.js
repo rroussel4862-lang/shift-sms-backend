@@ -280,6 +280,25 @@ async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS shift_swaps_restaurant_idx ON shift_swaps (restaurant_id, status);`);
 
+  // ---------- restaurant owners (own one or more restaurants; read-only snapshot across all of them) ----------
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS owners (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at BIGINT NOT NULL,
+      last_login_at BIGINT
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS owner_restaurants (
+      owner_id TEXT NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      PRIMARY KEY (owner_id, restaurant_id)
+    );
+  `);
+
   // ---------- platform-owner layer (you / devs — not tied to any one restaurant) ----------
   await pool.query(`
     CREATE TABLE IF NOT EXISTS platform_admins (
@@ -445,6 +464,7 @@ function requireAuth(req, res, next) {
     const payload = jwt.verify(token, JWT_SECRET);
     req.restaurantId = payload.restaurantId;
     req.userId = payload.userId;
+    req.ownerId = payload.ownerId || null; // set when an owner is acting as manager of one of their restaurants
     next();
   } catch (e) {
     return res.status(401).json({ error: "session expired — please log in again" });
@@ -471,6 +491,19 @@ function requirePlatformAuth(req, res, next) {
     const payload = jwt.verify(token, JWT_SECRET);
     if (!payload.platformAdminId) throw new Error("not a platform token");
     req.platformAdminId = payload.platformAdminId;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: "session expired — please log in again" });
+  }
+}
+
+function requireOwnerAuth(req, res, next) {
+  const token = req.cookies && req.cookies.owner_token;
+  if (!token) return res.status(401).json({ error: "not logged in" });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (!payload.ownerId) throw new Error("not an owner token");
+    req.ownerId = payload.ownerId;
     next();
   } catch (e) {
     return res.status(401).json({ error: "session expired — please log in again" });
@@ -587,6 +620,21 @@ app.post("/api/auth/logout", (req, res) => {
 });
 
 app.get("/api/auth/me", requireAuth, async (req, res) => {
+  if (req.ownerId) {
+    // An owner opened one of their restaurants: same access as the manager login.
+    const { rows } = await pool.query(
+      `SELECT o.email, r.id AS restaurant_id, r.name AS restaurant_name, r.address AS restaurant_address
+       FROM owners o JOIN owner_restaurants x ON x.owner_id = o.id JOIN restaurants r ON r.id = x.restaurant_id
+       WHERE o.id = $1 AND r.id = $2`,
+      [req.ownerId, req.restaurantId]
+    );
+    if (rows.length === 0) return res.status(401).json({ error: "not logged in" });
+    return res.json({
+      restaurant: { id: rows[0].restaurant_id, name: rows[0].restaurant_name, address: rows[0].restaurant_address || "" },
+      email: rows[0].email,
+      viaOwner: true,
+    });
+  }
   const { rows } = await pool.query(
     `SELECT users.email, restaurants.id AS restaurant_id, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address
      FROM users JOIN restaurants ON restaurants.id = users.restaurant_id
@@ -2860,5 +2908,238 @@ if (require.main === module) {
       process.exit(1);
     });
 }
+
+// ---------- owners: accounts created by the platform admin ----------
+
+function tempPassword() {
+  const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no look-alike characters
+  const bytes = crypto.randomBytes(10);
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
+
+async function ownerWithRestaurants(ownerId) {
+  const { rows } = await pool.query("SELECT * FROM owners WHERE id = $1", [ownerId]);
+  if (rows.length === 0) return null;
+  const { rows: rs } = await pool.query(
+    "SELECT r.id, r.name FROM owner_restaurants o JOIN restaurants r ON r.id = o.restaurant_id WHERE o.owner_id = $1 ORDER BY r.name",
+    [ownerId]
+  );
+  return {
+    id: rows[0].id,
+    name: rows[0].name,
+    email: rows[0].email,
+    createdAt: Number(rows[0].created_at),
+    lastLoginAt: rows[0].last_login_at ? Number(rows[0].last_login_at) : null,
+    restaurants: rs.map((r) => ({ id: r.id, name: r.name })),
+  };
+}
+
+async function setOwnerRestaurants(ownerId, restaurantIds) {
+  const ids = [...new Set((restaurantIds || []).map(String))];
+  const { rows } = ids.length ? await pool.query("SELECT id FROM restaurants WHERE id = ANY($1)", [ids]) : { rows: [] };
+  if (rows.length !== ids.length) return false;
+  await pool.query("DELETE FROM owner_restaurants WHERE owner_id = $1", [ownerId]);
+  for (const rid of ids) await pool.query("INSERT INTO owner_restaurants (owner_id, restaurant_id) VALUES ($1,$2)", [ownerId, rid]);
+  return true;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+app.get("/api/platform/owners", requirePlatformAuth, async (req, res) => {
+  const { rows } = await pool.query("SELECT id FROM owners ORDER BY created_at DESC");
+  const owners = [];
+  for (const r of rows) owners.push(await ownerWithRestaurants(r.id));
+  res.json(owners);
+});
+
+app.post("/api/platform/owners", requirePlatformAuth, async (req, res) => {
+  const { name, email, restaurantIds } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: "name is required" });
+  if (!email || !EMAIL_RE.test(String(email).trim())) return res.status(400).json({ error: "a valid email is required" });
+  if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) return res.status(400).json({ error: "pick at least one restaurant" });
+  const cleanEmail = String(email).trim().toLowerCase();
+  const { rows: dup } = await pool.query("SELECT 1 FROM owners WHERE email = $1", [cleanEmail]);
+  if (dup.length) return res.status(409).json({ error: "an owner with that email already exists" });
+  const ownerId = id();
+  const password = tempPassword();
+  await pool.query("INSERT INTO owners (id, name, email, password_hash, created_at) VALUES ($1,$2,$3,$4,$5)", [ownerId, String(name).trim(), cleanEmail, await bcrypt.hash(password, 10), Date.now()]);
+  if (!(await setOwnerRestaurants(ownerId, restaurantIds))) {
+    await pool.query("DELETE FROM owners WHERE id = $1", [ownerId]);
+    return res.status(400).json({ error: "one of those restaurants doesn't exist" });
+  }
+  logActivity({ eventType: "owner_created", detail: `${String(name).trim()} (${cleanEmail}) → ${restaurantIds.length} restaurant(s)` });
+  res.status(201).json({ owner: await ownerWithRestaurants(ownerId), tempPassword: password });
+});
+
+app.patch("/api/platform/owners/:id", requirePlatformAuth, async (req, res) => {
+  const existing = await ownerWithRestaurants(req.params.id);
+  if (!existing) return res.status(404).json({ error: "owner not found" });
+  const { name, email, restaurantIds } = req.body || {};
+  if (name !== undefined) {
+    if (!String(name).trim()) return res.status(400).json({ error: "name can't be empty" });
+    await pool.query("UPDATE owners SET name = $1 WHERE id = $2", [String(name).trim(), existing.id]);
+  }
+  if (email !== undefined) {
+    if (!EMAIL_RE.test(String(email).trim())) return res.status(400).json({ error: "a valid email is required" });
+    const cleanEmail = String(email).trim().toLowerCase();
+    const { rows: dup } = await pool.query("SELECT 1 FROM owners WHERE email = $1 AND id <> $2", [cleanEmail, existing.id]);
+    if (dup.length) return res.status(409).json({ error: "an owner with that email already exists" });
+    await pool.query("UPDATE owners SET email = $1 WHERE id = $2", [cleanEmail, existing.id]);
+  }
+  if (restaurantIds !== undefined) {
+    if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) return res.status(400).json({ error: "pick at least one restaurant" });
+    if (!(await setOwnerRestaurants(existing.id, restaurantIds))) return res.status(400).json({ error: "one of those restaurants doesn't exist" });
+  }
+  res.json(await ownerWithRestaurants(existing.id));
+});
+
+app.post("/api/platform/owners/:id/reset-password", requirePlatformAuth, async (req, res) => {
+  const existing = await ownerWithRestaurants(req.params.id);
+  if (!existing) return res.status(404).json({ error: "owner not found" });
+  const password = tempPassword();
+  await pool.query("UPDATE owners SET password_hash = $1 WHERE id = $2", [await bcrypt.hash(password, 10), existing.id]);
+  res.json({ tempPassword: password });
+});
+
+app.delete("/api/platform/owners/:id", requirePlatformAuth, async (req, res) => {
+  const { rowCount } = await pool.query("DELETE FROM owners WHERE id = $1", [req.params.id]);
+  if (rowCount === 0) return res.status(404).json({ error: "owner not found" });
+  res.status(204).end();
+});
+
+// ---------- owner login + multi-restaurant snapshot ----------
+
+app.post("/api/owner-auth/login", loginLimiter, async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: "email and password are required" });
+  const { rows } = await pool.query("SELECT * FROM owners WHERE email = $1", [String(email).trim().toLowerCase()]);
+  const owner = rows[0];
+  if (!owner || !(await bcrypt.compare(password, owner.password_hash))) return res.status(401).json({ error: "incorrect email or password" });
+  await pool.query("UPDATE owners SET last_login_at = $1 WHERE id = $2", [Date.now(), owner.id]);
+  res.cookie("owner_token", signToken({ ownerId: owner.id }), COOKIE_OPTS);
+  res.json({ name: owner.name });
+});
+
+app.post("/api/owner-auth/logout", (req, res) => {
+  res.clearCookie("owner_token", { ...COOKIE_OPTS, maxAge: undefined });
+  res.clearCookie("token", { ...COOKIE_OPTS, maxAge: undefined });
+  res.json({ ok: true });
+});
+
+app.get("/api/owner-auth/me", requireOwnerAuth, async (req, res) => {
+  const o = await ownerWithRestaurants(req.ownerId);
+  if (!o) return res.status(401).json({ error: "not logged in" });
+  res.json({ name: o.name, email: o.email });
+});
+
+app.post("/api/owner-auth/change-password", requireOwnerAuth, loginLimiter, async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!newPassword || String(newPassword).length < 8) return res.status(400).json({ error: "new password must be at least 8 characters" });
+  const { rows } = await pool.query("SELECT password_hash FROM owners WHERE id = $1", [req.ownerId]);
+  if (!rows[0] || !(await bcrypt.compare(String(currentPassword || ""), rows[0].password_hash))) return res.status(401).json({ error: "current password is incorrect" });
+  await pool.query("UPDATE owners SET password_hash = $1 WHERE id = $2", [await bcrypt.hash(String(newPassword), 10), req.ownerId]);
+  res.json({ ok: true });
+});
+
+const OWNER_TZ = "America/Toronto";
+const OWNER_LABOR_HIGH_PCT = 35;
+const OWNER_OPEN_SHIFTS_ALERT = 3;
+const OWNER_SALES_DROP_PCT = -15;
+
+function ownerToday() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: OWNER_TZ }); // YYYY-MM-DD
+}
+
+// One restaurant's week-to-date picture. Pure data + simple rules — no AI call, no cost.
+async function restaurantSnapshot(restaurant, today) {
+  const rid = restaurant.id;
+  const weekStart = mondayOfIso(today);
+  const lastStart = addDaysIso(weekStart, -7);
+  const lastSame = addDaysIso(today, -7);
+  const num = (v) => (v === null || v === undefined ? 0 : Number(v));
+
+  const { rows: sales } = await pool.query(
+    `SELECT COALESCE(SUM(amount) FILTER (WHERE sale_date >= $2 AND sale_date <= $3), 0) AS this_week,
+            COUNT(*) FILTER (WHERE sale_date >= $2 AND sale_date <= $3 AND amount IS NOT NULL) AS days,
+            COALESCE(SUM(amount) FILTER (WHERE sale_date >= $4 AND sale_date <= $5), 0) AS last_week
+     FROM actual_sales WHERE restaurant_id = $1`,
+    [rid, weekStart, today, lastStart, lastSame]
+  );
+  const salesWeek = num(sales[0].this_week);
+  const salesDays = Number(sales[0].days);
+  const salesLast = num(sales[0].last_week);
+
+  const { rows: sched } = await pool.query(
+    `SELECT ss.start_time, ss.end_time, st.hourly_rate FROM schedule_shifts ss JOIN staff st ON st.id = ss.staff_id
+     WHERE ss.restaurant_id = $1 AND ss.shift_date >= $2 AND ss.shift_date <= $3`,
+    [rid, weekStart, today]
+  );
+  let labor = 0;
+  for (const r of sched) {
+    const [a, b] = shiftRange(r.start_time, r.end_time);
+    labor += ((b - a) / 60) * num(r.hourly_rate);
+  }
+  const laborPct = salesWeek > 0 ? Math.round((labor / salesWeek) * 1000) / 10 : null;
+  const vsLastPct = salesLast > 0 ? Math.round(((salesWeek - salesLast) / salesLast) * 1000) / 10 : null;
+
+  const { rows: open } = await pool.query("SELECT COUNT(*) AS n FROM shifts WHERE restaurant_id = $1 AND status = 'open'", [rid]);
+  const { rows: sw } = await pool.query("SELECT COUNT(*) AS n FROM shift_swaps WHERE restaurant_id = $1 AND status = 'pending'", [rid]);
+  const { rows: staffN } = await pool.query("SELECT COUNT(*) AS n FROM staff WHERE restaurant_id = $1", [rid]);
+  const openShifts = Number(open[0].n);
+  const pendingSwaps = Number(sw[0].n);
+
+  const attention = [];
+  const info = [];
+  if (laborPct !== null && laborPct > OWNER_LABOR_HIGH_PCT) attention.push({ code: "labor_high", value: laborPct });
+  if (openShifts >= OWNER_OPEN_SHIFTS_ALERT) attention.push({ code: "open_shifts", value: openShifts });
+  if (vsLastPct !== null && vsLastPct <= OWNER_SALES_DROP_PCT) attention.push({ code: "sales_down", value: vsLastPct });
+  if (pendingSwaps > 0) info.push({ code: "swaps", value: pendingSwaps });
+  if (vsLastPct !== null && vsLastPct >= 10) info.push({ code: "sales_up", value: vsLastPct });
+  if (salesDays === 0) info.push({ code: "no_sales", value: 0 });
+
+  return {
+    id: rid,
+    name: restaurant.name,
+    status: attention.length ? "attention" : "on_track",
+    salesWeek: Math.round(salesWeek * 100) / 100,
+    salesDays,
+    salesVsLastWeekPct: vsLastPct,
+    laborPct,
+    openShifts,
+    pendingSwaps,
+    staffCount: Number(staffN[0].n),
+    flags: [...attention.map((f) => ({ ...f, level: "attention" })), ...info.map((f) => ({ ...f, level: "info" }))],
+  };
+}
+
+// Opens one of the owner's restaurants as its manager: same privileges as the manager login, because the
+// session cookie carries that restaurant's id. Only restaurants linked to this owner can be opened.
+app.post("/api/owner/open/:restaurantId", requireOwnerAuth, async (req, res) => {
+  const { rows } = await pool.query("SELECT 1 FROM owner_restaurants WHERE owner_id = $1 AND restaurant_id = $2", [req.ownerId, req.params.restaurantId]);
+  if (rows.length === 0) return res.status(404).json({ error: "restaurant not found" });
+  res.cookie("token", signToken({ restaurantId: req.params.restaurantId, ownerId: req.ownerId }), COOKIE_OPTS);
+  logActivity({ restaurantId: req.params.restaurantId, eventType: "owner_opened_restaurant", detail: `owner ${req.ownerId}` });
+  res.json({ ok: true });
+});
+
+app.get("/api/owner/overview", requireOwnerAuth, async (req, res) => {
+  const owner = await ownerWithRestaurants(req.ownerId);
+  if (!owner) return res.status(401).json({ error: "not logged in" });
+  const today = ownerToday();
+  const restaurants = [];
+  for (const r of owner.restaurants) restaurants.push(await restaurantSnapshot(r, today));
+  res.json({
+    owner: { name: owner.name },
+    today,
+    weekStart: mondayOfIso(today),
+    totals: {
+      salesWeek: Math.round(restaurants.reduce((a, r) => a + r.salesWeek, 0) * 100) / 100,
+      openShifts: restaurants.reduce((a, r) => a + r.openShifts, 0),
+      needAttention: restaurants.filter((r) => r.status === "attention").length,
+      locations: restaurants.length,
+    },
+    restaurants,
+  });
+});
 
 module.exports = { app, pool, initDb };

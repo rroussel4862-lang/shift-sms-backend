@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en" data-title-key="title">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Your restaurants — Open Shift Rail</title>
+<script src="/i18n-lite.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #1C201D; --panel: #262B27; --panel-light: #2E332E; --paper: #F0EAD8; --ink: #23261F;
+    --amber: #E2A33B; --green: #5C8C6B; --red: #C8473A; --rail: #454C46; --text-dim: #9BA39C; --text-bright: #F2EFE6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text-bright); font-family: 'IBM Plex Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3 { font-family: 'Oswald', sans-serif; margin: 0; }
+  .num { font-family: 'IBM Plex Mono', monospace; }
+
+  /* ---------- login ---------- */
+  #landing { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  .landing-mark { width: 56px; height: 56px; border: 2px solid var(--amber); border-radius: 8px; display: flex; align-items: center; justify-content: center; transform: rotate(-4deg); margin-bottom: 22px; }
+  .landing-mark span { font-family: 'Oswald', sans-serif; font-weight: 700; color: var(--amber); font-size: 22px; }
+  #landing h1 { font-size: 26px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+  #landing p { color: var(--text-dim); font-size: 13.5px; max-width: 320px; margin: 12px 0 24px; line-height: 1.5; }
+  .form { width: 100%; max-width: 320px; text-align: left; }
+  label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 12px 0 5px; }
+  input[type=text], input[type=email], input[type=password] { width: 100%; background: var(--bg); border: 1px solid var(--rail); color: var(--text-bright); border-radius: 5px; padding: 11px 12px; font-family: inherit; font-size: 14px; }
+  .btn { width: 100%; margin-top: 16px; padding: 13px; background: var(--amber); color: var(--ink); border: none; border-radius: 6px; font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-size: 14px; cursor: pointer; }
+  .btn.ghost { background: none; border: 1px solid var(--rail); color: var(--text-dim); width: auto; margin: 0; padding: 7px 12px; font-size: 11.5px; }
+  .msg { color: var(--amber); font-size: 12.5px; margin-top: 10px; min-height: 16px; }
+  .msg.ok { color: #8FC9A3; }
+
+  /* ---------- app ---------- */
+  #app { display: none; }
+  header { background: var(--panel); border-bottom: 1px solid var(--rail); padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .mark { width: 32px; height: 32px; border: 2px solid var(--amber); border-radius: 6px; display: flex; align-items: center; justify-content: center; transform: rotate(-4deg); font-family: 'Oswald', sans-serif; font-weight: 700; color: var(--amber); font-size: 11px; }
+  .brand b { font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: .03em; font-size: 15px; }
+  .head-right { display: flex; align-items: center; gap: 8px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 28px 22px 70px; }
+
+  .hello h1 { font-size: 30px; font-weight: 600; }
+  .hello p { margin: 6px 0 0; color: var(--text-dim); font-size: 14px; }
+
+  .demo-banner { display: none; margin: 18px 0 0; padding: 10px 14px; border: 1.5px dashed var(--amber); border-radius: 8px; color: var(--amber); font-family: 'Oswald', sans-serif; letter-spacing: .06em; text-transform: uppercase; font-size: 12.5px; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .demo-banner.on { display: flex; }
+  .demo-banner button { background: none; border: 1px solid var(--amber); color: var(--amber); border-radius: 5px; padding: 5px 10px; font-family: inherit; text-transform: uppercase; letter-spacing: .05em; font-size: 11px; cursor: pointer; }
+
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 22px 0 8px; }
+  .stat { background: var(--panel); border: 1px solid var(--rail); border-radius: 10px; padding: 16px 18px; }
+  .stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
+  .stat .v { font-family: 'Oswald', sans-serif; font-size: 34px; font-weight: 600; margin-top: 6px; line-height: 1.1; }
+  .stat .s { font-size: 12.5px; color: var(--text-dim); margin-top: 4px; }
+  .stat.warn .v { color: var(--amber); }
+
+  h2.section { font-size: 15px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); margin: 30px 0 14px; font-weight: 500; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+  .ticket { cursor: pointer; transition: transform .12s; }
+  .ticket:hover { transform: translateY(-2px); }
+  .ticket.sample { cursor: default; } .ticket.sample:hover { transform: none; }
+  .open-hint { margin-top: 10px; font-family: 'Oswald', sans-serif; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #2F7A47; }
+  .ticket { position: relative; background: var(--paper); color: var(--ink); border-radius: 6px; padding: 18px 18px 16px; box-shadow: 0 2px 0 rgba(0,0,0,.25); background-image: repeating-linear-gradient(0deg, rgba(0,0,0,.018) 0 1px, transparent 1px 3px); }
+  .ticket h3 { font-size: 20px; font-weight: 600; padding-right: 110px; line-height: 1.2; }
+  .stamp { position: absolute; top: 14px; right: 14px; border: 2.5px solid var(--green); color: var(--green); font-family: 'Oswald', sans-serif; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 2px 9px; border-radius: 4px; transform: rotate(-5deg); }
+  .stamp.attention { border-color: var(--red); color: var(--red); }
+  .sales-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; opacity: .6; margin-top: 14px; }
+  .sales-big { font-family: 'Oswald', sans-serif; font-size: 36px; font-weight: 600; line-height: 1.1; }
+  .delta { font-size: 12.5px; margin-top: 2px; opacity: .75; }
+  .delta.up { color: #2F7A47; opacity: 1; } .delta.down { color: #B5412F; opacity: 1; }
+  .minis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; border-top: 1px dashed rgba(0,0,0,.25); padding-top: 12px; }
+  .mini .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; opacity: .6; }
+  .mini .v { font-family: 'Oswald', sans-serif; font-size: 22px; font-weight: 600; }
+  .mini .v.bad { color: #B5412F; }
+  .notes { margin: 12px 0 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.45; }
+  .notes li { padding: 5px 0 5px 18px; position: relative; }
+  .notes li::before { content: "●"; position: absolute; left: 0; top: 6px; font-size: 9px; color: #888; }
+  .notes li.attention::before { color: var(--red); }
+  .notes li.good::before { color: #2F7A47; }
+  .foot { margin-top: 10px; font-size: 11px; opacity: .55; }
+  .empty { background: var(--panel); border: 1px dashed var(--rail); border-radius: 10px; padding: 26px; text-align: center; color: var(--text-dim); font-size: 14px; }
+
+  #pwCard { display: none; max-width: 340px; margin: 24px 0 0; background: var(--panel); border: 1px solid var(--rail); border-radius: 10px; padding: 16px 18px; }
+  #pwCard.on { display: block; }
+  #pwCard .btn { margin-top: 12px; padding: 10px; font-size: 13px; }
+  @media (max-width: 560px) { .hello h1 { font-size: 24px; } .stat .v { font-size: 28px; } }
+</style>
+</head>
+<body>
+
+<div id="landing">
+  <div class="landing-mark"><span>OSR</span></div>
+  <h1 data-i18n="landing.title">Your restaurants</h1>
+  <p data-i18n="landing.sub">One page for every location — sales, labor and staffing at a glance. Log in to see how your week is going.</p>
+  <div class="form">
+    <label data-i18n="landing.email">Email</label>
+    <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="username" />
+    <label data-i18n="landing.password">Password</label>
+    <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitLogin()" />
+    <button class="btn" onclick="submitLogin()" data-i18n="landing.login">Log in</button>
+    <div class="msg" id="authError"></div>
+  </div>
+  <div class="i18n-switch" style="margin-top:20px"></div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="brand"><div class="mark">OSR</div><b>Open Shift Rail</b></div>
+    <div class="head-right">
+      <div class="i18n-switch"></div>
+      <button class="btn ghost" onclick="togglePw()" data-i18n="app.password">Password</button>
+      <button class="btn ghost" onclick="logout()" data-i18n="app.logout">Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="hello">
+      <h1 id="greeting"></h1>
+      <p id="weekLine"></p>
+    </div>
+
+    <div id="pwCard">
+      <label data-i18n="pw.current">Current password</label>
+      <input type="password" id="pwCurrent" autocomplete="current-password" />
+      <label data-i18n="pw.new">New password (8+ characters)</label>
+      <input type="password" id="pwNew" autocomplete="new-password" />
+      <button class="btn" onclick="changePw()" data-i18n="pw.save">Change password</button>
+      <div class="msg" id="pwMsg"></div>
+    </div>
+
+    <div class="demo-banner" id="demoBanner"><span data-i18n="demo.banner">Sample data · Demo</span><button onclick="setDemo(false)" data-i18n="demo.back">Back to my data</button></div>
+
+    <div class="summary" id="summary"></div>
+
+    <h2 class="section" data-i18n="section.restaurants">Your restaurants</h2>
+    <div class="cards" id="cards"></div>
+    <div id="demoOffer" style="margin-top:18px;display:none"><button class="btn ghost" onclick="setDemo(true)" data-i18n="demo.try">Preview with sample data</button></div>
+  </main>
+</div>
+
+<script>
+I18N.add({
+  en: {
+    title: "Your restaurants — Open Shift Rail",
+    "landing.title": "Your restaurants", "landing.sub": "One page for every location — sales, labor and staffing at a glance. Log in to see how your week is going.",
+    "landing.email": "Email", "landing.password": "Password", "landing.login": "Log in", "landing.errMissing": "Enter your email and password",
+    "app.logout": "Log out", "app.password": "Password",
+    "pw.current": "Current password", "pw.new": "New password (8+ characters)", "pw.save": "Change password", "pw.done": "Password changed.", "pw.short": "The new password needs at least 8 characters.",
+    "greet.morning": n => `Good morning, ${n}`, "greet.afternoon": n => `Good afternoon, ${n}`, "greet.evening": n => `Good evening, ${n}`,
+    "week.line": d => `Week to date — since Monday, ${d}`,
+    "sum.sales": "Sales this week", "sum.salesSub": n => `Combined across ${n} location${n === 1 ? "" : "s"}`,
+    "sum.open": "Open shifts", "sum.openSub": "Unfilled across all locations", "sum.attn": "Need attention", "sum.attnSub": (a, n) => a === 0 ? "Everything on track" : `${a} of ${n} location${n === 1 ? "" : "s"}`,
+    "section.restaurants": "Your restaurants",
+    "stamp.attention": "Attention", "stamp.on_track": "On track",
+    "card.sales": "Sales this week", "card.labor": "Labor cost", "card.open": "Open shifts", "card.staff": n => `${n} on the team`,
+    "card.vs": (p, f) => `${p > 0 ? "▲ +" : p < 0 ? "▼ −" : ""}${f}% vs same days last week`, "card.noCompare": "No comparison yet",
+    "card.laborHint": "% of sales, week to date", "card.dash": "—", "card.open_manager": "Open manager view",
+    "note.labor_high": v => `Labor is at ${v}% of sales — above the 35% target.`,
+    "note.open_shifts": v => `${v} open shifts still need to be filled.`,
+    "note.sales_down": v => `Sales are down ${v}% against the same days last week.`,
+    "note.sales_up": v => `Sales are up ${v}% against the same days last week.`,
+    "note.swaps": v => `${v} shift swap${v === 1 ? "" : "s"} waiting for the manager's approval.`,
+    "note.no_sales": "No sales entered yet this week.", "note.steady": "Steady week so far — nothing needs your attention.",
+    "demo.banner": "Sample data · Demo", "demo.back": "Back to my data", "demo.try": "Preview with sample data",
+    "empty.none": "No restaurants are linked to your login yet. Your Open Shift Rail contact can add them.",
+    "err.network": "Network error — try again.",
+  },
+  fr: {
+    title: "Vos restaurants — Open Shift Rail",
+    "landing.title": "Vos restaurants", "landing.sub": "Une seule page pour chaque établissement — ventes, main-d'œuvre et personnel en un coup d'œil. Connectez-vous pour voir comment se passe votre semaine.",
+    "landing.email": "Courriel", "landing.password": "Mot de passe", "landing.login": "Se connecter", "landing.errMissing": "Entrez votre courriel et votre mot de passe",
+    "app.logout": "Déconnexion", "app.password": "Mot de passe",
+    "pw.current": "Mot de passe actuel", "pw.new": "Nouveau mot de passe (8 caractères et plus)", "pw.save": "Changer le mot de passe", "pw.done": "Mot de passe modifié.", "pw.short": "Le nouveau mot de passe doit compter au moins 8 caractères.",
+    "greet.morning": n => `Bonjour, ${n}`, "greet.afternoon": n => `Bon après-midi, ${n}`, "greet.evening": n => `Bonsoir, ${n}`,
+    "week.line": d => `Semaine en cours — depuis le lundi ${d}`,
+    "sum.sales": "Ventes cette semaine", "sum.salesSub": n => `Total pour ${n} établissement${n === 1 ? "" : "s"}`,
+    "sum.open": "Quarts ouverts", "sum.openSub": "Non comblés, tous établissements", "sum.attn": "À surveiller", "sum.attnSub": (a, n) => a === 0 ? "Tout est sur la bonne voie" : `${a} sur ${n} établissement${n === 1 ? "" : "s"}`,
+    "section.restaurants": "Vos restaurants",
+    "stamp.attention": "À surveiller", "stamp.on_track": "Sur la bonne voie",
+    "card.sales": "Ventes cette semaine", "card.labor": "Coût de main-d'œuvre", "card.open": "Quarts ouverts", "card.staff": n => `${n} dans l'équipe`,
+    "card.vs": (p, f) => `${p > 0 ? "▲ +" : p < 0 ? "▼ −" : ""}${f} % vs mêmes jours la semaine dernière`, "card.noCompare": "Pas encore de comparaison",
+    "card.laborHint": "% des ventes, depuis lundi", "card.dash": "—", "card.open_manager": "Ouvrir la gestion",
+    "note.labor_high": v => `La main-d'œuvre est à ${v} % des ventes — au-dessus de la cible de 35 %.`,
+    "note.open_shifts": v => `${v} quarts ouverts restent à combler.`,
+    "note.sales_down": v => `Les ventes sont en baisse de ${v} % par rapport aux mêmes jours la semaine dernière.`,
+    "note.sales_up": v => `Les ventes sont en hausse de ${v} % par rapport aux mêmes jours la semaine dernière.`,
+    "note.swaps": v => `${v} échange${v === 1 ? "" : "s"} de quart en attente d'approbation du gestionnaire.`,
+    "note.no_sales": "Aucune vente saisie cette semaine.", "note.steady": "Semaine stable jusqu'ici — rien à surveiller.",
+    "demo.banner": "Données fictives · Démo", "demo.back": "Retour à mes données", "demo.try": "Voir un aperçu avec des données fictives",
+    "empty.none": "Aucun restaurant n'est lié à votre accès pour l'instant. Votre contact Open Shift Rail peut les ajouter.",
+    "err.network": "Erreur réseau — réessayez.",
+  },
+  es: {
+    title: "Tus restaurantes — Open Shift Rail",
+    "landing.title": "Tus restaurantes", "landing.sub": "Una sola página para cada local — ventas, mano de obra y personal de un vistazo. Inicia sesión para ver cómo va tu semana.",
+    "landing.email": "Correo", "landing.password": "Contraseña", "landing.login": "Iniciar sesión", "landing.errMissing": "Ingresa tu correo y contraseña",
+    "app.logout": "Cerrar sesión", "app.password": "Contraseña",
+    "pw.current": "Contraseña actual", "pw.new": "Nueva contraseña (8 o más caracteres)", "pw.save": "Cambiar contraseña", "pw.done": "Contraseña cambiada.", "pw.short": "La nueva contraseña necesita al menos 8 caracteres.",
+    "greet.morning": n => `Buenos días, ${n}`, "greet.afternoon": n => `Buenas tardes, ${n}`, "greet.evening": n => `Buenas noches, ${n}`,
+    "week.line": d => `Semana en curso — desde el lunes ${d}`,
+    "sum.sales": "Ventas esta semana", "sum.salesSub": n => `Total de ${n} local${n === 1 ? "" : "es"}`,
+    "sum.open": "Turnos abiertos", "sum.openSub": "Sin cubrir, todos los locales", "sum.attn": "Requieren atención", "sum.attnSub": (a, n) => a === 0 ? "Todo en orden" : `${a} de ${n} local${n === 1 ? "" : "es"}`,
+    "section.restaurants": "Tus restaurantes",
+    "stamp.attention": "Atención", "stamp.on_track": "En camino",
+    "card.sales": "Ventas esta semana", "card.labor": "Costo de mano de obra", "card.open": "Turnos abiertos", "card.staff": n => `${n} en el equipo`,
+    "card.vs": (p, f) => `${p > 0 ? "▲ +" : p < 0 ? "▼ −" : ""}${f}% vs mismos días la semana pasada`, "card.noCompare": "Aún sin comparación",
+    "card.laborHint": "% de las ventas, desde el lunes", "card.dash": "—", "card.open_manager": "Abrir la gestión",
+    "note.labor_high": v => `La mano de obra está en ${v}% de las ventas — por encima de la meta de 35%.`,
+    "note.open_shifts": v => `Faltan por cubrir ${v} turnos abiertos.`,
+    "note.sales_down": v => `Las ventas bajaron ${v}% frente a los mismos días de la semana pasada.`,
+    "note.sales_up": v => `Las ventas subieron ${v}% frente a los mismos días de la semana pasada.`,
+    "note.swaps": v => `${v} cambio${v === 1 ? "" : "s"} de turno esperando la aprobación del gerente.`,
+    "note.no_sales": "Aún no hay ventas registradas esta semana.", "note.steady": "Semana estable hasta ahora — nada requiere tu atención.",
+    "demo.banner": "Datos de muestra · Demo", "demo.back": "Volver a mis datos", "demo.try": "Ver vista previa con datos de muestra",
+    "empty.none": "Todavía no hay restaurantes vinculados a tu acceso. Tu contacto de Open Shift Rail puede agregarlos.",
+    "err.network": "Error de red — inténtalo de nuevo.",
+  },
+});
+const tr = (k, ...a) => I18N.t(k, ...a);
+const LOCALES = { en: "en-CA", fr: "fr-CA", es: "es-US" };
+let data = null;      // real data from the server
+let demo = false;     // showing sample data
+let ownerName = "";
+
+function escapeHtml(str) { const d = document.createElement("div"); d.textContent = str == null ? "" : String(str); return d.innerHTML; }
+function money(n) {
+  const num = new Intl.NumberFormat(LOCALES[I18N.lang] || "en-CA", { maximumFractionDigits: 0 }).format(n || 0);
+  return I18N.lang === "fr" ? num + "\u00a0$" : "$" + num;
+}
+function pct(n) { return new Intl.NumberFormat(LOCALES[I18N.lang] || "en-CA", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n); }
+
+async function api(path, options) {
+  try {
+    const res = await fetch(path, { headers: { "Content-Type": "application/json" }, credentials: "same-origin", ...options });
+    let body = null; try { body = await res.json(); } catch (e) {}
+    if (!res.ok) return { ok: false, status: res.status, error: (body && body.error) || `HTTP ${res.status}` };
+    return { ok: true, data: body };
+  } catch (e) { return { ok: false, error: tr("err.network") }; }
+}
+
+async function submitLogin() {
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  const err = document.getElementById("authError");
+  err.textContent = "";
+  if (!email || !password) { err.textContent = tr("landing.errMissing"); return; }
+  const r = await api("/api/owner-auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+  if (!r.ok) { err.textContent = r.error; return; }
+  ownerName = r.data.name;
+  enter();
+}
+async function logout() { await api("/api/owner-auth/logout", { method: "POST" }); location.reload(); }
+
+function togglePw() { document.getElementById("pwCard").classList.toggle("on"); document.getElementById("pwMsg").textContent = ""; }
+async function changePw() {
+  const msg = document.getElementById("pwMsg");
+  const cur = document.getElementById("pwCurrent").value, nw = document.getElementById("pwNew").value;
+  msg.className = "msg";
+  if (nw.length < 8) { msg.textContent = tr("pw.short"); return; }
+  const r = await api("/api/owner-auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword: cur, newPassword: nw }) });
+  if (!r.ok) { msg.textContent = r.error; return; }
+  msg.className = "msg ok"; msg.textContent = tr("pw.done");
+  document.getElementById("pwCurrent").value = ""; document.getElementById("pwNew").value = "";
+}
+
+function enter() {
+  document.getElementById("landing").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  load();
+  if (!window.__timer) window.__timer = setInterval(() => { if (!demo) load(); }, 60000);
+}
+
+async function load() {
+  const r = await api("/api/owner/overview");
+  if (!r.ok) { if (r.status === 401) location.reload(); return; }
+  data = r.data;
+  ownerName = data.owner.name;
+  render();
+}
+
+// Sample numbers for showing the page to someone whose restaurants have no sales entered yet.
+function sampleData() {
+  const rs = [
+    { id: "s1", name: "Sample Bistro — Downtown", status: "on_track", salesWeek: 28450, salesDays: 4, salesVsLastWeekPct: 6.4, laborPct: 29.8, openShifts: 1, pendingSwaps: 0, staffCount: 22, flags: [{ code: "sales_up", value: 6.4, level: "info" }] },
+    { id: "s2", name: "Sample Grill — Old Port", status: "attention", salesWeek: 19800, salesDays: 4, salesVsLastWeekPct: -17.2, laborPct: 38.4, openShifts: 4, pendingSwaps: 2, staffCount: 31, flags: [{ code: "labor_high", value: 38.4, level: "attention" }, { code: "open_shifts", value: 4, level: "attention" }, { code: "sales_down", value: -17.2, level: "attention" }, { code: "swaps", value: 2, level: "info" }] },
+    { id: "s3", name: "Sample Café — Plateau", status: "on_track", salesWeek: 11200, salesDays: 4, salesVsLastWeekPct: 1.8, laborPct: 27.9, openShifts: 0, pendingSwaps: 0, staffCount: 12, flags: [] },
+  ];
+  return {
+    owner: { name: ownerName }, today: data ? data.today : new Date().toISOString().slice(0, 10), weekStart: data ? data.weekStart : new Date().toISOString().slice(0, 10),
+    totals: { salesWeek: rs.reduce((a, r) => a + r.salesWeek, 0), openShifts: rs.reduce((a, r) => a + r.openShifts, 0), needAttention: rs.filter(r => r.status === "attention").length, locations: rs.length },
+    restaurants: rs,
+  };
+}
+async function openRestaurant(id) {
+  const r = await api(`/api/owner/open/${id}`, { method: "POST" });
+  if (r.ok) location.href = "/index.html"; else alert(r.error);
+}
+function setDemo(on) { demo = on; render(); }
+
+function render() {
+  const d = demo ? sampleData() : data;
+  if (!d) return;
+  const hr = new Date().getHours();
+  document.getElementById("greeting").textContent = tr(hr < 12 ? "greet.morning" : hr < 18 ? "greet.afternoon" : "greet.evening", ownerName.split(" ")[0] || ownerName);
+  document.getElementById("weekLine").textContent = tr("week.line", I18N.formatDate(d.weekStart).replace(/^[^,\s]+[,\s]+/, ""));
+  document.getElementById("demoBanner").classList.toggle("on", demo);
+  const noSalesAnywhere = !demo && data && data.restaurants.length > 0 && data.restaurants.every(r => r.salesDays === 0);
+  document.getElementById("demoOffer").style.display = !demo && noSalesAnywhere ? "block" : "none";
+
+  const t = d.totals;
+  document.getElementById("summary").innerHTML = `
+    <div class="stat"><div class="k">${tr("sum.sales")}</div><div class="v num">${money(t.salesWeek)}</div><div class="s">${tr("sum.salesSub", t.locations)}</div></div>
+    <div class="stat"><div class="k">${tr("sum.open")}</div><div class="v num">${t.openShifts}</div><div class="s">${tr("sum.openSub")}</div></div>
+    <div class="stat ${t.needAttention > 0 ? "warn" : ""}"><div class="k">${tr("sum.attn")}</div><div class="v num">${t.needAttention}</div><div class="s">${tr("sum.attnSub", t.needAttention, t.locations)}</div></div>`;
+
+  const cards = document.getElementById("cards");
+  if (d.restaurants.length === 0) { cards.innerHTML = `<div class="empty" style="grid-column:1/-1">${tr("empty.none")}</div>`; return; }
+  cards.innerHTML = d.restaurants.map(r => {
+    const delta = r.salesVsLastWeekPct === null || r.salesVsLastWeekPct === undefined
+      ? `<div class="delta">${tr("card.noCompare")}</div>`
+      : `<div class="delta ${r.salesVsLastWeekPct > 0 ? "up" : r.salesVsLastWeekPct < 0 ? "down" : ""}">${tr("card.vs", r.salesVsLastWeekPct, pct(Math.abs(r.salesVsLastWeekPct)))}</div>`;
+    const notes = r.flags.length
+      ? r.flags.map(f => `<li class="${f.level === "attention" ? "attention" : f.code === "sales_up" ? "good" : ""}">${escapeHtml(tr("note." + f.code, ["labor_high", "sales_up", "sales_down"].includes(f.code) ? pct(Math.abs(f.value)) : f.value))}</li>`).join("")
+      : `<li class="good">${tr("note.steady")}</li>`;
+    const laborBad = r.laborPct !== null && r.laborPct > 35;
+    return `
+      <div class="ticket ${demo ? "sample" : ""}" ${demo ? "" : `onclick="openRestaurant('${r.id}')"`}>
+        <div class="stamp ${r.status === "attention" ? "attention" : ""}">${tr("stamp." + r.status)}</div>
+        <h3>${escapeHtml(r.name)}</h3>
+        <div class="sales-label">${tr("card.sales")}</div>
+        <div class="sales-big num">${money(r.salesWeek)}</div>
+        ${delta}
+        <div class="minis">
+          <div class="mini"><div class="k">${tr("card.labor")}</div><div class="v num ${laborBad ? "bad" : ""}">${r.laborPct === null ? tr("card.dash") : pct(r.laborPct) + "%"}</div></div>
+          <div class="mini"><div class="k">${tr("card.open")}</div><div class="v num">${r.openShifts}</div></div>
+        </div>
+        <ul class="notes">${notes}</ul>
+        ${demo ? "" : `<div class="open-hint">${tr("card.open_manager")} →</div>`}
+        <div class="foot">${tr("card.staff", r.staffCount)} · ${tr("card.laborHint")}</div>
+      </div>`;
+  }).join("");
+}
+
+I18N.onChange(() => { if (document.getElementById("app").style.display === "block") render(); });
+I18N.apply();
+
+(async function checkSession() {
+  const r = await api("/api/owner-auth/me");
+  if (r.ok) { ownerName = r.data.name; enter(); }
+})();
+</script>
+</body>
+</html>
