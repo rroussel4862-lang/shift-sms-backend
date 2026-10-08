@@ -1334,6 +1334,7 @@ function renderScheduleGrid() {
   document.getElementById("app").style.display = "block";
   document.getElementById("restaurantHeading").textContent = tr("headingOf", me.data.restaurant.name);
   window.__restaurantName = me.data.restaurant.name;
+  document.title = me.data.restaurant.name + " — Back Office";
   loadStaff();
 })();
 

@@ -358,8 +358,9 @@ function switchStaffTab(name) {
   if (name === "training") loadTraining();
 }
 
-function enterApp(name) {
+async function enterApp(name) {
   window.__myName = name;
+  if (!window.__restName) { const me = await api("/api/staff-auth/me"); if (me.ok) { window.__restName = me.data.restaurantName || ""; if (window.__restName) document.title = window.__restName + " — Open Shift Rail"; } }
   document.getElementById("landing").style.display = "none";
   document.getElementById("appShell").style.display = "block";
   document.getElementById("staffHeading").textContent = name ? tr("app.hi", name.split(" ")[0]) : tr("app.myShifts");
@@ -384,7 +385,7 @@ async function loadSchedule() {
   const list = document.getElementById("myScheduleList");
   if (!result.ok) { list.innerHTML = `<p class="empty">${result.error}</p>`; return; }
   mySchedule = result.data;
-  document.getElementById("staffSub").textContent = tr("schedule.count", mySchedule.length);
+  document.getElementById("staffSub").textContent = (window.__restName ? window.__restName + " · " : "") + tr("schedule.count", mySchedule.length);
   renderSchedule();
 }
 

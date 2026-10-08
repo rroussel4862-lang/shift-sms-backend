@@ -445,11 +445,12 @@
     transform: rotate(-4deg);
     font-family: 'Oswald', sans-serif; font-weight: 700; color: var(--amber); font-size: 10px;
   }
-  #logoutBtn {
+  #logoutBtn, .top-chip {
     background: none; border: 1px solid var(--rail); color: var(--text-dim);
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-family: inherit;
-    padding: 6px 10px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+    font-size: 10px; line-height: 1.2; text-transform: uppercase; letter-spacing: 0.04em; font-family: inherit;
+    padding: 4px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; text-decoration: none;
   }
+  .top-chip.amber { color: var(--amber); border-color: var(--amber); }
   #contentWrap { padding: 20px 28px 60px; max-width: 640px; }
   .module-header { margin-bottom: 18px; }
   .module-header .eyebrow { color: var(--accent, var(--text-dim)); font-size: 12px; font-weight: 600; margin-bottom: 4px; font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -661,8 +662,8 @@
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <div class="lang-switch" id="appLangSwitch"></div>
-        <a href="/backoffice.html" class="back-link" style="text-decoration:none;color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;border:1px solid var(--rail);padding:6px 10px;border-radius:4px" data-i18n="topbar.backOffice">Back Office</a>
-        <a id="ownerBackLink" href="/owner.html" style="display:none;text-decoration:none;color:var(--amber);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;border:1px solid var(--amber);padding:6px 10px;border-radius:4px" data-i18n="topbar.allRestaurants">← All restaurants</a>
+        <a href="/backoffice.html" class="top-chip back-link" data-i18n="topbar.backOffice">Back Office</a>
+        <a id="ownerBackLink" href="/owner.html" class="top-chip amber" style="display:none" data-i18n="topbar.allRestaurants">← All restaurants</a>
         <button id="logoutBtn" onclick="logout()" data-i18n="topbar.logout">Log out</button>
       </div>
     </div>
@@ -899,7 +900,7 @@ const T = {
       bannerSalesSaved: "Sales saved",
     },
     ovExtra: { coursesInProgress: "Courses in progress", coursesSub: n => `${n} course${n === 1 ? "" : "s"} total`, salesWeek: "Sales this week", laborPct: p => `${p}% labor cost`, laborUnknown: "Tap to add sales", },
-    topbar: { backOffice: "Back Office", logout: "Log out", allRestaurants: "← All restaurants" },
+    topbar: { backOffice: "Back Office", logout: "Log out", allRestaurants: "← Restaurants" },
     overview: {
       eyebrow: "Overview", desc: "Every section feeds this dashboard — tap a card to jump in.",
       openShifts: "Open shifts", posted: n => `${n} posted`, nonePosted: "None posted yet",
@@ -1037,7 +1038,7 @@ const T = {
       bannerSalesSaved: "Ventes enregistrées",
     },
     ovExtra: { coursesInProgress: "Cours en cours", coursesSub: n => `${n} cours au total`, salesWeek: "Ventes cette semaine", laborPct: p => `${p}% coût de main-d'œuvre`, laborUnknown: "Touchez pour ajouter des ventes", },
-    topbar: { backOffice: "Back Office", logout: "Déconnexion", allRestaurants: "← Tous les restaurants" },
+    topbar: { backOffice: "Back Office", logout: "Déconnexion", allRestaurants: "← Restaurants" },
     overview: {
       eyebrow: "Aperçu", desc: "Chaque section alimente ce tableau de bord — touchez une carte pour y accéder.",
       openShifts: "Quarts ouverts", posted: n => `${n} publiés`, nonePosted: "Aucun publié",
@@ -1175,7 +1176,7 @@ const T = {
       bannerSalesSaved: "Ventas guardadas",
     },
     ovExtra: { coursesInProgress: "Cursos en progreso", coursesSub: n => `${n} curso${n === 1 ? "" : "s"} en total`, salesWeek: "Ventas esta semana", laborPct: p => `${p}% costo de mano de obra`, laborUnknown: "Toca para agregar ventas", },
-    topbar: { backOffice: "Back Office", logout: "Cerrar sesión", allRestaurants: "← Todos los restaurantes" },
+    topbar: { backOffice: "Back Office", logout: "Cerrar sesión", allRestaurants: "← Restaurantes" },
     overview: {
       eyebrow: "Resumen", desc: "Cada sección alimenta este panel — toca una tarjeta para acceder.",
       openShifts: "Turnos abiertos", posted: n => `${n} publicados`, nonePosted: "Ninguno publicado",
@@ -1616,7 +1617,7 @@ function renderToday() {
 
 function render() {
   document.getElementById("subtitle").textContent =
-    `${shifts.filter(s => s.status === "open").length} ${t("overview.openShifts").toLowerCase()} · ${staff.length} ${t("overview.staffLabel").toLowerCase()}`;
+    `${restaurantName ? restaurantName + " · " : ""}${shifts.filter(s => s.status === "open").length} ${t("overview.openShifts").toLowerCase()} · ${staff.length} ${t("overview.staffLabel").toLowerCase()}`;
 
   // staff filter controls
   document.getElementById("modeBtnAll").classList.toggle("active", staffFilterMode === "all");
@@ -2803,6 +2804,8 @@ function enterApp() {
   document.getElementById("landing").style.display = "none";
   document.getElementById("appShell").style.display = "block";
   document.getElementById("sidebarRestaurantName").textContent = restaurantName || "Open Shift Rail";
+  document.getElementById("topbarNewTitle").textContent = t("nav." + currentTab);
+  if (restaurantName) document.title = restaurantName + " — Open Shift Rail";
   document.getElementById("restaurantAddress").value = restaurantAddress || "";
   renderChatThread();
   if (!started) {
