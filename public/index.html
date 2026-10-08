@@ -695,6 +695,11 @@
       <button class="primary amber" onclick="postShift()" data-i18n="scheduling.sendBtn">Send to staff now</button>
     </div>
 
+    <div class="section" id="swapSection">
+      <h2 data-i18n="scheduling.swapCard">Shift swap requests</h2>
+      <div id="swapRequests"><p class="empty" data-i18n="scheduling.swapNone">No swap or give-away requests.</p></div>
+    </div>
+
     <div class="section" id="todaySection">
       <h2 data-i18n="scheduling.todayCard">Who's scheduled today</h2>
       <div id="todayScheduled"></div>
@@ -902,6 +907,10 @@ const T = {
       aiAgent: "AI agent", askLabel: "Ask", askSub: "Ask about staffing, cost, or hiring",
     },
     scheduling: {
+      swapCard: "Shift swap requests", swapNone: "No swap or give-away requests.", swapOverview: n => `${n} swap request${n === 1 ? "" : "s"} to approve`,
+      swapGive: "Give-away", swapSwap: "Swap", swapPending: "Needs your approval", swapOpen: "Waiting for a taker", swapApproved: "Approved", swapDenied: "Denied",
+      swapGiveLine: (from, to) => `${from} gives this shift to ${to}`, swapSwapLine: (from, to) => `${from} and ${to} trade shifts`, swapOpenLine: from => `${from} wants to give this shift away`, swapOpenSwapLine: from => `${from} wants to trade this shift`,
+      swapInReturn: "In exchange, they take:", swapApprove: "Approve", swapDeny: "Deny", swapRemove: "Remove", swapApprovedBanner: "Approved — both people were texted.", swapDeniedBanner: "Request closed.",
       eyebrow: "Scheduling", h2: "Shifts & staffing", desc: "When someone doesn't show, post it here — every matching staff member gets a real text within seconds.",
       postCard: "Post an open shift", position: "Position", when: "When", whenPh: "e.g. Today, 5pm–close",
       note: "Note (optional)", notePh: "e.g. Jordan called out sick", sendBtn: "Send to staff now",
@@ -1036,6 +1045,10 @@ const T = {
       aiAgent: "Agent IA", askLabel: "Demander", askSub: "Posez une question sur le personnel, les coûts ou l'embauche",
     },
     scheduling: {
+      swapCard: "Demandes d'échange de quarts", swapNone: "Aucune demande d'échange ou de cession.", swapOverview: n => `${n} demande${n === 1 ? "" : "s"} d'échange à approuver`,
+      swapGive: "Cession", swapSwap: "Échange", swapPending: "À approuver", swapOpen: "En attente d'un preneur", swapApproved: "Approuvé", swapDenied: "Refusé",
+      swapGiveLine: (from, to) => `${from} cède ce quart à ${to}`, swapSwapLine: (from, to) => `${from} et ${to} échangent leurs quarts`, swapOpenLine: from => `${from} veut céder ce quart`, swapOpenSwapLine: from => `${from} veut échanger ce quart`,
+      swapInReturn: "En échange, la personne prend :", swapApprove: "Approuver", swapDeny: "Refuser", swapRemove: "Retirer", swapApprovedBanner: "Approuvé — les deux personnes ont reçu un texto.", swapDeniedBanner: "Demande fermée.",
       eyebrow: "Horaire", h2: "Quarts et personnel", desc: "Quand quelqu'un ne se présente pas, publiez-le ici — chaque employé correspondant reçoit un vrai texto en quelques secondes.",
       postCard: "Publier un quart ouvert", position: "Poste", when: "Quand", whenPh: "ex. Aujourd'hui, 17h–fermeture",
       note: "Note (optionnel)", notePh: "ex. Jordan a appelé pour maladie", sendBtn: "Envoyer au personnel maintenant",
@@ -1170,6 +1183,10 @@ const T = {
       aiAgent: "Agente IA", askLabel: "Preguntar", askSub: "Pregunta sobre personal, costos o contratación",
     },
     scheduling: {
+      swapCard: "Solicitudes de cambio de turnos", swapNone: "No hay solicitudes de cambio ni de cesión.", swapOverview: n => `${n} solicitud${n === 1 ? "" : "es"} de cambio por aprobar`,
+      swapGive: "Cesión", swapSwap: "Cambio", swapPending: "Requiere tu aprobación", swapOpen: "Esperando a alguien", swapApproved: "Aprobado", swapDenied: "Rechazado",
+      swapGiveLine: (from, to) => `${from} cede este turno a ${to}`, swapSwapLine: (from, to) => `${from} y ${to} intercambian turnos`, swapOpenLine: from => `${from} quiere ceder este turno`, swapOpenSwapLine: from => `${from} quiere cambiar este turno`,
+      swapInReturn: "A cambio, esa persona toma:", swapApprove: "Aprobar", swapDeny: "Rechazar", swapRemove: "Quitar", swapApprovedBanner: "Aprobado — se envió un texto a ambas personas.", swapDeniedBanner: "Solicitud cerrada.",
       eyebrow: "Horario", h2: "Turnos y personal", desc: "Cuando alguien no se presenta, publícalo aquí — cada empleado correspondiente recibe un mensaje de texto real en segundos.",
       postCard: "Publicar un turno abierto", position: "Puesto", when: "Cuándo", whenPh: "ej. Hoy, 5pm–cierre",
       note: "Nota (opcional)", notePh: "ej. Jordan llamó por enfermedad", sendBtn: "Enviar al personal ahora",
@@ -1492,6 +1509,7 @@ let postings = [];
 let applications = [];
 let applicantFilterPostingId = null;
 
+let swapRequests = [];
 async function loadAll() {
   const [s, sh, po, ap] = await Promise.all([api("/api/staff"), api("/api/shifts"), api("/api/hiring/postings"), api("/api/hiring/applications")]);
   if (s.ok) staff = s.data;
@@ -1502,6 +1520,8 @@ async function loadAll() {
   if (tr.ok) trainingItems = tr.data;
   const bd = await api("/api/board");
   if (bd.ok) boardPosts = bd.data;
+  const sw = await api("/api/swaps");
+  if (sw.ok) swapRequests = sw.data;
   const todayIso = isoLocal(new Date());
   const td = await api(`/api/schedule?start=${todayIso}&end=${todayIso}`);
   if (td.ok) todayShifts = td.data;
@@ -1738,6 +1758,7 @@ function render() {
         </div>
       `).join("");
 
+  renderSwapRequests();
   renderToday();
   renderBoard();
 
@@ -1776,7 +1797,7 @@ function renderOverview() {
   const openPostings = postings.filter(p => p.status === "open").length;
   const stats = [
     { id: "comms", accent: "var(--comms)", label: t("overview.aiAgent"), value: t("overview.askLabel"), sub: t("overview.askSub") },
-    { id: "shifts", accent: "var(--scheduling)", label: t("overview.openShifts"), value: openShiftCount, sub: shifts.length ? t("overview.posted", shifts.length) : t("overview.nonePosted") },
+    { id: "shifts", accent: "var(--scheduling)", label: t("overview.openShifts"), value: openShiftCount, sub: swapRequests.some(w => w.status === "pending") ? t("scheduling.swapOverview", swapRequests.filter(w => w.status === "pending").length) : (shifts.length ? t("overview.posted", shifts.length) : t("overview.nonePosted")) },
     { id: "staff", accent: "var(--staffcolor)", label: t("overview.staffLabel"), value: staff.length, sub: t("overview.manageRoster") },
     { id: "payroll", accent: "var(--payroll)", label: t("ovExtra.salesWeek"), value: payroll && payrollNumbers().totalSales > 0 ? "$" + money(payrollNumbers().totalSales) : "—", sub: payroll && payrollNumbers().laborPct !== null ? t("ovExtra.laborPct", payrollNumbers().laborPct) : t("ovExtra.laborUnknown") },
     { id: "training", accent: "var(--training)", label: t("ovExtra.coursesInProgress"), value: trainingItems.filter(i => i.kind === "course" && i.assignments.some(a => !a.done)).length, sub: t("ovExtra.coursesSub", trainingItems.filter(i => i.kind === "course").length) },
@@ -1790,6 +1811,44 @@ function renderOverview() {
       <div class="sub">${s.sub}</div>
     </div>
   `).join("");
+}
+
+/* ============================== Shift swaps ============================== */
+function swapDate(d) { return new Date(d + "T00:00:00").toLocaleDateString(localeForLang(), { weekday: "short", month: "short", day: "numeric" }); }
+function swapShiftLine(sh) { return `${escapeHtml(swapDate(sh.date))} · ${fmtClock(sh.startTime)} – ${fmtClock(sh.endTime)}${sh.role ? " · " + escapeHtml(roleLabel(sh.role)) : ""}`; }
+function renderSwapRequests() {
+  const el = document.getElementById("swapRequests");
+  if (!el) return;
+  if (swapRequests.length === 0) { el.innerHTML = `<p class="empty">${t("scheduling.swapNone")}</p>`; return; }
+  el.innerHTML = swapRequests.map(w => {
+    const stamp = w.status === "pending" ? t("scheduling.swapPending") : w.status === "open" ? t("scheduling.swapOpen") : w.status === "approved" ? t("scheduling.swapApproved") : t("scheduling.swapDenied");
+    const line = w.status === "open"
+      ? (w.kind === "swap" ? t("scheduling.swapOpenSwapLine", escapeHtml(w.fromName)) : t("scheduling.swapOpenLine", escapeHtml(w.fromName)))
+      : (w.kind === "swap" ? t("scheduling.swapSwapLine", escapeHtml(w.fromName), escapeHtml(w.toName || "")) : t("scheduling.swapGiveLine", escapeHtml(w.fromName), escapeHtml(w.toName || "")));
+    const actions = w.status === "pending"
+      ? `<div class="responder-row"><span></span><span><button class="assign-btn" onclick="approveSwap('${w.id}')">${t("scheduling.swapApprove")}</button> <button class="assign-btn" style="background:transparent;color:inherit;border:1px solid currentColor" onclick="denySwap('${w.id}')">${t("scheduling.swapDeny")}</button></span></div>`
+      : w.status === "open" ? `<button class="remove-btn" onclick="denySwap('${w.id}')">${t("scheduling.swapRemove")}</button>` : "";
+    return `
+      <div class="ticket">
+        <div class="stamp ${w.status === "approved" ? "filled" : ""}">${stamp}</div>
+        <div class="role">${t(w.kind === "swap" ? "scheduling.swapSwap" : "scheduling.swapGive")}</div>
+        <div class="meta">${swapShiftLine(w.shift)}</div>
+        <div class="note">${line}</div>
+        ${w.swapShift ? `<div class="meta" style="margin-top:6px">${t("scheduling.swapInReturn")} ${swapShiftLine(w.swapShift)}</div>` : ""}
+        ${w.note ? `<div class="note" style="opacity:.75;margin-top:4px">“${escapeHtml(w.note)}”</div>` : ""}
+        ${actions}
+      </div>`;
+  }).join("");
+}
+async function approveSwap(id) {
+  const r = await api(`/api/swaps/${id}/approve`, { method: "POST" });
+  if (r.ok) showBanner(t("scheduling.swapApprovedBanner"), "success"); else showBanner(r.error, "warn");
+  loadAll();
+}
+async function denySwap(id) {
+  const r = await api(`/api/swaps/${id}/deny`, { method: "POST" });
+  if (r.ok) showBanner(t("scheduling.swapDeniedBanner"), "success"); else showBanner(r.error, "warn");
+  loadAll();
 }
 
 /* ============================== Training ============================== */

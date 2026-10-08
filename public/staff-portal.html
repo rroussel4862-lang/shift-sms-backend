@@ -76,6 +76,12 @@
   .ticket h3 { font-size: 15px; margin: 0 0 4px; padding-right: 70px; }
   .ticket .meta { font-size: 11px; opacity: 0.65; margin-bottom: 6px; }
   .ticket .note { font-size: 13px; line-height: 1.4; }
+  .swap-pill { font-size: 12px; line-height: 1.4; padding: 7px 9px; border-radius: 4px; background: rgba(224,164,52,.18); margin-top: 8px; }
+  .swap-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .swap-actions button { flex: 1; padding: 8px; border-radius: 5px; border: 1.5px solid var(--ink); background: transparent; color: var(--ink); font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; font-size: 12px; cursor: pointer; }
+  .swap-actions button.solid { background: var(--ink); color: var(--paper); }
+  .swap-form { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .swap-form input, .swap-form select { padding: 8px; border: 1px solid rgba(0,0,0,.25); border-radius: 4px; font-family: inherit; font-size: 13px; background: #fff; color: #222; width: 100%; box-sizing: border-box; }
   .claim-btn { width: 100%; margin-top: 10px; padding: 10px; background: var(--green); color: #fff; border: none; border-radius: 5px; font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; font-size: 12.5px; cursor: pointer; }
   .claim-btn[disabled] { background: rgba(35,38,31,0.2); color: rgba(35,38,31,0.5); cursor: not-allowed; }
 
@@ -127,7 +133,7 @@
   <div class="tabs">
     <button class="tab-btn active" id="tabBtnSchedule" onclick="switchStaffTab('schedule')" data-i18n="tabs.schedule">My Schedule</button>
     <button class="tab-btn" id="tabBtnAvailability" onclick="switchStaffTab('availability')" data-i18n="tabs.availability">Availability</button>
-    <button class="tab-btn" id="tabBtnOpen" onclick="switchStaffTab('open')" data-i18n="tabs.open">Open Shifts</button>
+    <button class="tab-btn" id="tabBtnOpen" onclick="switchStaffTab('open')"><span data-i18n="tabs.open">Open Shifts</span><span class="tab-badge" id="openBadge"></span></button>
     <button class="tab-btn" id="tabBtnBoard" onclick="switchStaffTab('board')"><span data-i18n="tabs.board">Board</span><span class="tab-badge" id="boardBadge"></span></button>
     <button class="tab-btn" id="tabBtnTraining" onclick="switchStaffTab('training')"><span data-i18n="tabs.training">Training</span><span class="tab-badge" id="trainingBadge"></span></button>
   </div>
@@ -168,6 +174,10 @@
         <h2 data-i18n="open.h2">Open shifts you can take</h2>
         <div id="openShiftsList"><p class="empty">Loading…</p></div>
       </div>
+      <div class="card">
+        <h2 data-i18n="swap.h2">Shifts coworkers want to hand off</h2>
+        <div id="swapList"><p class="empty" data-i18n="schedule.loading">Loading…</p></div>
+      </div>
     </div>
   </main>
 </div>
@@ -196,6 +206,17 @@ I18N.add({
     "open.h2": "Open shifts you can take", "open.empty": "No open shifts matching your roles right now.",
     "open.stamp": "Open", "open.asap": "ASAP", "open.claim": "Claim this shift", "open.waiting": "You're in — waiting on manager",
     "open.claimed": "You're in — your manager will confirm shortly",
+    "swap.give": "Give away", "swap.swap": "Swap", "swap.notePh": "Reason (optional)", "swap.post": "Post it", "swap.close": "Close",
+    "swap.openStatus": "Posted to your coworkers — waiting for someone to take it",
+    "swap.pendingGive": n => `${n} will take it — waiting for manager approval`, "swap.pendingSwap": n => `${n} offered a trade — waiting for manager approval`,
+    "swap.inTrade": "Offered in a swap — waiting for manager approval", "swap.cancel": "Cancel request",
+    "swap.posted": "Posted. Your coworkers can see it now.", "swap.cancelled": "Request cancelled",
+    "swap.h2": "Shifts coworkers want to hand off", "swap.empty": "No coworker requests right now.",
+    "swap.stampGive": "Give", "swap.stampSwap": "Swap", "swap.from": n => `From ${n}`,
+    "swap.take": "Take this shift", "swap.offer": "Offer a trade", "swap.pickMine": "Trade one of my shifts…", "swap.noneToTrade": "You have no shifts of your own to trade right now.",
+    "swap.sent": "Sent — your manager has to approve it before anything changes.",
+    "swap.mineWaitGive": n => `You offered to take ${n}'s shift`, "swap.mineWaitSwap": n => `You offered a trade with ${n}`, "swap.waitMgr": "Waiting for manager approval", "swap.withdraw": "Withdraw",
+    "swap.approved": "Approved ✓", "swap.denied": "Not approved", "swap.wantsTrade": "Wants a trade — offer one of yours",
     "err.network": "Network error — is the server running?",
     "days.mon": "Mon", "days.tue": "Tue", "days.wed": "Wed", "days.thu": "Thu", "days.fri": "Fri", "days.sat": "Sat", "days.sun": "Sun",
   },
@@ -221,6 +242,17 @@ I18N.add({
     "open.h2": "Quarts ouverts que vous pouvez prendre", "open.empty": "Aucun quart ouvert ne correspond à vos postes pour le moment.",
     "open.stamp": "Ouvert", "open.asap": "Dès que possible", "open.claim": "Prendre ce quart", "open.waiting": "C'est noté — en attente du gestionnaire",
     "open.claimed": "C'est noté — votre gestionnaire confirmera sous peu",
+    "swap.give": "Céder", "swap.swap": "Échanger", "swap.notePh": "Raison (facultatif)", "swap.post": "Publier", "swap.close": "Fermer",
+    "swap.openStatus": "Publié pour vos collègues — en attente d'un preneur",
+    "swap.pendingGive": n => `${n} le prend — en attente de l'approbation du gestionnaire`, "swap.pendingSwap": n => `${n} propose un échange — en attente de l'approbation du gestionnaire`,
+    "swap.inTrade": "Proposé dans un échange — en attente de l'approbation du gestionnaire", "swap.cancel": "Annuler la demande",
+    "swap.posted": "Publié. Vos collègues peuvent le voir.", "swap.cancelled": "Demande annulée",
+    "swap.h2": "Quarts que des collègues veulent céder", "swap.empty": "Aucune demande de collègue pour l'instant.",
+    "swap.stampGive": "Cession", "swap.stampSwap": "Échange", "swap.from": n => `De ${n}`,
+    "swap.take": "Prendre ce quart", "swap.offer": "Proposer un échange", "swap.pickMine": "Échanger un de mes quarts…", "swap.noneToTrade": "Vous n'avez aucun quart à échanger pour le moment.",
+    "swap.sent": "Envoyé — votre gestionnaire doit l'approuver avant tout changement.",
+    "swap.mineWaitGive": n => `Vous avez offert de prendre le quart de ${n}`, "swap.mineWaitSwap": n => `Vous avez proposé un échange avec ${n}`, "swap.waitMgr": "En attente de l'approbation du gestionnaire", "swap.withdraw": "Retirer",
+    "swap.approved": "Approuvé ✓", "swap.denied": "Non approuvé", "swap.wantsTrade": "Veut un échange — proposez un de vos quarts",
     "err.network": "Erreur réseau — le serveur est-il en marche?",
     "days.mon": "Lun", "days.tue": "Mar", "days.wed": "Mer", "days.thu": "Jeu", "days.fri": "Ven", "days.sat": "Sam", "days.sun": "Dim",
   },
@@ -246,6 +278,17 @@ I18N.add({
     "open.h2": "Turnos abiertos que puedes tomar", "open.empty": "No hay turnos abiertos para tus puestos por ahora.",
     "open.stamp": "Abierto", "open.asap": "Lo antes posible", "open.claim": "Tomar este turno", "open.waiting": "Anotado — esperando al gerente",
     "open.claimed": "Anotado — tu gerente lo confirmará pronto",
+    "swap.give": "Ceder", "swap.swap": "Cambiar", "swap.notePh": "Motivo (opcional)", "swap.post": "Publicar", "swap.close": "Cerrar",
+    "swap.openStatus": "Publicado para tus compañeros — esperando a que alguien lo tome",
+    "swap.pendingGive": n => `${n} lo tomará — esperando aprobación del gerente`, "swap.pendingSwap": n => `${n} ofreció un cambio — esperando aprobación del gerente`,
+    "swap.inTrade": "Ofrecido en un cambio — esperando aprobación del gerente", "swap.cancel": "Cancelar solicitud",
+    "swap.posted": "Publicado. Tus compañeros ya pueden verlo.", "swap.cancelled": "Solicitud cancelada",
+    "swap.h2": "Turnos que tus compañeros quieren ceder", "swap.empty": "No hay solicitudes de compañeros por ahora.",
+    "swap.stampGive": "Ceder", "swap.stampSwap": "Cambio", "swap.from": n => `De ${n}`,
+    "swap.take": "Tomar este turno", "swap.offer": "Ofrecer un cambio", "swap.pickMine": "Cambiar uno de mis turnos…", "swap.noneToTrade": "No tienes turnos propios para cambiar por ahora.",
+    "swap.sent": "Enviado — tu gerente debe aprobarlo antes de que cambie algo.",
+    "swap.mineWaitGive": n => `Ofreciste tomar el turno de ${n}`, "swap.mineWaitSwap": n => `Ofreciste un cambio con ${n}`, "swap.waitMgr": "Esperando aprobación del gerente", "swap.withdraw": "Retirar",
+    "swap.approved": "Aprobado ✓", "swap.denied": "No aprobado", "swap.wantsTrade": "Quiere un cambio — ofrece uno de tus turnos",
     "err.network": "Error de red — ¿está el servidor en marcha?",
     "days.mon": "Lun", "days.tue": "Mar", "days.wed": "Mié", "days.thu": "Jue", "days.fri": "Vie", "days.sat": "Sáb", "days.sun": "Dom",
   },
@@ -294,6 +337,7 @@ async function submitLogin() {
   if (!email || !password) { errorDiv.textContent = tr("landing.errMissing"); return; }
   const result = await api("/api/staff-auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
   if (!result.ok) { errorDiv.textContent = result.error; return; }
+  window.__myStaffId = result.data.id;
   enterApp(result.data.name);
 }
 
@@ -309,6 +353,7 @@ function switchStaffTab(name) {
     document.getElementById("tabBtn" + cap).classList.toggle("active", name === n);
   });
   currentStaffTab = name;
+  renderSwaps();
   if (name === "board") openBoard(); else boardNewIds = new Set();
   if (name === "training") loadTraining();
 }
@@ -323,28 +368,147 @@ function enterApp(name) {
   loadOpenShifts();
   loadBoard();
   loadTraining();
-  if (!window.__boardTimer) window.__boardTimer = setInterval(loadBoard, 30000);
+  if (!window.__boardTimer) window.__boardTimer = setInterval(() => { loadBoard(); loadSwaps(); }, 30000);
 }
+
+let mySchedule = [];
+let swapData = { mine: [], available: [], offerable: [] };
+let swapForm = null; // { shiftId, kind }
 
 async function loadSchedule() {
   const today = new Date();
   const future = new Date(today);
   future.setDate(future.getDate() + 21);
   const toISO = (d) => d.toISOString().slice(0, 10);
-  const result = await api(`/api/staff-auth/schedule?start=${toISO(today)}&end=${toISO(future)}`);
+  const [result] = await Promise.all([api(`/api/staff-auth/schedule?start=${toISO(today)}&end=${toISO(future)}`), loadSwaps(true)]);
   const list = document.getElementById("myScheduleList");
   if (!result.ok) { list.innerHTML = `<p class="empty">${result.error}</p>`; return; }
-  const shifts = result.data;
-  document.getElementById("staffSub").textContent = tr("schedule.count", shifts.length);
-  list.innerHTML = shifts.length === 0
-    ? `<p class="empty">${tr("schedule.empty")}</p>`
-    : shifts.map(s => `
+  mySchedule = result.data;
+  document.getElementById("staffSub").textContent = tr("schedule.count", mySchedule.length);
+  renderSchedule();
+}
+
+function activeSwapFor(shiftId) {
+  return swapData.mine.find(w => (w.status === "open" || w.status === "pending") && w.fromStaffId === window.__myStaffId && w.shift.id === shiftId);
+}
+function tradeOfferFor(shiftId) {
+  return swapData.mine.find(w => w.status === "pending" && w.swapShift && w.swapShift.id === shiftId);
+}
+
+function renderSchedule() {
+  const list = document.getElementById("myScheduleList");
+  if (mySchedule.length === 0) { list.innerHTML = `<p class="empty">${tr("schedule.empty")}</p>`; return; }
+  list.innerHTML = mySchedule.map(s => {
+    const sw = activeSwapFor(s.id);
+    const inTrade = tradeOfferFor(s.id);
+    let extra = "";
+    if (sw) {
+      const msg = sw.status === "open" ? tr("swap.openStatus") : (sw.kind === "swap" ? tr("swap.pendingSwap", sw.toName) : tr("swap.pendingGive", sw.toName));
+      extra = `<div class="swap-pill">${escapeHtml(msg)}</div><div class="swap-actions"><button onclick="cancelSwap('${sw.id}')">${tr("swap.cancel")}</button></div>`;
+    } else if (inTrade) {
+      extra = `<div class="swap-pill">${tr("swap.inTrade")}</div>`;
+    } else if (swapForm && swapForm.shiftId === s.id) {
+      extra = `<div class="swap-form"><input type="text" id="swapNote" maxlength="300" value="${escapeHtml(swapForm.note || "")}" oninput="swapForm.note = this.value" placeholder="${escapeHtml(tr("swap.notePh"))}" /><div class="swap-actions"><button class="solid" onclick="submitSwap()">${tr("swap.post")} · ${tr(swapForm.kind === "give" ? "swap.give" : "swap.swap")}</button><button onclick="closeSwapForm()">${tr("swap.close")}</button></div></div>`;
+    } else {
+      extra = `<div class="swap-actions"><button onclick="openSwapForm('${s.id}','give')">${tr("swap.give")}</button><button onclick="openSwapForm('${s.id}','swap')">${tr("swap.swap")}</button></div>`;
+    }
+    return `
         <div class="ticket">
           <div class="stamp">${escapeHtml(s.role ? roleLabel(s.role) : tr("schedule.shift"))}</div>
           <h3>${formatDate(s.date)}</h3>
           <div class="meta">${formatTime(s.startTime)} – ${formatTime(s.endTime)}</div>
-        </div>
-      `).join("");
+          ${extra}
+        </div>`;
+  }).join("");
+}
+
+function openSwapForm(shiftId, kind) { swapForm = { shiftId, kind }; renderSchedule(); const n = document.getElementById("swapNote"); if (n) n.focus(); }
+function closeSwapForm() { swapForm = null; renderSchedule(); }
+async function submitSwap() {
+  if (!swapForm) return;
+  const note = (document.getElementById("swapNote") || {}).value || swapForm.note || "";
+  const result = await api("/api/staff-auth/swaps", { method: "POST", body: JSON.stringify({ shiftId: swapForm.shiftId, kind: swapForm.kind, note }) });
+  swapForm = null;
+  if (!result.ok) { showBanner(result.error, "warn"); return renderSchedule(); }
+  showBanner(tr("swap.posted"), "success");
+  await loadSwaps();
+}
+async function cancelSwap(swapId) {
+  const result = await api(`/api/staff-auth/swaps/${swapId}/cancel`, { method: "POST" });
+  if (!result.ok) return showBanner(result.error, "warn");
+  showBanner(tr("swap.cancelled"), "success");
+  await loadSwaps();
+}
+
+async function loadSwaps(skipScheduleRender) {
+  const result = await api("/api/staff-auth/swaps");
+  if (!result.ok) return;
+  swapData = result.data;
+  renderSwaps();
+  const typing = swapForm && document.activeElement && document.activeElement.id === "swapNote";
+  if (!skipScheduleRender && !typing) renderSchedule();
+}
+
+const swapWhen = sh => `${formatDate(sh.date)} · ${formatTime(sh.startTime)} – ${formatTime(sh.endTime)}`;
+
+function renderSwaps() {
+  const me = window.__myStaffId;
+  const badge = document.getElementById("openBadge");
+  if (badge) badge.textContent = swapData.available.length > 0 && currentStaffTab !== "open" ? String(swapData.available.length) : "";
+  const list = document.getElementById("swapList");
+  if (!list) return;
+  // keep the trade picker's selection while the 30s refresh redraws
+  const keep = {};
+  list.querySelectorAll("select[data-swap]").forEach(el => { keep[el.dataset.swap] = el.value; });
+  const parts = [];
+  swapData.mine.forEach(w => {
+    if (w.status === "pending" && w.toStaffId === me) {
+      parts.push(`<div class="ticket"><div class="stamp">${tr(w.kind === "give" ? "swap.stampGive" : "swap.stampSwap")}</div>
+        <h3>${escapeHtml(w.shift.role ? roleLabel(w.shift.role) : tr("schedule.shift"))}</h3>
+        <div class="meta">${swapWhen(w.shift)}</div>
+        <div class="note">${escapeHtml(tr(w.kind === "give" ? "swap.mineWaitGive" : "swap.mineWaitSwap", w.fromName))}</div>
+        <div class="swap-pill">${tr("swap.waitMgr")}</div>
+        <div class="swap-actions"><button onclick="withdrawSwap('${w.id}')">${tr("swap.withdraw")}</button></div></div>`);
+    } else if (w.status === "approved" || w.status === "denied") {
+      parts.push(`<div class="ticket"><div class="stamp">${tr(w.status === "approved" ? "swap.approved" : "swap.denied")}</div>
+        <h3>${escapeHtml(w.shift.role ? roleLabel(w.shift.role) : tr("schedule.shift"))}</h3>
+        <div class="meta">${swapWhen(w.shift)}</div></div>`);
+    }
+  });
+  swapData.available.forEach(w => {
+    let action;
+    if (w.kind === "give") {
+      action = `<button class="claim-btn" onclick="acceptSwap('${w.id}')">${tr("swap.take")}</button>`;
+    } else if (swapData.offerable.length === 0) {
+      action = `<div class="note" style="margin-top:8px;opacity:.7">${tr("swap.noneToTrade")}</div>`;
+    } else {
+      action = `<div class="swap-form"><select data-swap="${w.id}" id="pick-${w.id}"><option value="">${escapeHtml(tr("swap.pickMine"))}</option>${swapData.offerable.map(o => `<option value="${o.id}">${escapeHtml(formatDate(o.date) + " · " + formatTime(o.startTime) + " – " + formatTime(o.endTime))}</option>`).join("")}</select></div>
+        <button class="claim-btn" onclick="acceptSwap('${w.id}')">${tr("swap.offer")}</button>`;
+    }
+    parts.push(`<div class="ticket"><div class="stamp">${tr(w.kind === "give" ? "swap.stampGive" : "swap.stampSwap")}</div>
+      <h3>${escapeHtml(w.shift.role ? roleLabel(w.shift.role) : tr("schedule.shift"))}</h3>
+      <div class="meta">${swapWhen(w.shift)} · ${escapeHtml(tr("swap.from", w.fromName))}</div>
+      ${w.note ? `<div class="note">${escapeHtml(w.note)}</div>` : ""}
+      ${w.kind === "swap" ? `<div class="note" style="opacity:.7">${tr("swap.wantsTrade")}</div>` : ""}
+      ${action}</div>`);
+  });
+  list.innerHTML = parts.length ? parts.join("") : `<p class="empty">${tr("swap.empty")}</p>`;
+  Object.keys(keep).forEach(k => { const el = document.getElementById("pick-" + k); if (el && keep[k]) el.value = keep[k]; });
+}
+
+async function acceptSwap(swapId) {
+  const sel = document.getElementById("pick-" + swapId);
+  const body = {};
+  if (sel) { if (!sel.value) return showBanner(tr("swap.pickMine"), "warn"); body.swapShiftId = sel.value; }
+  const result = await api(`/api/staff-auth/swaps/${swapId}/accept`, { method: "POST", body: JSON.stringify(body) });
+  if (!result.ok) { showBanner(result.error, "warn"); return loadSwaps(); }
+  showBanner(tr("swap.sent"), "success");
+  await loadSwaps();
+}
+async function withdrawSwap(swapId) {
+  const result = await api(`/api/staff-auth/swaps/${swapId}/withdraw`, { method: "POST" });
+  if (!result.ok) showBanner(result.error, "warn");
+  await loadSwaps();
 }
 
 async function loadAvailability() {
@@ -539,7 +703,7 @@ I18N.onChange(() => {
   if (document.getElementById("appShell").style.display === "block") {
     const h = document.getElementById("staffHeading");
     h.textContent = window.__myName ? tr("app.hi", window.__myName.split(" ")[0]) : tr("app.myShifts");
-    loadSchedule(); renderAvailability(); loadOpenShifts(); renderBoard(); renderTraining();
+    renderSchedule(); renderSwaps(); renderAvailability(); loadOpenShifts(); renderBoard(); renderTraining();
   }
 });
 I18N.apply();

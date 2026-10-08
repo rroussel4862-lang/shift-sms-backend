@@ -262,6 +262,24 @@ async function initDb() {
     );
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS shift_swaps (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      shift_id TEXT NOT NULL REFERENCES schedule_shifts(id) ON DELETE CASCADE,
+      from_staff_id TEXT NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      note TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      to_staff_id TEXT REFERENCES staff(id) ON DELETE CASCADE,
+      swap_shift_id TEXT REFERENCES schedule_shifts(id) ON DELETE CASCADE,
+      created_at BIGINT NOT NULL,
+      accepted_at BIGINT,
+      resolved_at BIGINT
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS shift_swaps_restaurant_idx ON shift_swaps (restaurant_id, status);`);
+
   // ---------- platform-owner layer (you / devs — not tied to any one restaurant) ----------
   await pool.query(`
     CREATE TABLE IF NOT EXISTS platform_admins (
@@ -1080,7 +1098,7 @@ app.post("/api/staff-auth/login", loginLimiter, async (req, res) => {
   const sessionToken = signToken({ staffId: staffer.id, restaurantId: staffer.restaurant_id });
   res.cookie("staff_token", sessionToken, COOKIE_OPTS);
   logActivity({ restaurantId: staffer.restaurant_id, eventType: "login_success", detail: `staff login: ${email.toLowerCase()}` });
-  res.json({ name: staffer.name });
+  res.json({ name: staffer.name, id: staffer.id });
 });
 
 app.post("/api/staff-auth/logout", (req, res) => {
@@ -1155,6 +1173,239 @@ app.post("/api/staff-auth/open-shifts/:id/claim", requireStaffAuth, async (req, 
     [JSON.stringify(responders), req.params.id, req.restaurantId]
   );
   res.json(shiftRowToJson(rows[0]));
+});
+
+// ---------- shift swaps / gives ----------
+// A staff member offers one of their scheduled shifts ("give" = hand it off, "swap" = trade for one of the taker's).
+// Another staff member accepts -> status "pending". Nothing changes on the schedule until the manager approves.
+
+const SWAP_SELECT = `
+  SELECT w.*, s.shift_date::text AS shift_date, s.start_time, s.end_time, s.role AS shift_role,
+         f.name AS from_name, t.name AS to_name,
+         s2.shift_date::text AS swap_date, s2.start_time AS swap_start, s2.end_time AS swap_end, s2.role AS swap_role
+  FROM shift_swaps w
+  JOIN schedule_shifts s ON s.id = w.shift_id
+  JOIN staff f ON f.id = w.from_staff_id
+  LEFT JOIN staff t ON t.id = w.to_staff_id
+  LEFT JOIN schedule_shifts s2 ON s2.id = w.swap_shift_id`;
+
+function swapRowToJson(r) {
+  return {
+    id: r.id,
+    kind: r.kind,
+    status: r.status,
+    note: r.note || "",
+    fromStaffId: r.from_staff_id,
+    fromName: r.from_name,
+    toStaffId: r.to_staff_id || null,
+    toName: r.to_name || null,
+    shift: { id: r.shift_id, date: r.shift_date, startTime: r.start_time, endTime: r.end_time, role: r.shift_role || "" },
+    swapShift: r.swap_shift_id ? { id: r.swap_shift_id, date: r.swap_date, startTime: r.swap_start, endTime: r.swap_end, role: r.swap_role || "" } : null,
+    createdAt: Number(r.created_at),
+    acceptedAt: r.accepted_at ? Number(r.accepted_at) : null,
+    resolvedAt: r.resolved_at ? Number(r.resolved_at) : null,
+  };
+}
+
+async function loadSwap(swapId, restaurantId, db = pool) {
+  const { rows } = await db.query(`${SWAP_SELECT} WHERE w.id = $1 AND w.restaurant_id = $2`, [swapId, restaurantId]);
+  return rows[0] ? swapRowToJson(rows[0]) : null;
+}
+
+function roleMatches(roles, shiftRole) {
+  if (!shiftRole) return true;
+  return (roles || []).some((r) => String(r).trim().toLowerCase() === String(shiftRole).trim().toLowerCase());
+}
+
+// Would `staffId` end up double-booked if they took `incoming` (and, for a swap, gave away `outgoingShiftId`)?
+async function swapOverlaps(db, restaurantId, staffId, incoming, outgoingShiftId) {
+  const { rows } = await db.query(
+    "SELECT id, start_time, end_time FROM schedule_shifts WHERE restaurant_id = $1 AND staff_id = $2 AND shift_date = $3",
+    [restaurantId, staffId, incoming.date]
+  );
+  const inc = shiftRange(incoming.startTime, incoming.endTime);
+  return rows.some((r) => r.id !== outgoingShiftId && r.id !== incoming.id && rangesOverlap(inc, shiftRange(r.start_time, r.end_time)));
+}
+
+function swapTodayFloor() {
+  return addDaysIso(new Date().toISOString().slice(0, 10), -1);
+}
+
+function textSwapParty(staffId, restaurantId, body) {
+  pool.query("SELECT phone FROM staff WHERE id = $1", [staffId])
+    .then(({ rows }) => rows[0] && sendSms(rows[0].phone, body, restaurantId))
+    .catch((e) => console.error("swap SMS failed:", e.message));
+}
+
+function swapWhenText(sh) {
+  return `${sh.date} ${sh.startTime}-${sh.endTime}`;
+}
+
+app.post("/api/staff-auth/swaps", requireStaffAuth, async (req, res) => {
+  const { shiftId, kind, note } = req.body || {};
+  if (kind !== "give" && kind !== "swap") return res.status(400).json({ error: "kind must be 'give' or 'swap'" });
+  if (!shiftId) return res.status(400).json({ error: "shiftId is required" });
+  const { rows } = await pool.query(
+    "SELECT * FROM schedule_shifts WHERE id = $1 AND restaurant_id = $2 AND staff_id = $3",
+    [shiftId, req.restaurantId, req.staffId]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: "That isn't one of your scheduled shifts" });
+  const sh = scheduleShiftRowToJson(rows[0]);
+  if (sh.date < swapTodayFloor()) return res.status(400).json({ error: "That shift is already in the past" });
+  const { rows: active } = await pool.query("SELECT 1 FROM shift_swaps WHERE shift_id = $1 AND status IN ('open','pending')", [shiftId]);
+  if (active.length > 0) return res.status(409).json({ error: "This shift is already posted" });
+  const newId = id();
+  await pool.query(
+    "INSERT INTO shift_swaps (id, restaurant_id, shift_id, from_staff_id, kind, note, status, created_at) VALUES ($1,$2,$3,$4,$5,$6,'open',$7)",
+    [newId, req.restaurantId, shiftId, req.staffId, kind, String(note || "").trim().slice(0, 300) || null, Date.now()]
+  );
+  logActivity({ restaurantId: req.restaurantId, eventType: "shift_swap_posted", detail: `${kind} ${swapWhenText(sh)}` });
+  res.status(201).json(await loadSwap(newId, req.restaurantId));
+});
+
+app.get("/api/staff-auth/swaps", requireStaffAuth, async (req, res) => {
+  const { rows: me } = await pool.query("SELECT roles FROM staff WHERE id = $1", [req.staffId]);
+  const myRoles = (me[0] && me[0].roles) || [];
+  const floor = swapTodayFloor();
+  const { rows } = await pool.query(
+    `${SWAP_SELECT} WHERE w.restaurant_id = $1 AND s.shift_date >= $2 AND (w.status IN ('open','pending') OR (w.status IN ('approved','denied') AND w.resolved_at > $3))
+     ORDER BY s.shift_date ASC, s.start_time ASC`,
+    [req.restaurantId, floor, Date.now() - 14 * 24 * 3600 * 1000]
+  );
+  const all = rows.map(swapRowToJson);
+  const mine = all.filter((w) => w.fromStaffId === req.staffId || w.toStaffId === req.staffId);
+  const { rows: myShiftRows } = await pool.query(
+    "SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND staff_id = $2 AND shift_date >= $3 ORDER BY shift_date ASC, start_time ASC",
+    [req.restaurantId, req.staffId, floor]
+  );
+  const myShifts = myShiftRows.map(scheduleShiftRowToJson);
+  const busy = new Set(all.filter((w) => w.status === "open" || w.status === "pending").flatMap((w) => [w.shift.id, ...(w.swapShift ? [w.swapShift.id] : [])]));
+  const available = [];
+  for (const w of all) {
+    if (w.status !== "open" || w.fromStaffId === req.staffId) continue;
+    if (!roleMatches(myRoles, w.shift.role)) continue;
+    // For a plain give, hide it if it would double-book me; for a swap I can pick which of my shifts to trade, so keep it.
+    if (w.kind === "give" && (await swapOverlaps(pool, req.restaurantId, req.staffId, w.shift, null))) continue;
+    available.push(w);
+  }
+  res.json({ mine, available, offerable: myShifts.filter((s) => !busy.has(s.id)) });
+});
+
+app.post("/api/staff-auth/swaps/:id/accept", requireStaffAuth, async (req, res) => {
+  const swap = await loadSwap(req.params.id, req.restaurantId);
+  if (!swap) return res.status(404).json({ error: "request not found" });
+  if (swap.status !== "open") return res.status(400).json({ error: "This request is no longer open" });
+  if (swap.fromStaffId === req.staffId) return res.status(400).json({ error: "You can't accept your own request" });
+  const { rows: me } = await pool.query("SELECT roles FROM staff WHERE id = $1", [req.staffId]);
+  if (!roleMatches(me[0] && me[0].roles, swap.shift.role)) return res.status(400).json({ error: "That shift is for a different position" });
+
+  let swapShiftId = null;
+  let offered = null;
+  if (swap.kind === "swap") {
+    swapShiftId = (req.body || {}).swapShiftId;
+    if (!swapShiftId) return res.status(400).json({ error: "Pick one of your shifts to trade" });
+    const { rows } = await pool.query("SELECT * FROM schedule_shifts WHERE id = $1 AND restaurant_id = $2 AND staff_id = $3", [swapShiftId, req.restaurantId, req.staffId]);
+    if (rows.length === 0) return res.status(400).json({ error: "That isn't one of your scheduled shifts" });
+    offered = scheduleShiftRowToJson(rows[0]);
+    if (offered.date < swapTodayFloor()) return res.status(400).json({ error: "That shift is already in the past" });
+    const { rows: busy } = await pool.query("SELECT 1 FROM shift_swaps WHERE (shift_id = $1 OR swap_shift_id = $1) AND status IN ('open','pending')", [swapShiftId]);
+    if (busy.length > 0) return res.status(409).json({ error: "That shift is already part of another request" });
+    if (await swapOverlaps(pool, req.restaurantId, swap.fromStaffId, offered, swap.shift.id)) return res.status(400).json({ error: "That would double-book the other person" });
+  }
+  if (await swapOverlaps(pool, req.restaurantId, req.staffId, swap.shift, swapShiftId)) return res.status(400).json({ error: "That overlaps one of your shifts" });
+
+  const { rowCount } = await pool.query(
+    "UPDATE shift_swaps SET status = 'pending', to_staff_id = $1, swap_shift_id = $2, accepted_at = $3 WHERE id = $4 AND restaurant_id = $5 AND status = 'open'",
+    [req.staffId, swapShiftId, Date.now(), swap.id, req.restaurantId]
+  );
+  if (rowCount === 0) return res.status(409).json({ error: "Someone else just accepted this" });
+  logActivity({ restaurantId: req.restaurantId, eventType: "shift_swap_accepted", detail: `${swap.fromName} → ${swap.kind} ${swapWhenText(swap.shift)}` });
+  res.json(await loadSwap(swap.id, req.restaurantId));
+});
+
+app.post("/api/staff-auth/swaps/:id/cancel", requireStaffAuth, async (req, res) => {
+  const swap = await loadSwap(req.params.id, req.restaurantId);
+  if (!swap || swap.fromStaffId !== req.staffId) return res.status(404).json({ error: "request not found" });
+  if (swap.status !== "open" && swap.status !== "pending") return res.status(400).json({ error: "This request is already closed" });
+  await pool.query("UPDATE shift_swaps SET status = 'cancelled', resolved_at = $1 WHERE id = $2", [Date.now(), swap.id]);
+  res.json({ ok: true });
+});
+
+// The person who accepted can back out while the manager hasn't decided; the request goes back on the board.
+app.post("/api/staff-auth/swaps/:id/withdraw", requireStaffAuth, async (req, res) => {
+  const swap = await loadSwap(req.params.id, req.restaurantId);
+  if (!swap || swap.toStaffId !== req.staffId) return res.status(404).json({ error: "request not found" });
+  if (swap.status !== "pending") return res.status(400).json({ error: "Nothing to withdraw" });
+  await pool.query("UPDATE shift_swaps SET status = 'open', to_staff_id = NULL, swap_shift_id = NULL, accepted_at = NULL WHERE id = $1", [swap.id]);
+  res.json(await loadSwap(swap.id, req.restaurantId));
+});
+
+app.get("/api/swaps", requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `${SWAP_SELECT} WHERE w.restaurant_id = $1 AND (w.status IN ('open','pending') OR (w.status IN ('approved','denied') AND w.resolved_at > $2))
+     ORDER BY CASE w.status WHEN 'pending' THEN 0 WHEN 'open' THEN 1 ELSE 2 END, s.shift_date ASC, s.start_time ASC LIMIT 100`,
+    [req.restaurantId, Date.now() - 7 * 24 * 3600 * 1000]
+  );
+  res.json(rows.map(swapRowToJson));
+});
+
+app.post("/api/swaps/:id/approve", requireAuth, async (req, res) => {
+  const client = await pool.connect();
+  let swap;
+  try {
+    await client.query("BEGIN");
+    const { rows: lock } = await client.query("SELECT id FROM shift_swaps WHERE id = $1 AND restaurant_id = $2 FOR UPDATE", [req.params.id, req.restaurantId]);
+    swap = lock.length ? await loadSwap(req.params.id, req.restaurantId, client) : null;
+    if (!swap) { await client.query("ROLLBACK"); return res.status(404).json({ error: "request not found" }); }
+    if (swap.status !== "pending") { await client.query("ROLLBACK"); return res.status(400).json({ error: "Only an accepted request can be approved" }); }
+    const { rows: a } = await client.query("SELECT staff_id FROM schedule_shifts WHERE id = $1 FOR UPDATE", [swap.shift.id]);
+    if (a.length === 0 || a[0].staff_id !== swap.fromStaffId) { await client.query("ROLLBACK"); return res.status(409).json({ error: "The schedule changed — that shift isn't with the original person anymore" }); }
+    if (swap.kind === "swap") {
+      if (!swap.swapShift) { await client.query("ROLLBACK"); return res.status(409).json({ error: "The traded shift is gone" }); }
+      const { rows: b } = await client.query("SELECT staff_id FROM schedule_shifts WHERE id = $1 FOR UPDATE", [swap.swapShift.id]);
+      if (b.length === 0 || b[0].staff_id !== swap.toStaffId) { await client.query("ROLLBACK"); return res.status(409).json({ error: "The schedule changed — the traded shift moved" }); }
+    }
+    const outgoing = swap.swapShift ? swap.swapShift.id : null;
+    if (await swapOverlaps(client, req.restaurantId, swap.toStaffId, swap.shift, outgoing)) { await client.query("ROLLBACK"); return res.status(400).json({ error: `${swap.toName} would be double-booked` }); }
+    if (swap.swapShift && (await swapOverlaps(client, req.restaurantId, swap.fromStaffId, swap.swapShift, swap.shift.id))) { await client.query("ROLLBACK"); return res.status(400).json({ error: `${swap.fromName} would be double-booked` }); }
+    await client.query("UPDATE schedule_shifts SET staff_id = $1 WHERE id = $2", [swap.toStaffId, swap.shift.id]);
+    if (swap.swapShift) await client.query("UPDATE schedule_shifts SET staff_id = $1 WHERE id = $2", [swap.fromStaffId, swap.swapShift.id]);
+    const now = Date.now();
+    await client.query("UPDATE shift_swaps SET status = 'approved', resolved_at = $1 WHERE id = $2", [now, swap.id]);
+    // Any other live request touching these shifts is now stale.
+    await client.query(
+      "UPDATE shift_swaps SET status = 'cancelled', resolved_at = $1 WHERE id <> $2 AND status IN ('open','pending') AND (shift_id = ANY($3) OR swap_shift_id = ANY($3))",
+      [now, swap.id, [swap.shift.id, ...(swap.swapShift ? [swap.swapShift.id] : [])]]
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("swap approve failed:", e.message);
+    return res.status(500).json({ error: "Couldn't approve that request" });
+  } finally {
+    client.release();
+  }
+  logActivity({ restaurantId: req.restaurantId, eventType: "shift_swap_approved", detail: `${swap.fromName} ↔ ${swap.toName} ${swapWhenText(swap.shift)}` });
+  textSwapParty(swap.fromStaffId, req.restaurantId, swap.swapShift
+    ? `Your shift swap is approved: you now work ${swapWhenText(swap.swapShift)} instead of ${swapWhenText(swap.shift)}.`
+    : `Your shift on ${swapWhenText(swap.shift)} was approved to be taken by ${swap.toName}. You're off.`);
+  textSwapParty(swap.toStaffId, req.restaurantId, swap.swapShift
+    ? `Your shift swap is approved: you now work ${swapWhenText(swap.shift)} instead of ${swapWhenText(swap.swapShift)}.`
+    : `You're now scheduled on ${swapWhenText(swap.shift)}.`);
+  res.json(await loadSwap(swap.id, req.restaurantId));
+});
+
+app.post("/api/swaps/:id/deny", requireAuth, async (req, res) => {
+  const swap = await loadSwap(req.params.id, req.restaurantId);
+  if (!swap) return res.status(404).json({ error: "request not found" });
+  if (swap.status !== "pending" && swap.status !== "open") return res.status(400).json({ error: "This request is already closed" });
+  await pool.query("UPDATE shift_swaps SET status = 'denied', resolved_at = $1 WHERE id = $2", [Date.now(), swap.id]);
+  logActivity({ restaurantId: req.restaurantId, eventType: "shift_swap_denied", detail: `${swap.fromName} ${swapWhenText(swap.shift)}` });
+  if (swap.status === "pending") {
+    textSwapParty(swap.fromStaffId, req.restaurantId, `Your shift change for ${swapWhenText(swap.shift)} wasn't approved — you're still on the schedule.`);
+    textSwapParty(swap.toStaffId, req.restaurantId, `The shift change for ${swapWhenText(swap.shift)} wasn't approved.`);
+  }
+  res.json(await loadSwap(swap.id, req.restaurantId));
 });
 
 // ---------- hiring: postings (manager, authenticated) ----------
