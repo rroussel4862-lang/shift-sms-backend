@@ -134,6 +134,35 @@
     --grid-text: #23261F;
     --grid-dim: #7A7566;
   }
+  /* ---------- sales + revenue history ---------- */
+  .sales-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.sales-grid { width: 100%; min-width: 760px; border-collapse: collapse; background: var(--grid-bg); color: var(--grid-text); }
+  table.sales-grid th, table.sales-grid td { border: 1px solid var(--grid-border); padding: 8px 6px; text-align: center; font-size: 13px; }
+  table.sales-grid thead th { background: var(--ink); color: #fff; font-family: 'Oswald', sans-serif; font-weight: 500; text-transform: uppercase; font-size: 12px; letter-spacing: .03em; }
+  table.sales-grid thead th .day-date { display: block; font-size: 10px; opacity: .75; margin-top: 2px; }
+  table.sales-grid td.lbl { text-align: left; font-family: 'Oswald', sans-serif; text-transform: uppercase; font-size: 12px; letter-spacing: .03em; background: var(--grid-alt); white-space: nowrap; }
+  table.sales-grid tr.total td { font-weight: 700; background: var(--grid-alt); }
+  table.sales-grid input { width: 100%; min-width: 70px; box-sizing: border-box; padding: 6px; border: 1px solid var(--grid-border); border-radius: 4px; text-align: right; font-family: inherit; font-size: 13px; background: #fff; color: var(--grid-text); }
+  table.sales-grid input[readonly] { background: var(--grid-alt); border-style: dashed; }
+  table.sales-grid td.today, table.sales-grid th.today { box-shadow: inset 0 0 0 2px var(--amber); }
+  .src-pill { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 9px; background: var(--grid-alt); color: var(--grid-dim); border: 1px solid var(--grid-border); text-transform: uppercase; letter-spacing: .04em; }
+  .src-pill.pos { background: #DDEBDD; color: #2F5B3A; border-color: #B5D1B8; }
+  .rev-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .rev-card { background: var(--panel); border: 1px solid var(--rail); border-radius: 8px; padding: 14px 16px; }
+  .rev-card h3 { margin: 0 0 8px; font-size: 14px; font-family: 'Oswald', sans-serif; letter-spacing: .03em; text-transform: uppercase; color: var(--amber); }
+  .rev-line { padding: 8px 0; border-top: 1px dashed var(--rail); }
+  .rev-line:first-of-type { border-top: none; }
+  .rev-line .what { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim); }
+  .rev-line .vals { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 3px; font-size: 13px; color: var(--text-bright); }
+  .rev-line .pct { font-family: 'Oswald', sans-serif; font-size: 20px; font-weight: 600; }
+  .pct.up { color: #6FBF86; } .pct.down { color: #E0715F; } .pct.none { color: var(--text-dim); }
+  .rev-note { color: var(--text-dim); font-size: 12px; line-height: 1.5; margin: 6px 0 14px; max-width: 80ch; }
+  table.sales-grid tbody tr, table.sales-grid tbody tr:nth-child(even) { background: transparent; }
+  table.sales-grid td { background: var(--grid-bg); }
+  table.sales-grid td.lbl, table.sales-grid tr.total td, table.sales-grid td.src { background: var(--grid-alt); }
+  table.sales-grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.sales-grid td.up { color: #2F7A47; font-weight: 600; } table.sales-grid td.down { color: #B5412F; font-weight: 600; }
+  .week-partial { font-size: 10px; color: var(--grid-dim); display: block; }
   .ai-sched { background: var(--panel); border: 1px solid var(--rail); border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; }
   .ai-sched h3 { margin: 0 0 4px; font-size: 14px; font-family: 'Oswald', sans-serif; letter-spacing: 0.03em; text-transform: uppercase; color: var(--amber); }
   .ai-sched .hint { color: var(--text-dim); font-size: 12.5px; margin-bottom: 8px; line-height: 1.45; }
@@ -267,8 +296,8 @@
   <nav class="sections">
     <button class="section-btn active" id="sectionBtnStaff" onclick="showSection('staff')" data-i18n="nav.staff">Staff</button>
     <button class="section-btn" id="sectionBtnSchedule" onclick="showSection('schedule')" data-i18n="nav.schedule">Schedule</button>
-    <button class="section-btn" disabled data-i18n-title="nav.soon" title="Coming next" data-i18n="nav.sales">Sales</button>
-    <button class="section-btn" disabled data-i18n-title="nav.soon" title="Coming next" data-i18n="nav.revenue">Revenue history</button>
+    <button class="section-btn" id="sectionBtnSales" onclick="showSection('sales')" data-i18n="nav.sales">Sales</button>
+    <button class="section-btn" id="sectionBtnRevenue" onclick="showSection('revenue')" data-i18n="nav.revenue">Revenue history</button>
   </nav>
 
   <div id="banner"></div>
@@ -363,6 +392,37 @@
 
       <div class="grand-total-bar" id="grandTotalBar"></div>
     </div>
+
+    <div class="section-panel" id="sectionSales">
+      <div class="toolbar"><div>
+        <h2 data-i18n="sales.h2">Weekly sales</h2>
+        <div class="desc" data-i18n="sales.desc">Food and alcohol sales for each day. Type them in for now — when your POS is connected this grid fills in by itself and the cells lock.</div>
+      </div></div>
+      <div class="week-nav">
+        <button class="ghost" onclick="shiftSalesWeek(-1)" data-i18n="sched.prev">← Prev week</button>
+        <span class="week-label" id="salesWeekLabel"></span>
+        <button class="ghost" onclick="shiftSalesWeek(1)" data-i18n="sched.next">Next week →</button>
+        <button class="ghost" onclick="goToSalesThisWeek()" data-i18n="sched.today">This week</button>
+      </div>
+      <div class="sales-wrap"><table class="sales-grid"><thead><tr id="salesHeadRow"></tr></thead><tbody id="salesBody"></tbody></table></div>
+    </div>
+
+    <div class="section-panel" id="sectionRevenue">
+      <div class="toolbar"><div>
+        <h2 data-i18n="rev.h2">Revenue history</h2>
+        <div class="desc" data-i18n="rev.desc">Compare this year to last year. Enter last year's weekly totals once; this year fills in automatically from your daily sales.</div>
+      </div></div>
+      <div class="week-nav">
+        <button class="ghost" onclick="shiftRevYear(-1)">←</button>
+        <span class="week-label" id="revYearLabel"></span>
+        <button class="ghost" onclick="shiftRevYear(1)">→</button>
+      </div>
+      <div class="rev-cards" id="revCards"></div>
+      <div class="rev-note" data-i18n="rev.weekRule">Weeks run Monday to Sunday and count toward the month that contains their Thursday. Only finished weeks are compared, and only weeks where both years have a number.</div>
+      <div class="sales-wrap"><table class="sales-grid" style="min-width:560px"><thead><tr id="revMonthHead"></tr></thead><tbody id="revMonthBody"></tbody></table></div>
+      <div class="rev-note" style="margin-top:18px" data-i18n="rev.weeklyHint">Weekly detail — type last year's total for each week in the "Last year" column.</div>
+      <div class="sales-wrap"><table class="sales-grid" style="min-width:560px"><thead><tr id="revWeekHead"></tr></thead><tbody id="revWeekBody"></tbody></table></div>
+    </div>
   </main>
 </div>
 
@@ -373,6 +433,15 @@ I18N.add({
     "gate.title": "Log in required", "gate.p": "The Back Office uses the same account as the main app. Log in there first, then come back to this page.", "gate.link": "Go to the main app",
     "header.sub": "Business data that keeps the app up to date — separate from day-to-day operations.", "header.back": "← Back to main app", heading: "Back Office", headingOf: n => `${n} — Back Office`,
     "nav.staff": "Staff", "nav.schedule": "Schedule", "nav.sales": "Sales", "nav.revenue": "Revenue history", "nav.soon": "Coming next",
+    "sales.h2": "Weekly sales", "sales.desc": "Food and alcohol sales for each day. Type them in for now — when your POS is connected this grid fills in by itself and the cells lock.",
+    "sales.food": "Food sales", "sales.alcohol": "Alcohol sales", "sales.total": "Total sales", "sales.source": "Source", "sales.manual": "Manual", "sales.pos": "POS", "sales.weekTotal": "Week", "sales.unsplit": "Total only (not split)", "sales.saved": "Sales saved",
+    "rev.h2": "Revenue history", "rev.desc": "Compare this year to last year. Enter last year's weekly totals once; this year fills in automatically from your daily sales.",
+    "rev.weekRule": "Weeks run Monday to Sunday and count toward the month that contains their Thursday. Only finished weeks are compared, and only weeks where both years have a number.",
+    "rev.weeklyHint": "Weekly detail — type last year's total for each week in the \"Last year\" column.",
+    "rev.yoyTitle": "Year over year", "rev.ytdTitle": "Year to date", "rev.lastWeek": "Last finished week", "rev.lastMonth": "Last finished month", "rev.ytdWeeks": "By weeks", "rev.ytdMonths": "By months",
+    "rev.vs": "vs", "rev.thisYear": "This year", "rev.lastYear": "Last year", "rev.change": "Change", "rev.month": "Month", "rev.week": "Week", "rev.noData": "Not enough data yet — enter last year's weeks below.",
+    "rev.weeksCompared": n => `${n} week${n === 1 ? "" : "s"} compared`, "rev.monthsCompared": n => `${n} month${n === 1 ? "" : "s"} compared`, "rev.daysEntered": n => `${n}/7 days`, "rev.saved": "Saved",
+    "rev.months": ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
     "staff.h2": "Staff pay & tenure", "staff.desc": "Rates and hire dates feed real labor-cost math elsewhere in the app. Roles and phone numbers are also editable here for full setup in one place.",
     "staff.refresh": "Refresh", "staff.add": "Add", "staff.namePh": "Full name", "staff.addressPh": "123 Main St, City",
     "th.name": "Name", "th.phone": "Phone", "th.roles": "Roles (comma-separated)", "th.rate": "Rate ($/hr)", "th.hire": "Hire date", "th.address": "Address",
@@ -407,6 +476,15 @@ I18N.add({
     "gate.title": "Connexion requise", "gate.p": "L'arrière-boutique utilise le même compte que l'application principale. Connectez-vous d'abord là-bas, puis revenez sur cette page.", "gate.link": "Aller à l'application principale",
     "header.sub": "Les données d'affaires qui gardent l'application à jour — séparées des opérations quotidiennes.", "header.back": "← Retour à l'application principale", heading: "Arrière-boutique", headingOf: n => `${n} — Arrière-boutique`,
     "nav.staff": "Personnel", "nav.schedule": "Horaire", "nav.sales": "Ventes", "nav.revenue": "Historique des revenus", "nav.soon": "Bientôt disponible",
+    "sales.h2": "Ventes de la semaine", "sales.desc": "Ventes de nourriture et d'alcool pour chaque jour. Saisissez-les pour l'instant — une fois votre caisse (POS) connectée, cette grille se remplit seule et les cases se verrouillent.",
+    "sales.food": "Ventes de nourriture", "sales.alcohol": "Ventes d'alcool", "sales.total": "Ventes totales", "sales.source": "Source", "sales.manual": "Manuel", "sales.pos": "Caisse", "sales.weekTotal": "Semaine", "sales.unsplit": "Total seulement (non réparti)", "sales.saved": "Ventes enregistrées",
+    "rev.h2": "Historique des revenus", "rev.desc": "Comparez cette année à l'an dernier. Saisissez une fois les totaux hebdomadaires de l'an dernier; cette année se remplit seule à partir de vos ventes quotidiennes.",
+    "rev.weekRule": "Les semaines vont du lundi au dimanche et comptent pour le mois qui contient leur jeudi. Seules les semaines terminées sont comparées, et seulement si les deux années ont un chiffre.",
+    "rev.weeklyHint": "Détail hebdomadaire — saisissez le total de l'an dernier pour chaque semaine dans la colonne « An dernier ».",
+    "rev.yoyTitle": "D'une année à l'autre", "rev.ytdTitle": "Depuis le début de l'année", "rev.lastWeek": "Dernière semaine terminée", "rev.lastMonth": "Dernier mois terminé", "rev.ytdWeeks": "Par semaines", "rev.ytdMonths": "Par mois",
+    "rev.vs": "contre", "rev.thisYear": "Cette année", "rev.lastYear": "An dernier", "rev.change": "Variation", "rev.month": "Mois", "rev.week": "Semaine", "rev.noData": "Pas assez de données — saisissez les semaines de l'an dernier ci-dessous.",
+    "rev.weeksCompared": n => `${n} semaine${n === 1 ? "" : "s"} comparée${n === 1 ? "" : "s"}`, "rev.monthsCompared": n => `${n} mois comparé${n === 1 ? "" : "s"}`, "rev.daysEntered": n => `${n}/7 jours`, "rev.saved": "Enregistré",
+    "rev.months": ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."],
     "staff.h2": "Salaires et ancienneté du personnel", "staff.desc": "Les taux horaires et les dates d'embauche alimentent le calcul réel des coûts de main-d'œuvre ailleurs dans l'application. Les postes et les numéros de téléphone sont aussi modifiables ici pour tout configurer au même endroit.",
     "staff.refresh": "Actualiser", "staff.add": "Ajouter", "staff.namePh": "Nom complet", "staff.addressPh": "123 rue Principale, Ville",
     "th.name": "Nom", "th.phone": "Téléphone", "th.roles": "Postes (séparés par des virgules)", "th.rate": "Taux ($/h)", "th.hire": "Date d'embauche", "th.address": "Adresse",
@@ -441,6 +519,15 @@ I18N.add({
     "gate.title": "Se requiere iniciar sesión", "gate.p": "La Oficina usa la misma cuenta que la aplicación principal. Inicia sesión allí primero y luego vuelve a esta página.", "gate.link": "Ir a la aplicación principal",
     "header.sub": "Datos del negocio que mantienen la aplicación al día — separados de las operaciones diarias.", "header.back": "← Volver a la aplicación principal", heading: "Oficina", headingOf: n => `${n} — Oficina`,
     "nav.staff": "Personal", "nav.schedule": "Horario", "nav.sales": "Ventas", "nav.revenue": "Historial de ingresos", "nav.soon": "Próximamente",
+    "sales.h2": "Ventas de la semana", "sales.desc": "Ventas de comida y alcohol de cada día. Escríbelas por ahora — cuando tu caja (POS) esté conectada, esta cuadrícula se llena sola y las celdas se bloquean.",
+    "sales.food": "Ventas de comida", "sales.alcohol": "Ventas de alcohol", "sales.total": "Ventas totales", "sales.source": "Origen", "sales.manual": "Manual", "sales.pos": "Caja", "sales.weekTotal": "Semana", "sales.unsplit": "Solo total (sin dividir)", "sales.saved": "Ventas guardadas",
+    "rev.h2": "Historial de ingresos", "rev.desc": "Compara este año con el pasado. Escribe una vez los totales semanales del año pasado; este año se llena solo con tus ventas diarias.",
+    "rev.weekRule": "Las semanas van de lunes a domingo y cuentan para el mes que contiene su jueves. Solo se comparan semanas terminadas y solo si ambos años tienen un dato.",
+    "rev.weeklyHint": "Detalle semanal — escribe el total del año pasado de cada semana en la columna «Año pasado».",
+    "rev.yoyTitle": "Año contra año", "rev.ytdTitle": "En lo que va del año", "rev.lastWeek": "Última semana terminada", "rev.lastMonth": "Último mes terminado", "rev.ytdWeeks": "Por semanas", "rev.ytdMonths": "Por meses",
+    "rev.vs": "vs", "rev.thisYear": "Este año", "rev.lastYear": "Año pasado", "rev.change": "Cambio", "rev.month": "Mes", "rev.week": "Semana", "rev.noData": "Aún no hay datos suficientes — escribe las semanas del año pasado abajo.",
+    "rev.weeksCompared": n => `${n} semana${n === 1 ? "" : "s"} comparada${n === 1 ? "" : "s"}`, "rev.monthsCompared": n => `${n} mes${n === 1 ? "" : "es"} comparado${n === 1 ? "" : "s"}`, "rev.daysEntered": n => `${n}/7 días`, "rev.saved": "Guardado",
+    "rev.months": ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"],
     "staff.h2": "Pago y antigüedad del personal", "staff.desc": "Las tarifas y las fechas de contratación alimentan el cálculo real del costo laboral en el resto de la aplicación. Los puestos y teléfonos también se pueden editar aquí para configurar todo en un solo lugar.",
     "staff.refresh": "Actualizar", "staff.add": "Agregar", "staff.namePh": "Nombre completo", "staff.addressPh": "Calle Principal 123, Ciudad",
     "th.name": "Nombre", "th.phone": "Teléfono", "th.roles": "Puestos (separados por comas)", "th.rate": "Tarifa ($/h)", "th.hire": "Fecha de contratación", "th.address": "Dirección",
@@ -522,15 +609,20 @@ async function api(path, options) {
 }
 
 let scheduleLoaded = false;
+let currentSection = "staff";
 function showSection(name) {
-  document.getElementById("sectionStaff").classList.toggle("active", name === "staff");
-  document.getElementById("sectionSchedule").classList.toggle("active", name === "schedule");
-  document.getElementById("sectionBtnStaff").classList.toggle("active", name === "staff");
-  document.getElementById("sectionBtnSchedule").classList.toggle("active", name === "schedule");
+  ["staff", "schedule", "sales", "revenue"].forEach(n => {
+    const cap = n.charAt(0).toUpperCase() + n.slice(1);
+    document.getElementById("section" + cap).classList.toggle("active", name === n);
+    document.getElementById("sectionBtn" + cap).classList.toggle("active", name === n);
+  });
+  currentSection = name;
   if (name === "schedule" && !scheduleLoaded) {
     scheduleLoaded = true;
     initSchedule();
   }
+  if (name === "sales") loadSales();
+  if (name === "revenue") loadRevenue();
 }
 
 function escapeHtml(str) {
@@ -778,6 +870,141 @@ async function undoAiSchedule() {
   renderAiSched();
   showBanner(tr("sched.aiUndone"), "success");
   loadSchedule();
+}
+
+/* ============================== Sales (weekly grid) ============================== */
+let salesWeek = getMonday(new Date());
+let salesRows = {}; // date -> { amount, foodAmount, bevAmount, source }
+let salesTimer = null;
+
+function money0(n) { return n === null || n === undefined ? "—" : "$" + Number(n).toLocaleString(I18N.lang === "fr" ? "fr-CA" : "en-CA", { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+function money2(n) { return n === null || n === undefined ? "—" : "$" + Number(n).toLocaleString(I18N.lang === "fr" ? "fr-CA" : "en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+function shiftSalesWeek(delta) { salesWeek.setDate(salesWeek.getDate() + delta * 7); loadSales(); }
+function goToSalesThisWeek() { salesWeek = getMonday(new Date()); loadSales(); }
+
+async function loadSales() {
+  const end = new Date(salesWeek); end.setDate(end.getDate() + 6);
+  document.getElementById("salesWeekLabel").textContent = `${formatShort(salesWeek)} – ${formatShort(end)}, ${end.getFullYear()}`;
+  const result = await api(`/api/actual-sales?start=${toISODate(salesWeek)}&end=${toISODate(end)}`);
+  if (!result.ok) return showBanner(result.error, "warn");
+  salesRows = {};
+  result.data.forEach(r => { salesRows[r.date] = r; });
+  renderSales();
+  if (!salesTimer) salesTimer = setInterval(() => {
+    // "Live": re-read the week every 30 seconds while this tab is open and nobody is typing in the grid.
+    if (currentSection === "sales" && !document.querySelector("#salesBody input:focus")) loadSales();
+  }, 30000);
+}
+
+function renderSales() {
+  const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(salesWeek); d.setDate(d.getDate() + i); return d; });
+  const todayStr = toISODate(new Date());
+  const names = [0,1,2,3,4,5,6].map(i => tr("days." + i));
+  document.getElementById("salesHeadRow").innerHTML = `<th style="text-align:left"></th>` +
+    dates.map((d, i) => `<th class="${toISODate(d) === todayStr ? "today" : ""}">${names[i]}<span class="day-date">${d.getMonth() + 1}/${d.getDate()}</span></th>`).join("") + `<th>${tr("sales.weekTotal")}</th>`;
+
+  let foodSum = 0, bevSum = 0, totalSum = 0;
+  const cell = (kind, d) => {
+    const ds = toISODate(d), r = salesRows[ds] || {};
+    const locked = r.source && r.source !== "manual";
+    const v = kind === "food" ? r.foodAmount : r.bevAmount;
+    return `<td class="${ds === todayStr ? "today" : ""}"><input type="text" inputmode="decimal" ${locked ? "readonly" : ""} data-date="${ds}" data-kind="${kind}" value="${v !== null && v !== undefined ? v : ""}" placeholder="$" onblur="saveSalesCell(this)" onkeydown="if(event.key==='Enter')this.blur()" /></td>`;
+  };
+  const totals = dates.map(d => {
+    const r = salesRows[toISODate(d)];
+    if (!r) return null;
+    const t = r.amount !== null && r.amount !== undefined ? r.amount : null;
+    if (r.foodAmount !== null && r.foodAmount !== undefined) foodSum += r.foodAmount;
+    if (r.bevAmount !== null && r.bevAmount !== undefined) bevSum += r.bevAmount;
+    if (t !== null) totalSum += t;
+    return { t, unsplit: t !== null && (r.foodAmount === null || r.foodAmount === undefined) && (r.bevAmount === null || r.bevAmount === undefined) };
+  });
+  const srcCells = dates.map(d => {
+    const r = salesRows[toISODate(d)];
+    if (!r) return `<td>—</td>`;
+    return `<td><span class="src-pill ${r.source && r.source !== "manual" ? "pos" : ""}">${r.source && r.source !== "manual" ? tr("sales.pos") : tr("sales.manual")}</span></td>`;
+  }).join("");
+  document.getElementById("salesBody").innerHTML = `
+    <tr><td class="lbl">${tr("sales.food")}</td>${dates.map(d => cell("food", d)).join("")}<td class="num">${money2(foodSum)}</td></tr>
+    <tr><td class="lbl">${tr("sales.alcohol")}</td>${dates.map(d => cell("bev", d)).join("")}<td class="num">${money2(bevSum)}</td></tr>
+    <tr class="total"><td class="lbl">${tr("sales.total")}</td>${totals.map(x => `<td class="num" title="${x && x.unsplit ? escapeHtml(tr("sales.unsplit")) : ""}">${x && x.t !== null ? money2(x.t) : "—"}${x && x.unsplit ? " *" : ""}</td>`).join("")}<td class="num">${money2(totalSum)}</td></tr>
+    <tr><td class="lbl">${tr("sales.source")}</td>${srcCells}<td></td></tr>`;
+}
+
+async function saveSalesCell(input) {
+  const ds = input.dataset.date, kind = input.dataset.kind;
+  const raw = input.value.trim().replace(/[$,\s]/g, "");
+  const prev = salesRows[ds] ? (kind === "food" ? salesRows[ds].foodAmount : salesRows[ds].bevAmount) : null;
+  if ((raw === "" && (prev === null || prev === undefined)) || (raw !== "" && Number(raw) === prev)) return;
+  const body = { date: ds, source: "manual" };
+  body[kind === "food" ? "foodAmount" : "bevAmount"] = raw === "" ? null : raw;
+  const result = await api("/api/actual-sales", { method: "PUT", body: JSON.stringify(body) });
+  if (!result.ok) { showBanner(result.error, "warn"); return loadSales(); }
+  salesRows[ds] = result.data;
+  renderSales();
+}
+
+/* ============================== Revenue history ============================== */
+let revYear = new Date().getFullYear();
+let revData = null;
+
+function shiftRevYear(delta) { revYear += delta; loadRevenue(); }
+
+async function loadRevenue() {
+  document.getElementById("revYearLabel").textContent = String(revYear);
+  const result = await api(`/api/revenue-history?year=${revYear}`);
+  if (!result.ok) return showBanner(result.error, "warn");
+  revData = result.data;
+  renderRevenue();
+}
+
+function pctHtml(p) {
+  if (p === null || p === undefined) return `<span class="pct none">—</span>`;
+  return `<span class="pct ${p >= 0 ? "up" : "down"}">${p >= 0 ? "▲ +" : "▼ "}${p}%</span>`;
+}
+
+function renderRevenue() {
+  if (!revData) return;
+  const c = revData.cards, mnames = tr("rev.months");
+  const line = (what, o, extra) => !o ? `<div class="rev-line"><div class="what">${what}</div><div class="vals" style="color:var(--text-dim)">${tr("rev.noData")}</div></div>` :
+    `<div class="rev-line"><div class="what">${what}${extra ? " · " + extra : ""}</div><div class="vals">${pctHtml(o.changePct)}<span>${money0(o.thisYear)} ${tr("rev.vs")} ${money0(o.lastYear)}</span></div></div>`;
+  const wk = c.yoy.lastWeek, mo = c.yoy.lastMonth;
+  const ytdW = c.ytd.weeks.weeksCompared ? c.ytd.weeks : null, ytdM = c.ytd.months.monthsCompared ? c.ytd.months : null;
+  document.getElementById("revCards").innerHTML = `
+    <div class="rev-card"><h3>${tr("rev.yoyTitle")}</h3>
+      ${line(tr("rev.lastWeek"), wk, wk ? `${formatShort(new Date(wk.weekStart + "T00:00:00"))}` : "")}
+      ${line(tr("rev.lastMonth"), mo, mo ? mnames[mo.month - 1] : "")}
+    </div>
+    <div class="rev-card"><h3>${tr("rev.ytdTitle")} · ${revYear}</h3>
+      ${line(tr("rev.ytdWeeks"), ytdW, ytdW ? tr("rev.weeksCompared", ytdW.weeksCompared) : "")}
+      ${line(tr("rev.ytdMonths"), ytdM, ytdM ? tr("rev.monthsCompared", ytdM.monthsCompared) : "")}
+    </div>`;
+
+  document.getElementById("revMonthHead").innerHTML = `<th style="text-align:left">${tr("rev.month")}</th><th>${tr("rev.thisYear")}</th><th>${tr("rev.lastYear")}</th><th>${tr("rev.change")}</th>`;
+  document.getElementById("revMonthBody").innerHTML = revData.months.map(m => `
+    <tr><td class="lbl">${mnames[m.month - 1]}</td><td class="num">${money0(m.thisYear)}</td><td class="num">${money0(m.lastYear)}</td>
+    <td class="${m.changePct === null ? "" : m.changePct >= 0 ? "up" : "down"}">${m.changePct === null ? "—" : (m.changePct >= 0 ? "+" : "") + m.changePct + "%"}</td></tr>`).join("");
+
+  document.getElementById("revWeekHead").innerHTML = `<th style="text-align:left">${tr("rev.week")}</th><th>${tr("rev.lastYear")}</th><th>${tr("rev.thisYear")}</th><th>${tr("rev.change")}</th>`;
+  document.getElementById("revWeekBody").innerHTML = revData.weeks.map(w => {
+    const pct = w.completed && w.thisYear !== null && w.lastYear ? Math.round(((w.thisYear - w.lastYear) / w.lastYear) * 1000) / 10 : null;
+    const a = formatShort(new Date(w.weekStart + "T00:00:00")), b = formatShort(new Date(w.weekEnd + "T00:00:00"));
+    return `<tr><td class="lbl">${a} – ${b}</td>
+      <td><input type="text" inputmode="decimal" placeholder="$" data-week="${w.lastYearWeekStart}" value="${w.lastYear !== null ? w.lastYear : ""}" onblur="saveRevCell(this)" onkeydown="if(event.key==='Enter')this.blur()" /></td>
+      <td class="num">${money0(w.thisYear)}${w.thisYear !== null && w.daysEntered < 7 ? `<span class="week-partial">${tr("rev.daysEntered", w.daysEntered)}</span>` : ""}</td>
+      <td class="${pct === null ? "" : pct >= 0 ? "up" : "down"}">${pct === null ? "—" : (pct >= 0 ? "+" : "") + pct + "%"}</td></tr>`;
+  }).join("");
+}
+
+async function saveRevCell(input) {
+  const raw = input.value.trim().replace(/[$,\s]/g, "");
+  const w = revData.weeks.find(x => x.lastYearWeekStart === input.dataset.week);
+  const prev = w ? w.lastYear : null;
+  if ((raw === "" && prev === null) || (raw !== "" && Number(raw) === prev)) return;
+  const result = await api("/api/revenue-history", { method: "PUT", body: JSON.stringify({ weekStart: input.dataset.week, amount: raw === "" ? null : raw }) });
+  if (!result.ok) { showBanner(result.error, "warn"); return loadRevenue(); }
+  await loadRevenue();
 }
 
 function initSchedule() {
@@ -1116,6 +1343,8 @@ I18N.onChange(() => {
   renderStaffTable();
   if (scheduleLoaded) renderScheduleGrid();
   renderAiSched();
+  if (currentSection === "sales") renderSales();
+  if (currentSection === "revenue") renderRevenue();
   I18N.apply();
 });
 I18N.apply();

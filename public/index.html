@@ -630,11 +630,8 @@
     <button class="nav-stub active" id="tabBtnOverview" onclick="switchTab('overview')">
       <span data-i18n="nav.overview">Overview</span>
     </button>
-    <button class="nav-stub" id="tabBtnHiring" style="--dot-color:var(--hiring)" onclick="switchTab('hiring')">
-      <span class="dot"></span><span data-i18n="nav.hiring">Hiring</span>
-    </button>
-    <button class="nav-stub" id="tabBtnTraining" style="--dot-color:var(--training)" onclick="switchTab('training')">
-      <span class="dot"></span><span data-i18n="nav.training">Training</span>
+    <button class="nav-stub" id="tabBtnComms" style="--dot-color:var(--comms)" onclick="switchTab('comms')">
+      <span class="dot"></span><span data-i18n="nav.comms">Comms</span>
     </button>
     <button class="nav-stub" id="tabBtnShifts" style="--dot-color:var(--scheduling)" onclick="switchTab('shifts')">
       <span class="dot"></span><span data-i18n="nav.shifts">Scheduling</span>
@@ -645,8 +642,11 @@
     <button class="nav-stub" id="tabBtnPayroll" style="--dot-color:var(--payroll)" onclick="switchTab('payroll')">
       <span class="dot"></span><span data-i18n="nav.payroll">Payroll & Sales</span>
     </button>
-    <button class="nav-stub" id="tabBtnComms" style="--dot-color:var(--comms)" onclick="switchTab('comms')">
-      <span class="dot"></span><span data-i18n="nav.comms">Comms</span>
+    <button class="nav-stub" id="tabBtnTraining" style="--dot-color:var(--training)" onclick="switchTab('training')">
+      <span class="dot"></span><span data-i18n="nav.training">Training</span>
+    </button>
+    <button class="nav-stub" id="tabBtnHiring" style="--dot-color:var(--hiring)" onclick="switchTab('hiring')">
+      <span class="dot"></span><span data-i18n="nav.hiring">Hiring</span>
     </button>
   </nav>
 
@@ -1775,12 +1775,12 @@ function renderOverview() {
   const openShiftCount = shifts.filter(s => s.status === "open").length;
   const openPostings = postings.filter(p => p.status === "open").length;
   const stats = [
+    { id: "comms", accent: "var(--comms)", label: t("overview.aiAgent"), value: t("overview.askLabel"), sub: t("overview.askSub") },
     { id: "shifts", accent: "var(--scheduling)", label: t("overview.openShifts"), value: openShiftCount, sub: shifts.length ? t("overview.posted", shifts.length) : t("overview.nonePosted") },
     { id: "staff", accent: "var(--staffcolor)", label: t("overview.staffLabel"), value: staff.length, sub: t("overview.manageRoster") },
-    { id: "hiring", accent: "var(--hiring)", label: t("overview.openPostings"), value: openPostings, sub: t("overview.applicantsTotal", applications.length) },
-    { id: "training", accent: "var(--training)", label: t("ovExtra.coursesInProgress"), value: trainingItems.filter(i => i.kind === "course" && i.assignments.some(a => !a.done)).length, sub: t("ovExtra.coursesSub", trainingItems.filter(i => i.kind === "course").length) },
     { id: "payroll", accent: "var(--payroll)", label: t("ovExtra.salesWeek"), value: payroll && payrollNumbers().totalSales > 0 ? "$" + money(payrollNumbers().totalSales) : "—", sub: payroll && payrollNumbers().laborPct !== null ? t("ovExtra.laborPct", payrollNumbers().laborPct) : t("ovExtra.laborUnknown") },
-    { id: "comms", accent: "var(--comms)", label: t("overview.aiAgent"), value: t("overview.askLabel"), sub: t("overview.askSub") },
+    { id: "training", accent: "var(--training)", label: t("ovExtra.coursesInProgress"), value: trainingItems.filter(i => i.kind === "course" && i.assignments.some(a => !a.done)).length, sub: t("ovExtra.coursesSub", trainingItems.filter(i => i.kind === "course").length) },
+    { id: "hiring", accent: "var(--hiring)", label: t("overview.openPostings"), value: openPostings, sub: t("overview.applicantsTotal", applications.length) },
   ];
   grid.innerHTML = stats.map(s => `
     <div class="overview-card" style="--accent:${s.accent}" onclick="switchTab('${s.id}')">

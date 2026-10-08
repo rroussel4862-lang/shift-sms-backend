@@ -237,6 +237,17 @@ async function initDb() {
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS board_seen_at BIGINT;`);
   await pool.query(`ALTER TABLE board_posts ADD COLUMN IF NOT EXISTS translations JSONB;`);
 
+  // Manually entered weekly sales for past years (keyed by that week's Monday) so this year can be compared to last year
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS weekly_sales_history (
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      week_start DATE NOT NULL,
+      amount NUMERIC NOT NULL,
+      updated_at BIGINT NOT NULL,
+      PRIMARY KEY (restaurant_id, week_start)
+    );
+  `);
+
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS password_hash TEXT;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS claim_token TEXT UNIQUE;`);
@@ -1590,6 +1601,140 @@ app.put("/api/actual-sales", requireAuth, async (req, res) => {
     [newId, req.restaurantId, date, amt, foodVal, bevVal, (source || "manual").trim(), Date.now()]
   );
   res.json(actualSalesRowToJson(rows[0]));
+});
+
+// ---------- revenue history: this year (from daily sales) vs last year (entered weekly) ----------
+// Weeks run Monday–Sunday. A week belongs to the year and month that contain its THURSDAY (ISO rule), so the
+// 52/53 weeks of a year line up with the same weeks a year earlier (this week's Monday minus 364 days).
+
+function isoWeekMondays(year) {
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const first = new Date(jan4);
+  first.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7));
+  const out = [];
+  for (let d = new Date(first); ; d.setUTCDate(d.getUTCDate() + 7)) {
+    const thursday = new Date(d);
+    thursday.setUTCDate(d.getUTCDate() + 3);
+    if (thursday.getUTCFullYear() !== year) break;
+    out.push({ weekStart: d.toISOString().slice(0, 10), month: thursday.getUTCMonth() + 1 });
+  }
+  return out;
+}
+
+const pctChange = (now, before) => (before > 0 && now !== null ? Math.round(((now - before) / before) * 1000) / 10 : null);
+
+// weeks: [{weekStart, month}], thisYearByWeek: {weekStart: {amount, days}}, lastYearByWeek: {weekStart: amount}
+function buildRevenueSummary({ year, today, weeks, thisYearByWeek, lastYearByWeek }) {
+  const rows = weeks.map((w) => {
+    const weekEnd = addDaysIso(w.weekStart, 6);
+    const lastYearWeekStart = addDaysIso(w.weekStart, -364);
+    const mine = thisYearByWeek[w.weekStart];
+    return {
+      weekStart: w.weekStart,
+      weekEnd,
+      month: w.month,
+      completed: weekEnd < today,
+      thisYear: mine ? mine.amount : null,
+      daysEntered: mine ? mine.days : 0,
+      lastYearWeekStart,
+      lastYear: lastYearByWeek[lastYearWeekStart] !== undefined ? lastYearByWeek[lastYearWeekStart] : null,
+    };
+  });
+  // Only finished weeks count toward comparisons; a week is "comparable" when both years have a number.
+  const counted = rows.filter((r) => r.completed && r.thisYear !== null);
+  const comparable = counted.filter((r) => r.lastYear !== null);
+  const sum = (list, f) => list.reduce((n, r) => n + f(r), 0);
+
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    const inMonth = rows.filter((r) => r.month === m);
+    const cnt = counted.filter((r) => r.month === m);
+    const cmp = comparable.filter((r) => r.month === m);
+    return {
+      month: m,
+      complete: inMonth.length > 0 && inMonth.every((r) => r.completed),
+      thisYear: cnt.length ? sum(cnt, (r) => r.thisYear) : null,
+      lastYear: inMonth.some((r) => r.lastYear !== null) ? sum(inMonth, (r) => r.lastYear || 0) : null,
+      weeksCompared: cmp.length,
+      changePct: cmp.length ? pctChange(sum(cmp, (r) => r.thisYear), sum(cmp, (r) => r.lastYear)) : null,
+      _cmpThis: sum(cmp, (r) => r.thisYear),
+      _cmpLast: sum(cmp, (r) => r.lastYear),
+    };
+  });
+
+  const lastWeek = [...comparable].pop() || null;
+  const doneMonths = months.filter((m) => m.complete && m.weeksCompared > 0);
+  const lastMonth = doneMonths.length ? doneMonths[doneMonths.length - 1] : null;
+  const ytdMonthsList = doneMonths;
+
+  const cards = {
+    yoy: {
+      lastWeek: lastWeek && { weekStart: lastWeek.weekStart, thisYear: lastWeek.thisYear, lastYear: lastWeek.lastYear, changePct: pctChange(lastWeek.thisYear, lastWeek.lastYear) },
+      lastMonth: lastMonth && { month: lastMonth.month, thisYear: lastMonth._cmpThis, lastYear: lastMonth._cmpLast, changePct: lastMonth.changePct },
+    },
+    ytd: {
+      weeks: {
+        weeksCompared: comparable.length,
+        thisYear: sum(comparable, (r) => r.thisYear),
+        lastYear: sum(comparable, (r) => r.lastYear),
+        changePct: pctChange(sum(comparable, (r) => r.thisYear), sum(comparable, (r) => r.lastYear)),
+      },
+      months: {
+        monthsCompared: ytdMonthsList.length,
+        thisYear: sum(ytdMonthsList, (m) => m._cmpThis),
+        lastYear: sum(ytdMonthsList, (m) => m._cmpLast),
+        changePct: pctChange(sum(ytdMonthsList, (m) => m._cmpThis), sum(ytdMonthsList, (m) => m._cmpLast)),
+      },
+    },
+  };
+  months.forEach((m) => { delete m._cmpThis; delete m._cmpLast; });
+  return { year, weeks: rows, months, cards };
+}
+
+app.get("/api/revenue-history", requireAuth, async (req, res) => {
+  const year = req.query.year ? parseInt(req.query.year, 10) : new Date().getUTCFullYear();
+  if (!(year >= 2000 && year <= 2100)) return res.status(400).json({ error: "year must be between 2000 and 2100" });
+  const weeks = isoWeekMondays(year);
+  const first = weeks[0].weekStart;
+  const last = addDaysIso(weeks[weeks.length - 1].weekStart, 6);
+  const { rows: sales } = await pool.query(
+    "SELECT sale_date::text AS d, amount FROM actual_sales WHERE restaurant_id = $1 AND sale_date >= $2 AND sale_date <= $3 AND amount IS NOT NULL",
+    [req.restaurantId, first, last]
+  );
+  const thisYearByWeek = {};
+  sales.forEach((r) => {
+    const wk = mondayOfIso(r.d);
+    const e = (thisYearByWeek[wk] = thisYearByWeek[wk] || { amount: 0, days: 0 });
+    e.amount += Number(r.amount);
+    e.days += 1;
+  });
+  const { rows: hist } = await pool.query(
+    "SELECT week_start::text AS w, amount FROM weekly_sales_history WHERE restaurant_id = $1 AND week_start >= $2 AND week_start <= $3",
+    [req.restaurantId, addDaysIso(first, -364), addDaysIso(last, -364)]
+  );
+  const lastYearByWeek = {};
+  hist.forEach((r) => { lastYearByWeek[r.w] = Number(r.amount); });
+  const today = new Date().toISOString().slice(0, 10);
+  res.json({ today, ...buildRevenueSummary({ year, today, weeks, thisYearByWeek, lastYearByWeek }) });
+});
+
+// Enter (or clear) one past week's total. weekStart is that past week's Monday.
+app.put("/api/revenue-history", requireAuth, async (req, res) => {
+  const { weekStart, amount } = req.body || {};
+  if (!isIsoDate(weekStart) || new Date(weekStart + "T00:00:00Z").getUTCDay() !== 1) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
+  if (weekStart < "2000-01-03" || weekStart > addDaysIso(new Date().toISOString().slice(0, 10), 7)) return res.status(400).json({ error: "weekStart is out of range" });
+  if (amount === null || amount === "" || amount === undefined) {
+    await pool.query("DELETE FROM weekly_sales_history WHERE restaurant_id = $1 AND week_start = $2", [req.restaurantId, weekStart]);
+    return res.json({ weekStart, amount: null });
+  }
+  const n = Number(String(amount).replace(/[$,\s]/g, ""));
+  if (isNaN(n) || n < 0 || n > 1e9) return res.status(400).json({ error: "amount must be a positive number" });
+  await pool.query(
+    `INSERT INTO weekly_sales_history (restaurant_id, week_start, amount, updated_at) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (restaurant_id, week_start) DO UPDATE SET amount = EXCLUDED.amount, updated_at = EXCLUDED.updated_at`,
+    [req.restaurantId, weekStart, n, Date.now()]
+  );
+  res.json({ weekStart, amount: n });
 });
 
 // ---------- team message board (managers post, every staff member reads) ----------
