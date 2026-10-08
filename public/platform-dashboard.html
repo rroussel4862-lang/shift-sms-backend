@@ -80,6 +80,20 @@
   .activity-restaurant { color: var(--blue); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
   .activity-detail { flex: 1; min-width: 0; word-break: break-word; }
   .activity-type { color: var(--text-dim); font-size: 10.5px; text-transform: uppercase; }
+
+  .owner-form { background: var(--panel); border: 1px solid var(--rail); border-radius: 8px; padding: 16px; margin-bottom: 14px; }
+  .owner-form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .owner-form .checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .owner-form .checks label { display: flex; align-items: center; gap: 6px; margin: 0; padding: 6px 10px; border: 1px solid var(--rail); border-radius: 6px; background: var(--bg); color: var(--text-bright); font-size: 12.5px; text-transform: none; letter-spacing: 0; cursor: pointer; }
+  .owner-form .checks input { width: auto; }
+  .btn { background: var(--blue); color: #fff; border: none; border-radius: 6px; padding: 9px 16px; font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase; font-size: 12px; cursor: pointer; }
+  .btn.ghost { background: none; border: 1px solid var(--rail); color: var(--text-dim); }
+  .btn.small { padding: 5px 9px; font-size: 11px; }
+  .chip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--panel-light); margin: 2px 4px 2px 0; }
+  .cred-box { background: #12301f; border: 1px solid var(--green); border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; }
+  .cred-box pre { white-space: pre-wrap; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; margin: 8px 0 10px; }
+  .cred-box .warn { color: var(--amber); font-size: 11.5px; }
+  @media (max-width: 640px) { .owner-form .row { grid-template-columns: 1fr; } }
   .empty { color: var(--text-dim); font-size: 13px; padding: 16px; text-align: center; }
 </style>
 </head>
@@ -135,6 +149,30 @@
             </tr>
           </thead>
           <tbody id="restaurantsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section" id="ownersSection">
+      <h2>Owners</h2>
+      <div id="credBox"></div>
+      <div class="owner-form">
+        <div class="row">
+          <div><label>Owner name</label><input type="text" id="ownerName" placeholder="e.g. Marie Tremblay" /></div>
+          <div><label>Owner email (their login)</label><input type="text" id="ownerEmail" placeholder="owner@example.com" /></div>
+        </div>
+        <label>Restaurants they can see</label>
+        <div class="checks" id="ownerRestaurantChecks"><span style="color:var(--text-dim);font-size:12px">No restaurants yet.</span></div>
+        <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
+          <button class="btn" id="ownerSaveBtn" onclick="saveOwner()">Create owner login</button>
+          <button class="btn ghost" id="ownerCancelBtn" style="display:none" onclick="resetOwnerForm()">Cancel edit</button>
+          <span id="ownerFormMsg" style="color:var(--amber);font-size:12px"></span>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Owner</th><th>Email</th><th>Restaurants</th><th>Last login</th><th></th></tr></thead>
+          <tbody id="ownersBody"></tbody>
         </table>
       </div>
     </div>
@@ -223,6 +261,7 @@ function enterApp(email) {
 
 async function loadAll() {
   await Promise.all([loadRestaurants(), loadHealth(), loadActivity()]);
+  await loadOwners();
 }
 
 function timeAgo(ts) {
@@ -250,6 +289,7 @@ async function loadRestaurants() {
   filterSel.innerHTML = '<option value="">All restaurants</option>' + restaurants.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join("");
   filterSel.value = currentVal;
 
+  renderOwnerChecks();
   const body = document.getElementById("restaurantsBody");
   body.innerHTML = restaurants.length === 0
     ? `<tr><td colspan="8" class="empty">No restaurants signed up yet.</td></tr>`
@@ -283,6 +323,135 @@ async function saveTwilioNumber(restaurantId) {
   } else {
     alert(result.error);
   }
+}
+
+// ---------- owners ----------
+let owners = [];
+let editingOwnerId = null;
+
+function renderOwnerChecks(selected) {
+  const box = document.getElementById("ownerRestaurantChecks");
+  const keep = selected || new Set([...box.querySelectorAll("input:checked")].map(i => i.value));
+  box.innerHTML = restaurants.length === 0
+    ? '<span style="color:var(--text-dim);font-size:12px">No restaurants yet.</span>'
+    : restaurants.map(r => `<label><input type="checkbox" value="${r.id}" ${keep.has(r.id) ? "checked" : ""} /> ${escapeHtml(r.name)}</label>`).join("");
+}
+
+async function loadOwners() {
+  const result = await api("/api/platform/owners");
+  if (!result.ok) return;
+  owners = result.data;
+  document.getElementById("ownersBody").innerHTML = owners.length === 0
+    ? `<tr><td colspan="5" class="empty">No owner logins yet — create the first one above.</td></tr>`
+    : owners.map(o => `
+        <tr style="cursor:default">
+          <td class="restaurant-name">${escapeHtml(o.name)}</td>
+          <td>${escapeHtml(o.email)}</td>
+          <td>${o.restaurants.map(r => `<span class="chip">${escapeHtml(r.name)}</span>`).join("")}</td>
+          <td>${o.lastLoginAt ? timeAgo(o.lastLoginAt) : "never"}</td>
+          <td style="white-space:nowrap">
+            <button class="btn ghost small" onclick="editOwner('${o.id}')">Edit</button>
+            <button class="btn ghost small" onclick="resetOwnerPassword('${o.id}')">New password</button>
+            <button class="btn ghost small" onclick="deleteOwner('${o.id}')">Delete</button>
+          </td>
+        </tr>`).join("");
+}
+
+function resetOwnerForm() {
+  editingOwnerId = null;
+  document.getElementById("ownerName").value = "";
+  document.getElementById("ownerEmail").value = "";
+  document.getElementById("ownerSaveBtn").textContent = "Create owner login";
+  document.getElementById("ownerCancelBtn").style.display = "none";
+  document.getElementById("ownerFormMsg").textContent = "";
+  renderOwnerChecks(new Set());
+}
+
+function editOwner(id) {
+  const o = owners.find(x => x.id === id);
+  if (!o) return;
+  editingOwnerId = id;
+  document.getElementById("ownerName").value = o.name;
+  document.getElementById("ownerEmail").value = o.email;
+  document.getElementById("ownerSaveBtn").textContent = "Save changes";
+  document.getElementById("ownerCancelBtn").style.display = "inline-block";
+  renderOwnerChecks(new Set(o.restaurants.map(r => r.id)));
+  document.getElementById("ownerName").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+async function saveOwner() {
+  const msg = document.getElementById("ownerFormMsg");
+  msg.textContent = "";
+  const name = document.getElementById("ownerName").value.trim();
+  const email = document.getElementById("ownerEmail").value.trim();
+  const restaurantIds = [...document.querySelectorAll("#ownerRestaurantChecks input:checked")].map(i => i.value);
+  if (!name || !email) { msg.textContent = "Enter the owner's name and email"; return; }
+  if (restaurantIds.length === 0) { msg.textContent = "Pick at least one restaurant"; return; }
+  if (editingOwnerId) {
+    const r = await api(`/api/platform/owners/${editingOwnerId}`, { method: "PATCH", body: JSON.stringify({ name, email, restaurantIds }) });
+    if (!r.ok) { msg.textContent = r.error; return; }
+    resetOwnerForm();
+    await loadOwners();
+    return;
+  }
+  const r = await api("/api/platform/owners", { method: "POST", body: JSON.stringify({ name, email, restaurantIds }) });
+  if (!r.ok) { msg.textContent = r.error; return; }
+  resetOwnerForm();
+  showCredentials(r.data.owner, r.data.tempPassword);
+  await loadOwners();
+}
+
+const CRED_TEXT = {
+  en: (o, url, pw) => `Hi ${o.name.split(" ")[0]},\n\nYour Open Shift Rail owner login is ready — one page with all your restaurants.\n\nLink: ${url}\nEmail: ${o.email}\nTemporary password: ${pw}\n\nYou can change the password after you log in.`,
+  fr: (o, url, pw) => `Bonjour ${o.name.split(" ")[0]},\n\nVotre accès propriétaire Open Shift Rail est prêt — une seule page avec tous vos restaurants.\n\nLien : ${url}\nCourriel : ${o.email}\nMot de passe temporaire : ${pw}\n\nVous pourrez changer le mot de passe après votre connexion.`,
+  es: (o, url, pw) => `Hola ${o.name.split(" ")[0]},\n\nTu acceso de propietario a Open Shift Rail está listo — una sola página con todos tus restaurantes.\n\nEnlace: ${url}\nCorreo: ${o.email}\nContraseña temporal: ${pw}\n\nPuedes cambiar la contraseña después de iniciar sesión.`,
+};
+
+function showCredentials(owner, pw) {
+  const url = location.origin + "/owner.html";
+  const box = document.getElementById("credBox");
+  window.__cred = { owner, pw, url };
+  box.innerHTML = `
+    <div class="cred-box">
+      <div style="font-weight:600">Login created for ${escapeHtml(owner.name)}</div>
+      <div class="warn">The password is shown only now. Copy it before leaving this page (you can always generate a new one).</div>
+      <div style="margin-top:8px;font-size:12.5px">Link: <b>${escapeHtml(url)}</b> &nbsp;·&nbsp; Email: <b>${escapeHtml(owner.email)}</b> &nbsp;·&nbsp; Password: <b class="num" style="font-size:15px">${escapeHtml(pw)}</b></div>
+      <pre id="credMessage"></pre>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="credLang" onchange="renderCredMessage()" style="background:var(--bg);border:1px solid var(--rail);color:var(--text-bright);border-radius:5px;padding:6px 8px"><option value="en">English</option><option value="fr">Français</option><option value="es">Español</option></select>
+        <button class="btn small" onclick="copyCredMessage()">Copy message</button>
+        <button class="btn ghost small" onclick="document.getElementById('credBox').innerHTML=''">Dismiss</button>
+        <span id="credCopied" style="color:var(--green);font-size:12px"></span>
+      </div>
+    </div>`;
+  renderCredMessage();
+}
+function renderCredMessage() {
+  const c = window.__cred; if (!c) return;
+  const lang = document.getElementById("credLang").value;
+  document.getElementById("credMessage").textContent = CRED_TEXT[lang](c.owner, c.url, c.pw);
+}
+async function copyCredMessage() {
+  const text = document.getElementById("credMessage").textContent;
+  try { await navigator.clipboard.writeText(text); document.getElementById("credCopied").textContent = "Copied ✓"; }
+  catch (e) { const r = document.createRange(); r.selectNodeContents(document.getElementById("credMessage")); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); document.getElementById("credCopied").textContent = "Selected — press Ctrl/Cmd+C"; }
+}
+
+async function resetOwnerPassword(id) {
+  const o = owners.find(x => x.id === id);
+  if (!o || !confirm(`Generate a new temporary password for ${o.name}? Their current password stops working.`)) return;
+  const r = await api(`/api/platform/owners/${id}/reset-password`, { method: "POST" });
+  if (!r.ok) return alert(r.error);
+  showCredentials(o, r.data.tempPassword);
+  window.scrollTo({ top: document.getElementById("ownersSection").offsetTop - 20, behavior: "smooth" });
+}
+
+async function deleteOwner(id) {
+  const o = owners.find(x => x.id === id);
+  if (!o || !confirm(`Delete ${o.name}'s owner login? Their restaurants are not affected.`)) return;
+  const r = await api(`/api/platform/owners/${id}`, { method: "DELETE" });
+  if (!r.ok) return alert(r.error);
+  await loadOwners();
 }
 
 async function loadHealth() {
