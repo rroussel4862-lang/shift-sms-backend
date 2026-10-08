@@ -803,6 +803,16 @@
       <h2 data-i18n="comms.h2">Team messages & AI agent</h2>
       <p data-i18n="comms.desc">Ask about staffing, labor cost, hiring, or anything else — answered from your restaurant's real data, not a canned script.</p>
     </div>
+    <div class="stub plain" style="--accent:var(--comms)">
+      <div class="tag" data-i18n="comms.aiTag">AI agent</div>
+      <h3 data-i18n="comms.askHeader">Ask about your restaurant</h3>
+      <div id="chatThread" style="margin-top:14px"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="e.g. Which shift is understaffed this week?" data-i18n-ph="comms.placeholder" onkeydown="if(event.key==='Enter') askAi()" />
+        <button class="primary" style="width:auto;padding:0 18px" onclick="askAi()" data-i18n="comms.ask">Ask</button>
+      </div>
+    </div>
+
     <div class="stub plain" style="--accent:var(--comms)" id="boardCard">
       <div class="tag" data-i18n="board.tag">Team board</div>
       <h3 data-i18n="board.h3">Post to your whole team</h3>
@@ -817,16 +827,6 @@
       <button class="primary amber" id="boardPostBtn" onclick="postBoard()" data-i18n="board.postBtn">Post to the board</button>
     </div>
     <div id="boardList"></div>
-
-    <div class="stub plain" style="--accent:var(--comms)">
-      <div class="tag" data-i18n="comms.aiTag">AI agent</div>
-      <h3 data-i18n="comms.askHeader">Ask about your restaurant</h3>
-      <div id="chatThread" style="margin-top:14px"></div>
-      <div class="chat-input-row">
-        <input type="text" id="chatInput" placeholder="e.g. Which shift is understaffed this week?" data-i18n-ph="comms.placeholder" onkeydown="if(event.key==='Enter') askAi()" />
-        <button class="primary" style="width:auto;padding:0 18px" onclick="askAi()" data-i18n="comms.ask">Ask</button>
-      </div>
-    </div>
   </div>
 </main>
     </div>
