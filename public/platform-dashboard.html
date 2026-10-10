@@ -154,24 +154,29 @@
     </div>
 
     <div class="section" id="ownersSection">
-      <h2>Owners</h2>
+      <h2>Owners &amp; managers</h2>
       <div id="credBox"></div>
       <div class="owner-form">
         <div class="row">
-          <div><label>Owner name</label><input type="text" id="ownerName" placeholder="e.g. Marie Tremblay" /></div>
-          <div><label>Owner email (their login)</label><input type="text" id="ownerEmail" placeholder="owner@example.com" /></div>
+          <div><label>Name</label><input type="text" id="ownerName" placeholder="e.g. Marie Tremblay" /></div>
+          <div><label>Email (their login)</label><input type="text" id="ownerEmail" placeholder="name@example.com" /></div>
         </div>
+        <label>Role</label>
+        <select id="ownerRole" style="background:var(--bg);border:1px solid var(--rail);color:var(--text-bright);border-radius:5px;padding:9px 11px;font-size:13.5px;font-family:inherit">
+          <option value="owner">Owner — sees every restaurant, opens any of them</option>
+          <option value="manager">Manager — goes straight to the manager app (picker only if several restaurants)</option>
+        </select>
         <label>Restaurants they can see</label>
         <div class="checks" id="ownerRestaurantChecks"><span style="color:var(--text-dim);font-size:12px">No restaurants yet.</span></div>
         <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
-          <button class="btn" id="ownerSaveBtn" onclick="saveOwner()">Create owner login</button>
+          <button class="btn" id="ownerSaveBtn" onclick="saveOwner()">Create login</button>
           <button class="btn ghost" id="ownerCancelBtn" style="display:none" onclick="resetOwnerForm()">Cancel edit</button>
           <span id="ownerFormMsg" style="color:var(--amber);font-size:12px"></span>
         </div>
       </div>
       <div style="overflow-x:auto">
         <table>
-          <thead><tr><th>Owner</th><th>Email</th><th>Restaurants</th><th>Last login</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Restaurants</th><th>Last login</th><th></th></tr></thead>
           <tbody id="ownersBody"></tbody>
         </table>
       </div>
@@ -342,10 +347,11 @@ async function loadOwners() {
   if (!result.ok) return;
   owners = result.data;
   document.getElementById("ownersBody").innerHTML = owners.length === 0
-    ? `<tr><td colspan="5" class="empty">No owner logins yet — create the first one above.</td></tr>`
+    ? `<tr><td colspan="6" class="empty">No logins yet — create the first one above.</td></tr>`
     : owners.map(o => `
         <tr style="cursor:default">
           <td class="restaurant-name">${escapeHtml(o.name)}</td>
+          <td><span class="pill">${o.role === "manager" ? "Manager" : "Owner"}</span></td>
           <td>${escapeHtml(o.email)}</td>
           <td>${o.restaurants.map(r => `<span class="chip">${escapeHtml(r.name)}</span>`).join("")}</td>
           <td>${o.lastLoginAt ? timeAgo(o.lastLoginAt) : "never"}</td>
@@ -361,7 +367,8 @@ function resetOwnerForm() {
   editingOwnerId = null;
   document.getElementById("ownerName").value = "";
   document.getElementById("ownerEmail").value = "";
-  document.getElementById("ownerSaveBtn").textContent = "Create owner login";
+  document.getElementById("ownerSaveBtn").textContent = "Create login";
+  document.getElementById("ownerRole").value = "owner";
   document.getElementById("ownerCancelBtn").style.display = "none";
   document.getElementById("ownerFormMsg").textContent = "";
   renderOwnerChecks(new Set());
@@ -373,6 +380,7 @@ function editOwner(id) {
   editingOwnerId = id;
   document.getElementById("ownerName").value = o.name;
   document.getElementById("ownerEmail").value = o.email;
+  document.getElementById("ownerRole").value = o.role || "owner";
   document.getElementById("ownerSaveBtn").textContent = "Save changes";
   document.getElementById("ownerCancelBtn").style.display = "inline-block";
   renderOwnerChecks(new Set(o.restaurants.map(r => r.id)));
@@ -385,16 +393,17 @@ async function saveOwner() {
   const name = document.getElementById("ownerName").value.trim();
   const email = document.getElementById("ownerEmail").value.trim();
   const restaurantIds = [...document.querySelectorAll("#ownerRestaurantChecks input:checked")].map(i => i.value);
+  const role = document.getElementById("ownerRole").value;
   if (!name || !email) { msg.textContent = "Enter the owner's name and email"; return; }
   if (restaurantIds.length === 0) { msg.textContent = "Pick at least one restaurant"; return; }
   if (editingOwnerId) {
-    const r = await api(`/api/platform/owners/${editingOwnerId}`, { method: "PATCH", body: JSON.stringify({ name, email, restaurantIds }) });
+    const r = await api(`/api/platform/owners/${editingOwnerId}`, { method: "PATCH", body: JSON.stringify({ name, email, restaurantIds, role }) });
     if (!r.ok) { msg.textContent = r.error; return; }
     resetOwnerForm();
     await loadOwners();
     return;
   }
-  const r = await api("/api/platform/owners", { method: "POST", body: JSON.stringify({ name, email, restaurantIds }) });
+  const r = await api("/api/platform/owners", { method: "POST", body: JSON.stringify({ name, email, restaurantIds, role }) });
   if (!r.ok) { msg.textContent = r.error; return; }
   resetOwnerForm();
   showCredentials(r.data.owner, r.data.tempPassword);
@@ -402,9 +411,9 @@ async function saveOwner() {
 }
 
 const CRED_TEXT = {
-  en: (o, url, pw) => `Hi ${o.name.split(" ")[0]},\n\nYour Open Shift Rail owner login is ready — one page with all your restaurants.\n\nLink: ${url}\nEmail: ${o.email}\nTemporary password: ${pw}\n\nYou can change the password after you log in.`,
-  fr: (o, url, pw) => `Bonjour ${o.name.split(" ")[0]},\n\nVotre accès propriétaire Open Shift Rail est prêt — une seule page avec tous vos restaurants.\n\nLien : ${url}\nCourriel : ${o.email}\nMot de passe temporaire : ${pw}\n\nVous pourrez changer le mot de passe après votre connexion.`,
-  es: (o, url, pw) => `Hola ${o.name.split(" ")[0]},\n\nTu acceso de propietario a Open Shift Rail está listo — una sola página con todos tus restaurantes.\n\nEnlace: ${url}\nCorreo: ${o.email}\nContraseña temporal: ${pw}\n\nPuedes cambiar la contraseña después de iniciar sesión.`,
+  en: (o, url, pw) => `Hi ${o.name.split(" ")[0]},\n\nYour Open Shift Rail ${o.role === "manager" ? "manager" : "owner"} login is ready${o.role === "manager" ? "" : " — one page with all your restaurants"}.\n\nLink: ${url}\nEmail: ${o.email}\nTemporary password: ${pw}\n\nYou can change the password after you log in.`,
+  fr: (o, url, pw) => `Bonjour ${o.name.split(" ")[0]},\n\nVotre accès ${o.role === "manager" ? "gestionnaire" : "propriétaire"} Open Shift Rail est prêt${o.role === "manager" ? "" : " — une seule page avec tous vos restaurants"}.\n\nLien : ${url}\nCourriel : ${o.email}\nMot de passe temporaire : ${pw}\n\nVous pourrez changer le mot de passe après votre connexion.`,
+  es: (o, url, pw) => `Hola ${o.name.split(" ")[0]},\n\nTu acceso de ${o.role === "manager" ? "gerente" : "propietario"} a Open Shift Rail está listo${o.role === "manager" ? "" : " — una sola página con todos tus restaurantes"}.\n\nEnlace: ${url}\nCorreo: ${o.email}\nContraseña temporal: ${pw}\n\nPuedes cambiar la contraseña después de iniciar sesión.`,
 };
 
 function showCredentials(owner, pw) {
@@ -413,7 +422,7 @@ function showCredentials(owner, pw) {
   window.__cred = { owner, pw, url };
   box.innerHTML = `
     <div class="cred-box">
-      <div style="font-weight:600">Login created for ${escapeHtml(owner.name)}</div>
+      <div style="font-weight:600">${owner.role === 'manager' ? 'Manager' : 'Owner'} login created for ${escapeHtml(owner.name)}</div>
       <div class="warn">The password is shown only now. Copy it before leaving this page (you can always generate a new one).</div>
       <div style="margin-top:8px;font-size:12.5px">Link: <b>${escapeHtml(url)}</b> &nbsp;·&nbsp; Email: <b>${escapeHtml(owner.email)}</b> &nbsp;·&nbsp; Password: <b class="num" style="font-size:15px">${escapeHtml(pw)}</b></div>
       <pre id="credMessage"></pre>

@@ -291,6 +291,7 @@ async function initDb() {
       last_login_at BIGINT
     );
   `);
+  await pool.query(`ALTER TABLE owners ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'owner';`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS owner_restaurants (
       owner_id TEXT NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
@@ -633,6 +634,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
       restaurant: { id: rows[0].restaurant_id, name: rows[0].restaurant_name, address: rows[0].restaurant_address || "" },
       email: rows[0].email,
       viaOwner: true,
+      canSwitch: (await pool.query("SELECT COUNT(*) AS n FROM owner_restaurants WHERE owner_id = $1", [req.ownerId])).rows[0].n > 1,
     });
   }
   const { rows } = await pool.query(
@@ -2928,6 +2930,7 @@ async function ownerWithRestaurants(ownerId) {
     id: rows[0].id,
     name: rows[0].name,
     email: rows[0].email,
+    role: rows[0].role === "manager" ? "manager" : "owner",
     createdAt: Number(rows[0].created_at),
     lastLoginAt: rows[0].last_login_at ? Number(rows[0].last_login_at) : null,
     restaurants: rs.map((r) => ({ id: r.id, name: r.name })),
@@ -2954,6 +2957,7 @@ app.get("/api/platform/owners", requirePlatformAuth, async (req, res) => {
 
 app.post("/api/platform/owners", requirePlatformAuth, async (req, res) => {
   const { name, email, restaurantIds } = req.body || {};
+  const role = (req.body || {}).role === "manager" ? "manager" : "owner";
   if (!name || !String(name).trim()) return res.status(400).json({ error: "name is required" });
   if (!email || !EMAIL_RE.test(String(email).trim())) return res.status(400).json({ error: "a valid email is required" });
   if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) return res.status(400).json({ error: "pick at least one restaurant" });
@@ -2962,19 +2966,23 @@ app.post("/api/platform/owners", requirePlatformAuth, async (req, res) => {
   if (dup.length) return res.status(409).json({ error: "an owner with that email already exists" });
   const ownerId = id();
   const password = tempPassword();
-  await pool.query("INSERT INTO owners (id, name, email, password_hash, created_at) VALUES ($1,$2,$3,$4,$5)", [ownerId, String(name).trim(), cleanEmail, await bcrypt.hash(password, 10), Date.now()]);
+  await pool.query("INSERT INTO owners (id, name, email, password_hash, created_at, role) VALUES ($1,$2,$3,$4,$5,$6)", [ownerId, String(name).trim(), cleanEmail, await bcrypt.hash(password, 10), Date.now(), role]);
   if (!(await setOwnerRestaurants(ownerId, restaurantIds))) {
     await pool.query("DELETE FROM owners WHERE id = $1", [ownerId]);
     return res.status(400).json({ error: "one of those restaurants doesn't exist" });
   }
-  logActivity({ eventType: "owner_created", detail: `${String(name).trim()} (${cleanEmail}) → ${restaurantIds.length} restaurant(s)` });
+  logActivity({ eventType: "owner_created", detail: `${role}: ${String(name).trim()} (${cleanEmail}) → ${restaurantIds.length} restaurant(s)` });
   res.status(201).json({ owner: await ownerWithRestaurants(ownerId), tempPassword: password });
 });
 
 app.patch("/api/platform/owners/:id", requirePlatformAuth, async (req, res) => {
   const existing = await ownerWithRestaurants(req.params.id);
   if (!existing) return res.status(404).json({ error: "owner not found" });
-  const { name, email, restaurantIds } = req.body || {};
+  const { name, email, restaurantIds, role } = req.body || {};
+  if (role !== undefined) {
+    if (role !== "owner" && role !== "manager") return res.status(400).json({ error: "role must be 'owner' or 'manager'" });
+    await pool.query("UPDATE owners SET role = $1 WHERE id = $2", [role, existing.id]);
+  }
   if (name !== undefined) {
     if (!String(name).trim()) return res.status(400).json({ error: "name can't be empty" });
     await pool.query("UPDATE owners SET name = $1 WHERE id = $2", [String(name).trim(), existing.id]);
@@ -3017,7 +3025,8 @@ app.post("/api/owner-auth/login", loginLimiter, async (req, res) => {
   if (!owner || !(await bcrypt.compare(password, owner.password_hash))) return res.status(401).json({ error: "incorrect email or password" });
   await pool.query("UPDATE owners SET last_login_at = $1 WHERE id = $2", [Date.now(), owner.id]);
   res.cookie("owner_token", signToken({ ownerId: owner.id }), COOKIE_OPTS);
-  res.json({ name: owner.name });
+  const full = await ownerWithRestaurants(owner.id);
+  res.json({ name: owner.name, role: full.role, restaurantIds: full.restaurants.map((r) => r.id) });
 });
 
 app.post("/api/owner-auth/logout", (req, res) => {
@@ -3029,7 +3038,7 @@ app.post("/api/owner-auth/logout", (req, res) => {
 app.get("/api/owner-auth/me", requireOwnerAuth, async (req, res) => {
   const o = await ownerWithRestaurants(req.ownerId);
   if (!o) return res.status(401).json({ error: "not logged in" });
-  res.json({ name: o.name, email: o.email });
+  res.json({ name: o.name, email: o.email, role: o.role, restaurantIds: o.restaurants.map((r) => r.id) });
 });
 
 app.post("/api/owner-auth/change-password", requireOwnerAuth, loginLimiter, async (req, res) => {

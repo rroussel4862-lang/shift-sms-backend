@@ -2783,8 +2783,8 @@ async function submitAuth() {
 
 let viaOwner = false;
 async function logout() {
+  if (viaOwner) { await api("/api/owner-auth/logout", { method: "POST" }); location.href = "/owner.html"; return; }
   await api("/api/auth/logout", { method: "POST" });
-  if (viaOwner) { location.href = "/owner.html"; return; }
   location.reload();
 }
 
@@ -2822,7 +2822,7 @@ function enterApp() {
     restaurantName = result.data.restaurant.name;
     restaurantAddress = result.data.restaurant.address || "";
     viaOwner = !!result.data.viaOwner;
-    document.getElementById("ownerBackLink").style.display = viaOwner ? "inline-block" : "none";
+    document.getElementById("ownerBackLink").style.display = viaOwner && result.data.canSwitch ? "inline-block" : "none";
     enterApp();
   }
 })();

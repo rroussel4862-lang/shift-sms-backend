@@ -248,7 +248,16 @@ async function submitLogin() {
   const r = await api("/api/owner-auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
   if (!r.ok) { err.textContent = r.error; return; }
   ownerName = r.data.name;
+  if (await goDirect(r.data)) return;
   enter();
+}
+// A manager with exactly one restaurant skips the landing page and goes straight to the manager app.
+async function goDirect(info) {
+  if (info.role !== "manager" || !info.restaurantIds || info.restaurantIds.length !== 1) return false;
+  const o = await api(`/api/owner/open/${info.restaurantIds[0]}`, { method: "POST" });
+  if (!o.ok) return false;
+  location.href = "/index.html";
+  return true;
 }
 async function logout() { await api("/api/owner-auth/logout", { method: "POST" }); location.reload(); }
 
@@ -347,7 +356,7 @@ I18N.apply();
 
 (async function checkSession() {
   const r = await api("/api/owner-auth/me");
-  if (r.ok) { ownerName = r.data.name; enter(); }
+  if (r.ok) { ownerName = r.data.name; if (await goDirect(r.data)) return; enter(); }
 })();
 </script>
 </body>
