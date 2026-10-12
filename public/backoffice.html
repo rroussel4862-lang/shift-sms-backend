@@ -204,9 +204,15 @@
 
   .grid-wrap { overflow: auto; border: 1px solid var(--grid-border); border-radius: 8px; }
   #sectionSchedule .grid-wrap { max-height: calc(100vh - 150px); min-height: 360px; }
-  table.schedule-grid { border-collapse: separate !important; border-spacing: 0; }
+  table.schedule-grid { border-collapse: separate !important; border-spacing: 0; overflow: visible !important; }
   table.schedule-grid th, table.schedule-grid td { border-width: 0 1px 1px 0 !important; }
   #scheduleHeaderRow th { position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 0 var(--grid-border), 0 3px 6px rgba(0,0,0,.18); }
+  tr.svc-row td { background: var(--ink); color: #fff; font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: .1em; font-size: 13px; padding: 8px 12px; border-left: 5px solid var(--svc-color, var(--amber)); }
+  tr.svc-row .cnt { opacity: .7; font-size: 11.5px; letter-spacing: .03em; margin-left: 10px; }
+  .svc-toggle { display: inline-flex; gap: 0; margin-left: 12px; }
+  .svc-toggle button { background: none; border: 1px solid var(--rail); color: var(--text-bright); padding: 6px 12px; font-size: 12px; cursor: pointer; }
+  .svc-toggle button:first-child { border-radius: 6px 0 0 6px; } .svc-toggle button:last-child { border-radius: 0 6px 6px 0; }
+  .svc-toggle button.active { background: var(--amber); color: var(--ink); border-color: var(--amber); }
   tr.role-row td { background: var(--grid-alt); font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: .06em; font-size: 12px; font-weight: 600; padding: 7px 10px; border-left: 5px solid var(--role-color, var(--grid-border)); color: var(--grid-text); }
   tr.role-row .cnt { color: var(--grid-dim); font-weight: 400; margin-left: 6px; }
   table.schedule-grid { width: 100%; min-width: 860px; border-collapse: collapse; background: var(--grid-bg); color: var(--grid-text); }
@@ -368,6 +374,11 @@
       <div class="house-toggle">
         <button class="house-btn active" id="houseBtnFoh" onclick="setHouseView('foh')" data-i18n="sched.foh">Front of House</button>
         <button class="house-btn" id="houseBtnBoh" onclick="setHouseView('boh')" data-i18n="sched.boh">Back of House</button>
+        <span class="svc-toggle">
+          <button id="svcBtnBoth" class="active" onclick="setServiceView('both')" data-i18n="sched.svcBoth">Both services</button>
+          <button id="svcBtnLunch" onclick="setServiceView('lunch')" data-i18n="sched.svcLunch">Lunch / Brunch</button>
+          <button id="svcBtnDinner" onclick="setServiceView('dinner')" data-i18n="sched.svcDinner">Dinner</button>
+        </span>
       </div>
 
       <div class="week-nav">
@@ -478,7 +489,7 @@ I18N.add({
     "err.network": "Network error — is the server running?",
     "sched.h2": "Weekly schedule", "sched.desc": "Assign staff to shifts for the week. Drag a shift to move it, or copy/paste it to another day. Hours and labor cost are calculated live from each person's rate.",
     "sched.foh": "Front of House", "sched.boh": "Back of House", "sched.prev": "← Prev week", "sched.next": "Next week →", "sched.today": "This week",
-    "sched.copied": "Shift copied — click \"Paste here\" on any cell to duplicate it.", "sched.discard": "Discard", "sched.saveDrafts": "Save shifts", "sched.unsaved1": "1 pasted shift not saved yet", "sched.unsavedN": "{n} pasted shifts not saved yet", "sched.saveFail": "{n} shift(s) could not be saved and were kept for review.",
+    "sched.copied": "Shift copied — click \"Paste here\" on any cell to duplicate it.", "sched.discard": "Discard", "sched.saveDrafts": "Save shifts", "sched.unsaved1": "1 pasted shift not saved yet", "sched.unsavedN": "{n} pasted shifts not saved yet", "sched.svcBoth": "Both services", "sched.svcLunch": "Lunch / Brunch", "sched.svcDinner": "Dinner", "sched.saveFail": "{n} shift(s) could not be saved and were kept for review.",
     "sched.staffCol": "Staff", "sched.total": "Total", "sched.aiForecast": "AI forecast", "sched.notYet": "not yet available", "sched.actual": "Actual sales", "sched.projected": "Projected sales",
     "sched.dailyTotals": "Daily totals", "sched.laborIndex": "Labor cost index",
     "sched.aiTitle": "✨ AI scheduler", "sched.aiHint": "Describe the week in plain words. The AI fills the grid for the staff shown below, respecting their availability. You'll preview it before anything is saved.",
@@ -521,7 +532,7 @@ I18N.add({
     "err.network": "Erreur réseau — le serveur est-il en marche?",
     "sched.h2": "Horaire de la semaine", "sched.desc": "Assignez le personnel aux quarts de la semaine. Glissez un quart pour le déplacer, ou copiez-collez-le à un autre jour. Les heures et le coût de la main-d'œuvre sont calculés en direct selon le taux de chaque personne.",
     "sched.foh": "Salle", "sched.boh": "Cuisine", "sched.prev": "← Semaine préc.", "sched.next": "Semaine suiv. →", "sched.today": "Cette semaine",
-    "sched.copied": "Quart copié — cliquez sur « Coller ici » dans n'importe quelle case pour le dupliquer.", "sched.discard": "Annuler", "sched.saveDrafts": "Enregistrer les quarts", "sched.unsaved1": "1 quart collé non enregistré", "sched.unsavedN": "{n} quarts collés non enregistrés", "sched.saveFail": "{n} quart(s) n'ont pas pu être enregistrés et ont été conservés.",
+    "sched.copied": "Quart copié — cliquez sur « Coller ici » dans n'importe quelle case pour le dupliquer.", "sched.discard": "Annuler", "sched.saveDrafts": "Enregistrer les quarts", "sched.unsaved1": "1 quart collé non enregistré", "sched.unsavedN": "{n} quarts collés non enregistrés", "sched.svcBoth": "Les deux services", "sched.svcLunch": "Dîner / Brunch", "sched.svcDinner": "Souper", "sched.saveFail": "{n} quart(s) n'ont pas pu être enregistrés et ont été conservés.",
     "sched.staffCol": "Personnel", "sched.total": "Total", "sched.aiForecast": "Prévision IA", "sched.notYet": "pas encore disponible", "sched.actual": "Ventes réelles", "sched.projected": "Ventes prévues",
     "sched.dailyTotals": "Totaux quotidiens", "sched.laborIndex": "Indice du coût de main-d'œuvre",
     "sched.aiTitle": "✨ Planificateur IA", "sched.aiHint": "Décrivez la semaine en mots simples. L'IA remplit la grille pour le personnel affiché ci-dessous, selon leurs disponibilités. Vous verrez un aperçu avant l'enregistrement.",
@@ -564,7 +575,7 @@ I18N.add({
     "err.network": "Error de red — ¿está el servidor en marcha?",
     "sched.h2": "Horario semanal", "sched.desc": "Asigna personal a los turnos de la semana. Arrastra un turno para moverlo, o cópialo y pégalo en otro día. Las horas y el costo laboral se calculan en vivo según la tarifa de cada persona.",
     "sched.foh": "Salón", "sched.boh": "Cocina", "sched.prev": "← Semana ant.", "sched.next": "Semana sig. →", "sched.today": "Esta semana",
-    "sched.copied": "Turno copiado — haz clic en «Pegar aquí» en cualquier celda para duplicarlo.", "sched.discard": "Descartar", "sched.saveDrafts": "Guardar turnos", "sched.unsaved1": "1 turno pegado sin guardar", "sched.unsavedN": "{n} turnos pegados sin guardar", "sched.saveFail": "{n} turno(s) no se pudieron guardar y se conservaron.",
+    "sched.copied": "Turno copiado — haz clic en «Pegar aquí» en cualquier celda para duplicarlo.", "sched.discard": "Descartar", "sched.saveDrafts": "Guardar turnos", "sched.unsaved1": "1 turno pegado sin guardar", "sched.unsavedN": "{n} turnos pegados sin guardar", "sched.svcBoth": "Ambos servicios", "sched.svcLunch": "Almuerzo / Brunch", "sched.svcDinner": "Cena", "sched.saveFail": "{n} turno(s) no se pudieron guardar y se conservaron.",
     "sched.staffCol": "Personal", "sched.total": "Total", "sched.aiForecast": "Pronóstico IA", "sched.notYet": "aún no disponible", "sched.actual": "Ventas reales", "sched.projected": "Ventas proyectadas",
     "sched.dailyTotals": "Totales diarios", "sched.laborIndex": "Índice de costo laboral",
     "sched.aiTitle": "✨ Planificador IA", "sched.aiHint": "Describe la semana con tus palabras. La IA llena la cuadrícula del personal mostrado abajo, respetando su disponibilidad. Verás una vista previa antes de guardar nada.",
@@ -612,6 +623,15 @@ let addingCell = null;
 let houseView = "foh";
 let draggedShiftId = null;
 let copiedShift = null;
+const SERVICE_CUTOFF = "15:00"; // shifts starting before this are Lunch/Brunch, otherwise Dinner
+const SERVICES = [{ id: "lunch", color: "#E2A33B", def: ["11:00", "15:00"] }, { id: "dinner", color: "#B5456B", def: ["17:00", "22:00"] }];
+let serviceView = "both";
+function serviceOf(startTime) { return (startTime || "") < SERVICE_CUTOFF ? "lunch" : "dinner"; }
+function setServiceView(v) {
+  serviceView = v; addingCell = null;
+  ["Both", "Lunch", "Dinner"].forEach(k => document.getElementById("svcBtn" + k).classList.toggle("active", v === k.toLowerCase()));
+  renderScheduleGrid();
+}
 let draftShifts = []; // pasted but not yet saved: {key, staffId, date, startTime, endTime, role}
 let draftSeq = 0;
 
@@ -1200,9 +1220,9 @@ function viewGroups() {
     .filter(g => g.people.length);
 }
 
-function renderDayCell(staffMember, dateStr, groupRole) {
-  const shiftsForCell = scheduleShifts.filter(s => s.staffId === staffMember.id && s.date === dateStr && shiftGroup(staffMember, s) === groupRole);
-  const isAdding = addingCell && addingCell.staffId === staffMember.id && addingCell.dateStr === dateStr && addingCell.role === groupRole;
+function renderDayCell(staffMember, dateStr, groupRole, svc) {
+  const shiftsForCell = scheduleShifts.filter(s => s.staffId === staffMember.id && s.date === dateStr && shiftGroup(staffMember, s) === groupRole && serviceOf(s.startTime) === svc);
+  const isAdding = addingCell && addingCell.staffId === staffMember.id && addingCell.dateStr === dateStr && addingCell.role === groupRole && addingCell.svc === svc;
 
   let html = shiftsForCell.map(s => `
     <div class="shift-chip" draggable="true" style="--role-color:${roleColor(s.role)}"
@@ -1219,7 +1239,7 @@ function renderDayCell(staffMember, dateStr, groupRole) {
     </div>
   `).join("");
 
-  html += draftShifts.filter(d => d.staffId === staffMember.id && d.date === dateStr && d.role === groupRole).map(d => `
+  html += draftShifts.filter(d => d.staffId === staffMember.id && d.date === dateStr && d.role === groupRole && serviceOf(d.startTime) === svc).map(d => `
     <div class="shift-chip draft" style="--role-color:${roleColor(d.role)}">
       <div class="chip-top">
         <div class="times">${formatTime(d.startTime)}–${formatTime(d.endTime)}</div>
@@ -1231,8 +1251,8 @@ function renderDayCell(staffMember, dateStr, groupRole) {
   if (isAdding) {
     html += `
       <div class="shift-form">
-        <input type="time" id="shiftStart-${staffMember.id}-${dateStr}" />
-        <input type="time" id="shiftEnd-${staffMember.id}-${dateStr}" />
+        <input type="time" id="shiftStart-${staffMember.id}-${dateStr}" value="${SERVICES.find(x => x.id === svc).def[0]}" />
+        <input type="time" id="shiftEnd-${staffMember.id}-${dateStr}" value="${SERVICES.find(x => x.id === svc).def[1]}" />
         <select id="shiftRoleSel-${staffMember.id}-${dateStr}">
           <option value="">${tr("sched.rolePh")}</option>
           ${ROLES.map(r => `<option value="${r}"${r === groupRole ? " selected" : ""}>${escapeHtml(roleLabel(r))}</option>`).join("")}
@@ -1244,16 +1264,16 @@ function renderDayCell(staffMember, dateStr, groupRole) {
       </div>
     `;
   } else {
-    html += `<button class="add-shift-btn" onclick="showAddShiftForm('${staffMember.id}','${dateStr}','${groupRole}')">${tr("sched.addShift")}</button>`;
-    if (copiedShift) {
+    html += `<button class="add-shift-btn" onclick="showAddShiftForm('${staffMember.id}','${dateStr}','${groupRole}','${svc}')">${tr("sched.addShift")}</button>`;
+    if (copiedShift && serviceOf(copiedShift.startTime) === svc) {
       html += `<button class="paste-btn" onclick="pasteShift('${staffMember.id}','${dateStr}','${groupRole}')">${tr("sched.paste")}</button>`;
     }
   }
   return html;
 }
 
-function showAddShiftForm(staffId, dateStr, role) {
-  addingCell = { staffId, dateStr, role };
+function showAddShiftForm(staffId, dateStr, role, svc) {
+  addingCell = { staffId, dateStr, role, svc };
   renderScheduleGrid();
 }
 
@@ -1334,20 +1354,23 @@ function renderScheduleGrid() {
     const label = houseLabel();
     body.innerHTML = `<tr><td colspan="9" class="empty-note">${tr("sched.noStaff", label)}</td></tr>`;
   } else {
-    body.innerHTML = groups.map(g => {
-      const head = `<tr class="role-row" style="--role-color:${roleColor(g.role)}"><td colspan="9">${escapeHtml(roleLabel(g.role))}<span class="cnt">${g.people.length}</span></td></tr>`;
-      const rowsHtml = g.people.map(p => {
-        let weekHours = 0, weekCost = 0;
-        const dayCells = weekDates.map(d => {
-          const dateStr = toISODate(d);
-          scheduleShifts.filter(s => s.staffId === p.id && s.date === dateStr && shiftGroup(p, s) === g.role).forEach(s => {
-            const hrs = computeHours(s.startTime, s.endTime);
-            weekHours += hrs;
-            weekCost += hrs * (p.hourlyRate || 0);
-          });
-          return `<td class="day-cell" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${p.id}','${dateStr}','${g.role}')">${renderDayCell(p, dateStr, g.role)}</td>`;
-        }).join("");
-        return `
+    body.innerHTML = SERVICES.filter(sv => serviceView === "both" || serviceView === sv.id).map(sv => {
+      let svcHours = 0, svcCost = 0;
+      const sectionHtml = groups.map(g => {
+        const head = `<tr class="role-row" style="--role-color:${roleColor(g.role)}"><td colspan="9">${escapeHtml(roleLabel(g.role))}<span class="cnt">${g.people.length}</span></td></tr>`;
+        const rowsHtml = g.people.map(p => {
+          let weekHours = 0, weekCost = 0;
+          const dayCells = weekDates.map(d => {
+            const dateStr = toISODate(d);
+            scheduleShifts.filter(s => s.staffId === p.id && s.date === dateStr && shiftGroup(p, s) === g.role && serviceOf(s.startTime) === sv.id).forEach(s => {
+              const hrs = computeHours(s.startTime, s.endTime);
+              weekHours += hrs;
+              weekCost += hrs * (p.hourlyRate || 0);
+            });
+            return `<td class="day-cell" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${p.id}','${dateStr}','${g.role}')">${renderDayCell(p, dateStr, g.role, sv.id)}</td>`;
+          }).join("");
+          svcHours += weekHours; svcCost += weekCost;
+          return `
         <tr>
           <td class="staff-cell">
             <div class="name">${escapeHtml(p.name)}</div>
@@ -1356,8 +1379,11 @@ function renderScheduleGrid() {
           ${dayCells}
           <td class="day-total">${weekHours.toFixed(1)}h<br>$${weekCost.toFixed(2)}</td>
         </tr>`;
+        }).join("");
+        return head + rowsHtml;
       }).join("");
-      return head + rowsHtml;
+      const svcHead = `<tr class="svc-row" style="--svc-color:${sv.color}"><td colspan="9">${escapeHtml(tr("sched.svc" + (sv.id === "lunch" ? "Lunch" : "Dinner")))}<span class="cnt">${svcHours.toFixed(1)}h · $${svcCost.toFixed(2)}</span></td></tr>`;
+      return svcHead + sectionHtml;
     }).join("");
   }
 
