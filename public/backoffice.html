@@ -190,6 +190,18 @@
   .copy-bar.active { display: flex; }
   .copy-bar button { background: var(--ink); color: #fff; border: none; border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
 
+  .save-bar {
+    display: none; position: sticky; top: 0; z-index: 20; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--green); color: #fff; padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+  .save-bar.active { display: flex; }
+  .save-bar .grow { flex: 1; min-width: 160px; font-weight: 600; }
+  .save-bar button { border: none; border-radius: 4px; padding: 7px 16px; font-size: 12.5px; cursor: pointer; font-weight: 700; }
+  .save-bar .sb-save { background: #fff; color: var(--ink); }
+  .save-bar .sb-discard { background: rgba(0,0,0,.25); color: #fff; }
+  .shift-chip.draft { border: 1px dashed var(--amber); opacity: .85; }
+
   .grid-wrap { overflow-x: auto; border: 1px solid var(--grid-border); border-radius: 8px; }
   table.schedule-grid { width: 100%; min-width: 860px; border-collapse: collapse; background: var(--grid-bg); color: var(--grid-text); }
   table.schedule-grid th, table.schedule-grid td { border: 1px solid var(--grid-border); padding: 6px; vertical-align: top; }
@@ -372,6 +384,12 @@
         <button onclick="cancelCopy()" data-i18n="common.cancel">Cancel</button>
       </div>
 
+      <div class="save-bar" id="saveBar">
+        <span class="grow" id="saveBarMsg"></span>
+        <button class="sb-discard" onclick="discardDrafts()" data-i18n="sched.discard">Discard</button>
+        <button class="sb-save" id="saveDraftsBtn" onclick="saveDrafts()" data-i18n="sched.saveDrafts">Save shifts</button>
+      </div>
+
       <div class="grid-wrap">
         <table class="schedule-grid">
           <thead>
@@ -454,7 +472,7 @@ I18N.add({
     "err.network": "Network error — is the server running?",
     "sched.h2": "Weekly schedule", "sched.desc": "Assign staff to shifts for the week. Drag a shift to move it, or copy/paste it to another day. Hours and labor cost are calculated live from each person's rate.",
     "sched.foh": "Front of House", "sched.boh": "Back of House", "sched.prev": "← Prev week", "sched.next": "Next week →", "sched.today": "This week",
-    "sched.copied": "Shift copied — click \"Paste here\" on any cell to duplicate it.",
+    "sched.copied": "Shift copied — click \"Paste here\" on any cell to duplicate it.", "sched.discard": "Discard", "sched.saveDrafts": "Save shifts", "sched.unsaved1": "1 pasted shift not saved yet", "sched.unsavedN": "{n} pasted shifts not saved yet", "sched.saveFail": "{n} shift(s) could not be saved and were kept for review.",
     "sched.staffCol": "Staff", "sched.total": "Total", "sched.aiForecast": "AI forecast", "sched.notYet": "not yet available", "sched.actual": "Actual sales", "sched.projected": "Projected sales",
     "sched.dailyTotals": "Daily totals", "sched.laborIndex": "Labor cost index",
     "sched.aiTitle": "✨ AI scheduler", "sched.aiHint": "Describe the week in plain words. The AI fills the grid for the staff shown below, respecting their availability. You'll preview it before anything is saved.",
@@ -497,7 +515,7 @@ I18N.add({
     "err.network": "Erreur réseau — le serveur est-il en marche?",
     "sched.h2": "Horaire de la semaine", "sched.desc": "Assignez le personnel aux quarts de la semaine. Glissez un quart pour le déplacer, ou copiez-collez-le à un autre jour. Les heures et le coût de la main-d'œuvre sont calculés en direct selon le taux de chaque personne.",
     "sched.foh": "Salle", "sched.boh": "Cuisine", "sched.prev": "← Semaine préc.", "sched.next": "Semaine suiv. →", "sched.today": "Cette semaine",
-    "sched.copied": "Quart copié — cliquez sur « Coller ici » dans n'importe quelle case pour le dupliquer.",
+    "sched.copied": "Quart copié — cliquez sur « Coller ici » dans n'importe quelle case pour le dupliquer.", "sched.discard": "Annuler", "sched.saveDrafts": "Enregistrer les quarts", "sched.unsaved1": "1 quart collé non enregistré", "sched.unsavedN": "{n} quarts collés non enregistrés", "sched.saveFail": "{n} quart(s) n'ont pas pu être enregistrés et ont été conservés.",
     "sched.staffCol": "Personnel", "sched.total": "Total", "sched.aiForecast": "Prévision IA", "sched.notYet": "pas encore disponible", "sched.actual": "Ventes réelles", "sched.projected": "Ventes prévues",
     "sched.dailyTotals": "Totaux quotidiens", "sched.laborIndex": "Indice du coût de main-d'œuvre",
     "sched.aiTitle": "✨ Planificateur IA", "sched.aiHint": "Décrivez la semaine en mots simples. L'IA remplit la grille pour le personnel affiché ci-dessous, selon leurs disponibilités. Vous verrez un aperçu avant l'enregistrement.",
@@ -540,7 +558,7 @@ I18N.add({
     "err.network": "Error de red — ¿está el servidor en marcha?",
     "sched.h2": "Horario semanal", "sched.desc": "Asigna personal a los turnos de la semana. Arrastra un turno para moverlo, o cópialo y pégalo en otro día. Las horas y el costo laboral se calculan en vivo según la tarifa de cada persona.",
     "sched.foh": "Salón", "sched.boh": "Cocina", "sched.prev": "← Semana ant.", "sched.next": "Semana sig. →", "sched.today": "Esta semana",
-    "sched.copied": "Turno copiado — haz clic en «Pegar aquí» en cualquier celda para duplicarlo.",
+    "sched.copied": "Turno copiado — haz clic en «Pegar aquí» en cualquier celda para duplicarlo.", "sched.discard": "Descartar", "sched.saveDrafts": "Guardar turnos", "sched.unsaved1": "1 turno pegado sin guardar", "sched.unsavedN": "{n} turnos pegados sin guardar", "sched.saveFail": "{n} turno(s) no se pudieron guardar y se conservaron.",
     "sched.staffCol": "Personal", "sched.total": "Total", "sched.aiForecast": "Pronóstico IA", "sched.notYet": "aún no disponible", "sched.actual": "Ventas reales", "sched.projected": "Ventas proyectadas",
     "sched.dailyTotals": "Totales diarios", "sched.laborIndex": "Índice de costo laboral",
     "sched.aiTitle": "✨ Planificador IA", "sched.aiHint": "Describe la semana con tus palabras. La IA llena la cuadrícula del personal mostrado abajo, respetando su disponibilidad. Verás una vista previa antes de guardar nada.",
@@ -588,6 +606,8 @@ let addingCell = null;
 let houseView = "foh";
 let draggedShiftId = null;
 let copiedShift = null;
+let draftShifts = []; // pasted but not yet saved: {key, staffId, date, startTime, endTime, role}
+let draftSeq = 0;
 
 function showBanner(text, tone) {
   const el = document.getElementById("banner");
@@ -1074,14 +1094,45 @@ function cancelCopy() {
   renderScheduleGrid();
 }
 
-async function pasteShift(staffId, dateStr) {
+function pasteShift(staffId, dateStr) {
   if (!copiedShift) return;
-  const result = await api("/api/schedule", {
-    method: "POST",
-    body: JSON.stringify({ staffId, date: dateStr, startTime: copiedShift.startTime, endTime: copiedShift.endTime, role: copiedShift.role }),
-  });
-  if (result.ok) loadSchedule();
-  else showBanner(result.error, "warn");
+  draftShifts.push({ key: "d" + (++draftSeq), staffId, date: dateStr, startTime: copiedShift.startTime, endTime: copiedShift.endTime, role: copiedShift.role });
+  renderScheduleGrid();
+}
+
+function removeDraft(key) {
+  draftShifts = draftShifts.filter(d => d.key !== key);
+  renderScheduleGrid();
+}
+
+function discardDrafts() {
+  draftShifts = [];
+  renderScheduleGrid();
+}
+
+function updateSaveBar() {
+  const bar = document.getElementById("saveBar");
+  const n = draftShifts.length;
+  bar.classList.toggle("active", n > 0);
+  if (n) document.getElementById("saveBarMsg").textContent = n === 1 ? tr("sched.unsaved1") : tr("sched.unsavedN").replace("{n}", n);
+}
+
+async function saveDrafts() {
+  const btn = document.getElementById("saveDraftsBtn");
+  btn.disabled = true;
+  const failed = [];
+  let lastError = "";
+  for (const d of draftShifts.slice()) {
+    const result = await api("/api/schedule", {
+      method: "POST",
+      body: JSON.stringify({ staffId: d.staffId, date: d.date, startTime: d.startTime, endTime: d.endTime, role: d.role }),
+    });
+    if (!result.ok) { failed.push(d); lastError = result.error; }
+  }
+  draftShifts = failed;
+  btn.disabled = false;
+  if (failed.length) showBanner(tr("sched.saveFail").replace("{n}", failed.length) + (lastError ? " " + lastError : ""), "warn");
+  await loadSchedule();
 }
 
 function onDragStart(e, shiftId) {
@@ -1148,6 +1199,15 @@ function renderDayCell(staffMember, dateStr) {
     </div>
   `).join("");
 
+  html += draftShifts.filter(d => d.staffId === staffMember.id && d.date === dateStr).map(d => `
+    <div class="shift-chip draft" style="--role-color:${roleColor(d.role)}">
+      <div class="chip-top">
+        <div class="times">${formatTime(d.startTime)}–${formatTime(d.endTime)}</div>
+        <div class="chip-actions"><button class="chip-btn" onclick="removeDraft('${d.key}')" title="${escapeHtml(tr("common.delete"))}">✕</button></div>
+      </div>
+      ${d.role ? `<div class="role-tag">${escapeHtml(roleLabel(d.role))}</div>` : ""}
+    </div>`).join("");
+
   if (isAdding) {
     html += `
       <div class="shift-form">
@@ -1205,6 +1265,7 @@ async function deleteScheduleShift(id) {
 }
 
 function renderScheduleGrid() {
+  updateSaveBar();
   const weekDates = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(weekStart);
