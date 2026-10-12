@@ -202,7 +202,13 @@
   .save-bar .sb-discard { background: rgba(0,0,0,.25); color: #fff; }
   .shift-chip.draft { border: 1px dashed var(--amber); opacity: .85; }
 
-  .grid-wrap { overflow-x: auto; border: 1px solid var(--grid-border); border-radius: 8px; }
+  .grid-wrap { overflow: auto; border: 1px solid var(--grid-border); border-radius: 8px; }
+  #sectionSchedule .grid-wrap { max-height: calc(100vh - 150px); min-height: 360px; }
+  table.schedule-grid { border-collapse: separate !important; border-spacing: 0; }
+  table.schedule-grid th, table.schedule-grid td { border-width: 0 1px 1px 0 !important; }
+  #scheduleHeaderRow th { position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 0 var(--grid-border), 0 3px 6px rgba(0,0,0,.18); }
+  tr.role-row td { background: var(--grid-alt); font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: .06em; font-size: 12px; font-weight: 600; padding: 7px 10px; border-left: 5px solid var(--role-color, var(--grid-border)); color: var(--grid-text); }
+  tr.role-row .cnt { color: var(--grid-dim); font-weight: 400; margin-left: 6px; }
   table.schedule-grid { width: 100%; min-width: 860px; border-collapse: collapse; background: var(--grid-bg); color: var(--grid-text); }
   table.schedule-grid th, table.schedule-grid td { border: 1px solid var(--grid-border); padding: 6px; vertical-align: top; }
   table.schedule-grid thead th {
@@ -812,7 +818,7 @@ let aiApplied = null;    // { ids, count } — the last batch added, so it can b
 
 function visibleStaffForView() {
   const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
-  return staff.filter(p => { const r = (p.roles || [])[0]; return r && activeRoles.includes(r); });
+  return staff.filter(p => (p.roles || []).some(r => activeRoles.includes(r)));
 }
 
 function renderAiSched() {
@@ -1094,9 +1100,9 @@ function cancelCopy() {
   renderScheduleGrid();
 }
 
-function pasteShift(staffId, dateStr) {
+function pasteShift(staffId, dateStr, groupRole) {
   if (!copiedShift) return;
-  draftShifts.push({ key: "d" + (++draftSeq), staffId, date: dateStr, startTime: copiedShift.startTime, endTime: copiedShift.endTime, role: copiedShift.role });
+  draftShifts.push({ key: "d" + (++draftSeq), staffId, date: dateStr, startTime: copiedShift.startTime, endTime: copiedShift.endTime, role: groupRole || copiedShift.role });
   renderScheduleGrid();
 }
 
@@ -1154,7 +1160,7 @@ function onDragLeave(e) {
   e.currentTarget.classList.remove("drag-over");
 }
 
-async function onDrop(e, staffId, dateStr) {
+async function onDrop(e, staffId, dateStr, groupRole) {
   e.preventDefault();
   e.currentTarget.classList.remove("drag-over");
   if (!draggedShiftId) return;
@@ -1162,7 +1168,7 @@ async function onDrop(e, staffId, dateStr) {
   draggedShiftId = null;
   const result = await api(`/api/schedule/${idToMove}`, {
     method: "PATCH",
-    body: JSON.stringify({ staffId, date: dateStr }),
+    body: JSON.stringify(groupRole ? { staffId, date: dateStr, role: groupRole } : { staffId, date: dateStr }),
   });
   if (result.ok) loadSchedule();
   else showBanner(result.error, "warn");
@@ -1180,9 +1186,23 @@ function goToThisWeek() {
   loadSchedule();
 }
 
-function renderDayCell(staffMember, dateStr) {
-  const shiftsForCell = scheduleShifts.filter(s => s.staffId === staffMember.id && s.date === dateStr);
-  const isAdding = addingCell && addingCell.staffId === staffMember.id && addingCell.dateStr === dateStr;
+function shiftGroup(p, s) {
+  const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
+  const mine = p.roles || [];
+  if (s.role && mine.includes(s.role) && activeRoles.includes(s.role)) return s.role;
+  return activeRoles.includes(mine[0]) ? mine[0] : null;
+}
+
+function viewGroups() {
+  const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
+  return activeRoles
+    .map(role => ({ role, people: staff.filter(p => (p.roles || []).includes(role)) }))
+    .filter(g => g.people.length);
+}
+
+function renderDayCell(staffMember, dateStr, groupRole) {
+  const shiftsForCell = scheduleShifts.filter(s => s.staffId === staffMember.id && s.date === dateStr && shiftGroup(staffMember, s) === groupRole);
+  const isAdding = addingCell && addingCell.staffId === staffMember.id && addingCell.dateStr === dateStr && addingCell.role === groupRole;
 
   let html = shiftsForCell.map(s => `
     <div class="shift-chip" draggable="true" style="--role-color:${roleColor(s.role)}"
@@ -1199,7 +1219,7 @@ function renderDayCell(staffMember, dateStr) {
     </div>
   `).join("");
 
-  html += draftShifts.filter(d => d.staffId === staffMember.id && d.date === dateStr).map(d => `
+  html += draftShifts.filter(d => d.staffId === staffMember.id && d.date === dateStr && d.role === groupRole).map(d => `
     <div class="shift-chip draft" style="--role-color:${roleColor(d.role)}">
       <div class="chip-top">
         <div class="times">${formatTime(d.startTime)}–${formatTime(d.endTime)}</div>
@@ -1215,7 +1235,7 @@ function renderDayCell(staffMember, dateStr) {
         <input type="time" id="shiftEnd-${staffMember.id}-${dateStr}" />
         <select id="shiftRoleSel-${staffMember.id}-${dateStr}">
           <option value="">${tr("sched.rolePh")}</option>
-          ${ROLES.map(r => `<option value="${r}">${escapeHtml(roleLabel(r))}</option>`).join("")}
+          ${ROLES.map(r => `<option value="${r}"${r === groupRole ? " selected" : ""}>${escapeHtml(roleLabel(r))}</option>`).join("")}
         </select>
         <div class="form-actions">
           <button style="background:var(--green);color:#fff" onclick="submitAddShift('${staffMember.id}','${dateStr}')">${tr("common.save")}</button>
@@ -1224,16 +1244,16 @@ function renderDayCell(staffMember, dateStr) {
       </div>
     `;
   } else {
-    html += `<button class="add-shift-btn" onclick="showAddShiftForm('${staffMember.id}','${dateStr}')">${tr("sched.addShift")}</button>`;
+    html += `<button class="add-shift-btn" onclick="showAddShiftForm('${staffMember.id}','${dateStr}','${groupRole}')">${tr("sched.addShift")}</button>`;
     if (copiedShift) {
-      html += `<button class="paste-btn" onclick="pasteShift('${staffMember.id}','${dateStr}')">${tr("sched.paste")}</button>`;
+      html += `<button class="paste-btn" onclick="pasteShift('${staffMember.id}','${dateStr}','${groupRole}')">${tr("sched.paste")}</button>`;
     }
   }
   return html;
 }
 
-function showAddShiftForm(staffId, dateStr) {
-  addingCell = { staffId, dateStr };
+function showAddShiftForm(staffId, dateStr, role) {
+  addingCell = { staffId, dateStr, role };
   renderScheduleGrid();
 }
 
@@ -1273,11 +1293,7 @@ function renderScheduleGrid() {
     weekDates.push(d);
   }
   const dayNames = [0,1,2,3,4,5,6].map(i => tr("days." + i));
-  const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
-  const visibleStaff = staff.filter(p => {
-    const primaryRole = (p.roles || [])[0];
-    return primaryRole && activeRoles.includes(primaryRole);
-  });
+  const groups = viewGroups();
 
   const headerRow = document.getElementById("scheduleHeaderRow");
   headerRow.innerHTML = `<th style="text-align:left">${tr("sched.staffCol")}</th>` +
@@ -1314,22 +1330,24 @@ function renderScheduleGrid() {
   projRow.innerHTML = `<td class="row-label">${tr("sched.projected")}</td>${projCells}<td class="day-total">${anyProj ? "$" + weekProjTotal.toFixed(2) : "—"}</td>`;
 
   const body = document.getElementById("scheduleBody");
-  if (visibleStaff.length === 0) {
+  if (groups.length === 0) {
     const label = houseLabel();
     body.innerHTML = `<tr><td colspan="9" class="empty-note">${tr("sched.noStaff", label)}</td></tr>`;
   } else {
-    body.innerHTML = visibleStaff.map(p => {
-      let weekHours = 0, weekCost = 0;
-      const dayCells = weekDates.map(d => {
-        const dateStr = toISODate(d);
-        scheduleShifts.filter(s => s.staffId === p.id && s.date === dateStr).forEach(s => {
-          const hrs = computeHours(s.startTime, s.endTime);
-          weekHours += hrs;
-          weekCost += hrs * (p.hourlyRate || 0);
-        });
-        return `<td class="day-cell" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${p.id}','${dateStr}')">${renderDayCell(p, dateStr)}</td>`;
-      }).join("");
-      return `
+    body.innerHTML = groups.map(g => {
+      const head = `<tr class="role-row" style="--role-color:${roleColor(g.role)}"><td colspan="9">${escapeHtml(roleLabel(g.role))}<span class="cnt">${g.people.length}</span></td></tr>`;
+      const rowsHtml = g.people.map(p => {
+        let weekHours = 0, weekCost = 0;
+        const dayCells = weekDates.map(d => {
+          const dateStr = toISODate(d);
+          scheduleShifts.filter(s => s.staffId === p.id && s.date === dateStr && shiftGroup(p, s) === g.role).forEach(s => {
+            const hrs = computeHours(s.startTime, s.endTime);
+            weekHours += hrs;
+            weekCost += hrs * (p.hourlyRate || 0);
+          });
+          return `<td class="day-cell" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${p.id}','${dateStr}','${g.role}')">${renderDayCell(p, dateStr, g.role)}</td>`;
+        }).join("");
+        return `
         <tr>
           <td class="staff-cell">
             <div class="name">${escapeHtml(p.name)}</div>
@@ -1337,8 +1355,9 @@ function renderScheduleGrid() {
           </td>
           ${dayCells}
           <td class="day-total">${weekHours.toFixed(1)}h<br>$${weekCost.toFixed(2)}</td>
-        </tr>
-      `;
+        </tr>`;
+      }).join("");
+      return head + rowsHtml;
     }).join("");
   }
 
@@ -1348,13 +1367,13 @@ function renderScheduleGrid() {
   const dayTotalsHtml = weekDates.map(d => {
     const dateStr = toISODate(d);
     let dayHours = 0, dayCost = 0;
-    visibleStaff.forEach(p => {
-      scheduleShifts.filter(s => s.staffId === p.id && s.date === dateStr).forEach(s => {
+    groups.forEach(g => g.people.forEach(p => {
+      scheduleShifts.filter(s => s.staffId === p.id && s.date === dateStr && shiftGroup(p, s) === g.role).forEach(s => {
         const hrs = computeHours(s.startTime, s.endTime);
         dayHours += hrs;
         dayCost += hrs * (p.hourlyRate || 0);
       });
-    });
+    }));
     dayCostByDate[dateStr] = dayCost;
     grandHours += dayHours;
     grandCost += dayCost;
