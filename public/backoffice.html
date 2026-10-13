@@ -1551,6 +1551,19 @@ async function submitAddShift(staffId, dateStr) {
   }
 }
 
+// Keep the schedule current when it is on screen: every 30 s, and when the app returns to the foreground,
+// but never while someone is mid-edit (unsaved shifts, an open cell, an AI proposal, or a field with the cursor in it).
+function refreshScheduleIfIdle() {
+  if (document.hidden || currentSection !== "schedule") return;
+  if (draftShifts.length || addingCell || aiProposal) return;
+  const el = document.activeElement;
+  if (el && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) return;
+  loadSchedule();
+}
+setInterval(refreshScheduleIfIdle, 30000);
+document.addEventListener("visibilitychange", refreshScheduleIfIdle);
+window.addEventListener("pageshow", refreshScheduleIfIdle);
+
 async function deleteScheduleShift(id) {
   await api(`/api/schedule/${id}`, { method: "DELETE" });
   loadSchedule();

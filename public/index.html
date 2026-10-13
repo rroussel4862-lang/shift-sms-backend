@@ -1668,6 +1668,10 @@ async function loadAll() {
   const todayIso = isoLocal(new Date());
   const td = await api(`/api/schedule?start=${todayIso}&end=${todayIso}`);
   if (td.ok) todayShifts = td.data;
+  if (ovDate) { // a different day is open in the Overview: keep its shifts fresh too
+    const asked = ovDate, od = await api(`/api/schedule?start=${asked}&end=${asked}`);
+    if (od.ok && ovDate === asked) ovShiftsList = od.data;
+  }
   render();
   daySnapTries = 0;
   loadDaySnapshot();
@@ -3190,7 +3194,14 @@ function enterApp() {
   if (!started) {
     started = true;
     loadAll();
-    setInterval(loadAll, 5000);
+    // keep the screen current: every 15 s while visible, and right away when the app comes back to the foreground
+    setInterval(() => { if (!document.hidden) loadAll(); }, 15000);
+    let lastWake = 0;
+    const wake = () => { if (!document.hidden && Date.now() - lastWake > 2000) { lastWake = Date.now(); loadAll(); } };
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("focus", wake);
+    window.addEventListener("pageshow", wake);
+    window.addEventListener("online", wake);
   }
 }
 

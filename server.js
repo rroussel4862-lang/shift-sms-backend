@@ -565,6 +565,8 @@ function requireOwnerAuth(req, res, next) {
 
 const app = express();
 app.set("trust proxy", 1); // Render sits in front of this app — without this, every visitor looks like the same IP to rate limiting
+// API answers are always live data: never let a browser or home-screen app reuse an old copy.
+app.use("/api", (req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
