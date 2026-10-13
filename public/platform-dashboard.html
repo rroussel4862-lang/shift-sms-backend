@@ -185,16 +185,35 @@
     <div class="section">
       <h2>Live activity</h2>
       <div class="filter-row">
-        <select id="filterRestaurant" onchange="loadActivity()"><option value="">All restaurants</option></select>
+        <select id="filterRestaurant" onchange="loadActivity(); loadHistory()"><option value="">All restaurants</option></select>
         <select id="filterLevel" onchange="loadActivity()">
           <option value="">All levels</option>
           <option value="info">Info</option>
           <option value="warn">Warning</option>
           <option value="error">Error</option>
         </select>
+        <input type="date" id="filterFrom" title="From date" onchange="loadActivity()">
+        <input type="date" id="filterTo" title="To date" onchange="loadActivity()">
         <button class="ghost" onclick="loadActivity()">Refresh</button>
+        <button class="ghost" onclick="downloadActivityCsv()">Download CSV</button>
       </div>
       <div class="activity-feed" id="activityFeed"></div>
+      <div class="sub-note" id="activityNote" style="color:var(--text-dim);font-size:11.5px;margin-top:6px"></div>
+    </div>
+
+    <div class="section">
+      <h2>Daily history</h2>
+      <div class="filter-row">
+        <select id="historyDays" onchange="loadHistory()">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="365">Last 12 months</option>
+        </select>
+        <button class="ghost" onclick="downloadHistoryCsv()">Download CSV</button>
+        <span style="align-self:center;color:var(--text-dim);font-size:11.5px">Uses the restaurant filter above. Detailed entries are kept <span id="retentionDays">90</span> days; daily totals are kept permanently.</span>
+      </div>
+      <div class="activity-feed" id="historyTable" style="max-height:420px"></div>
     </div>
   </main>
 </div>
@@ -265,7 +284,7 @@ function enterApp(email) {
 }
 
 async function loadAll() {
-  await Promise.all([loadRestaurants(), loadHealth(), loadActivity()]);
+  await Promise.all([loadRestaurants(), loadHealth(), loadActivity(), loadHistory()]);
   await loadOwners();
 }
 
@@ -507,12 +526,16 @@ async function loadActivity() {
   const params = new URLSearchParams();
   if (restaurantId) params.set("restaurantId", restaurantId);
   if (level) params.set("level", level);
+  const from = document.getElementById("filterFrom").value, to = document.getElementById("filterTo").value;
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
   params.set("limit", "150");
 
   const result = await api(`/api/platform/activity?${params.toString()}`);
   const feed = document.getElementById("activityFeed");
   if (!result.ok) { feed.innerHTML = `<div class="empty">${escapeHtml(result.error)}</div>`; return; }
   const entries = result.data;
+  document.getElementById("activityNote").textContent = entries.length >= 150 ? "Showing the 150 most recent matching entries — use Download CSV for all of them." : "";
   feed.innerHTML = entries.length === 0
     ? `<div class="empty">No activity recorded yet.</div>`
     : entries.map(e => `
@@ -525,6 +548,38 @@ async function loadActivity() {
           </div>
         </div>
       `).join("");
+}
+
+function activityFilterParams() {
+  const params = new URLSearchParams();
+  const r = document.getElementById("filterRestaurant").value, l = document.getElementById("filterLevel").value;
+  const from = document.getElementById("filterFrom").value, to = document.getElementById("filterTo").value;
+  if (r) params.set("restaurantId", r);
+  if (l) params.set("level", l);
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  return params;
+}
+function downloadActivityCsv() { window.location.href = `/api/platform/activity/export?${activityFilterParams().toString()}`; }
+function downloadHistoryCsv() {
+  const params = new URLSearchParams({ days: document.getElementById("historyDays").value, format: "csv" });
+  const r = document.getElementById("filterRestaurant").value;
+  if (r) params.set("restaurantId", r);
+  window.location.href = `/api/platform/history?${params.toString()}`;
+}
+async function loadHistory() {
+  const params = new URLSearchParams({ days: document.getElementById("historyDays").value });
+  const r = document.getElementById("filterRestaurant").value;
+  if (r) params.set("restaurantId", r);
+  const result = await api(`/api/platform/history?${params.toString()}`);
+  const el = document.getElementById("historyTable");
+  if (!result.ok) { el.innerHTML = `<div class="empty">${escapeHtml(result.error)}</div>`; return; }
+  document.getElementById("retentionDays").textContent = result.data.retentionDays;
+  const fmtDay = d => new Date(d + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const bad = (n) => n > 0 ? ` style="color:var(--red)"` : ` style="color:var(--text-dim)"`;
+  el.innerHTML = `<table style="width:100%"><thead><tr><th>Day</th><th class="num">SMS sent</th><th class="num">SMS failed</th><th class="num">AI answered</th><th class="num">AI failed</th><th class="num">Errors</th></tr></thead><tbody>${
+    result.data.days.map(d => `<tr><td>${fmtDay(d.day)}</td><td class="num">${d.smsSent}</td><td class="num"${bad(d.smsFailed)}>${d.smsFailed}</td><td class="num">${d.aiAnswered}</td><td class="num"${bad(d.aiFailed)}>${d.aiFailed}</td><td class="num"${bad(d.errors)}>${d.errors}</td></tr>`).join("")
+  }</tbody></table>`;
 }
 
 (async function checkSession() {

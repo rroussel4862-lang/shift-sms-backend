@@ -350,6 +350,20 @@ async function initDb() {
   await pool.query(`CREATE INDEX IF NOT EXISTS activity_log_restaurant_idx ON activity_log (restaurant_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS activity_log_created_idx ON activity_log (created_at DESC);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS activity_log_type_idx ON activity_log (event_type);`);
+  // Long-term daily totals. Raw activity_log rows older than the retention window
+  // are rolled up into this table (per local day / restaurant / event type) and deleted.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS activity_daily (
+      day DATE NOT NULL,
+      restaurant_id TEXT NOT NULL DEFAULT '',
+      event_type TEXT NOT NULL,
+      level TEXT NOT NULL DEFAULT 'info',
+      n INTEGER NOT NULL DEFAULT 0,
+      dur_total BIGINT NOT NULL DEFAULT 0,
+      dur_n INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (day, restaurant_id, event_type, level)
+    );
+  `);
 }
 
 // ---------- helpers ----------
@@ -3225,15 +3239,69 @@ app.patch("/api/platform/restaurants/:id/twilio-number", requirePlatformAuth, as
   }
 });
 
-app.get("/api/platform/activity", requirePlatformAuth, async (req, res) => {
-  const { restaurantId, eventType, level, limit = 100 } = req.query;
+// Raw activity rows are kept this long, then rolled up into activity_daily.
+const ACTIVITY_RETENTION_DAYS = Math.max(7, Number(process.env.ACTIVITY_RETENTION_DAYS) || 90);
+
+// Rolls raw rows older than the retention window into daily totals, then deletes them.
+// One transaction, so a row is never counted both live and archived.
+async function archiveOldActivity(retentionDays = ACTIVITY_RETENTION_DAYS) {
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO activity_daily (day, restaurant_id, event_type, level, n, dur_total, dur_n)
+       SELECT (to_timestamp(created_at / 1000.0) AT TIME ZONE $2)::date, COALESCE(restaurant_id, ''), event_type, level,
+              COUNT(*), COALESCE(SUM(duration_ms), 0), COUNT(duration_ms)
+       FROM activity_log WHERE created_at < $1 GROUP BY 1, 2, 3, 4
+       ON CONFLICT (day, restaurant_id, event_type, level) DO UPDATE
+         SET n = activity_daily.n + EXCLUDED.n, dur_total = activity_daily.dur_total + EXCLUDED.dur_total, dur_n = activity_daily.dur_n + EXCLUDED.dur_n`,
+      [cutoff, OWNER_TZ]
+    );
+    const del = await client.query("DELETE FROM activity_log WHERE created_at < $1", [cutoff]);
+    await client.query("COMMIT");
+    return del.rowCount;
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+// Spreadsheet-safe CSV cell (also blocks =,+,-,@ formula injection from logged text).
+function csvCell(v) {
+  let t = v === null || v === undefined ? "" : String(v);
+  if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+  return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+}
+function csvRow(cells) { return cells.map(csvCell).join(","); }
+
+// Adds "local day from..to (inclusive)" conditions on a.created_at.
+function addDayRange(conditions, params, from, to) {
+  if (from && isIsoDate(from)) {
+    params.push(from, OWNER_TZ);
+    conditions.push(`a.created_at >= EXTRACT(EPOCH FROM ($${params.length - 1}::date)::timestamp AT TIME ZONE $${params.length}) * 1000`);
+  }
+  if (to && isIsoDate(to)) {
+    params.push(to, OWNER_TZ);
+    conditions.push(`a.created_at < EXTRACT(EPOCH FROM (($${params.length - 1}::date + 1)::timestamp) AT TIME ZONE $${params.length}) * 1000`);
+  }
+}
+function activityFilters(q) {
   const conditions = [];
   const params = [];
-  if (restaurantId) { params.push(restaurantId); conditions.push(`a.restaurant_id = $${params.length}`); }
-  if (eventType) { params.push(eventType); conditions.push(`a.event_type = $${params.length}`); }
-  if (level) { params.push(level); conditions.push(`a.level = $${params.length}`); }
+  if (q.restaurantId) { params.push(q.restaurantId); conditions.push(`a.restaurant_id = $${params.length}`); }
+  if (q.eventType) { params.push(q.eventType); conditions.push(`a.event_type = $${params.length}`); }
+  if (q.level) { params.push(q.level); conditions.push(`a.level = $${params.length}`); }
+  addDayRange(conditions, params, q.from, q.to);
+  return { conditions, params };
+}
+
+app.get("/api/platform/activity", requirePlatformAuth, async (req, res) => {
+  const { conditions, params } = activityFilters(req.query);
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  params.push(Math.min(Number(limit) || 100, 500));
+  params.push(Math.min(Number(req.query.limit) || 100, 500));
 
   const { rows } = await pool.query(
     `SELECT a.*, r.name AS restaurant_name FROM activity_log a LEFT JOIN restaurants r ON r.id = a.restaurant_id ${where} ORDER BY a.created_at DESC LIMIT $${params.length}`,
@@ -3249,6 +3317,80 @@ app.get("/api/platform/activity", requirePlatformAuth, async (req, res) => {
     durationMs: r.duration_ms,
     createdAt: Number(r.created_at),
   })));
+});
+
+// CSV download of the raw log for the same filters as the feed (plus from/to dates).
+app.get("/api/platform/activity/export", requirePlatformAuth, async (req, res) => {
+  const { conditions, params } = activityFilters(req.query);
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const { rows } = await pool.query(
+    `SELECT a.*, r.name AS restaurant_name FROM activity_log a LEFT JOIN restaurants r ON r.id = a.restaurant_id ${where} ORDER BY a.created_at DESC LIMIT 100000`,
+    params
+  );
+  const lines = [csvRow(["time_utc", "time_local", "restaurant", "event_type", "level", "detail", "duration_ms"])];
+  for (const r of rows) {
+    const ms = Number(r.created_at);
+    lines.push(csvRow([
+      new Date(ms).toISOString(),
+      new Date(ms).toLocaleString("en-CA", { timeZone: OWNER_TZ, hour12: false }),
+      r.restaurant_name || "", r.event_type, r.level, r.detail || "", r.duration_ms,
+    ]));
+  }
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="activity-${ownerToday()}.csv"`);
+  res.send(lines.join("\r\n") + "\r\n");
+});
+
+// Per-day SMS / AI / error totals for the last N days (live log + archived daily totals).
+app.get("/api/platform/history", requirePlatformAuth, async (req, res) => {
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+  const startDay = addDaysIso(ownerToday(), -(days - 1));
+  const rid = req.query.restaurantId || null;
+  const { rows } = await pool.query(
+    `WITH live AS (
+       SELECT (to_timestamp(created_at / 1000.0) AT TIME ZONE $2)::date AS day, event_type, level, COUNT(*)::int AS n,
+              COALESCE(SUM(duration_ms), 0)::bigint AS dur_total, COUNT(duration_ms)::int AS dur_n
+       FROM activity_log
+       WHERE created_at >= EXTRACT(EPOCH FROM ($1::date)::timestamp AT TIME ZONE $2) * 1000 AND ($3::text IS NULL OR restaurant_id = $3)
+       GROUP BY 1, 2, 3
+     ), arch AS (
+       SELECT day, event_type, level, SUM(n)::int AS n, SUM(dur_total)::bigint AS dur_total, SUM(dur_n)::int AS dur_n
+       FROM activity_daily WHERE day >= $1::date AND ($3::text IS NULL OR restaurant_id = $3) GROUP BY 1, 2, 3
+     )
+     SELECT day::text AS day, event_type, level, SUM(n)::int AS n, SUM(dur_total)::bigint AS dur_total, SUM(dur_n)::int AS dur_n
+     FROM (SELECT * FROM live UNION ALL SELECT * FROM arch) u GROUP BY 1, 2, 3`,
+    [startDay, OWNER_TZ, rid]
+  );
+  const byDay = new Map();
+  for (let i = 0; i < days; i++) {
+    const d = addDaysIso(startDay, i);
+    byDay.set(d, { day: d, smsSent: 0, smsFailed: 0, aiAnswered: 0, aiFailed: 0, errors: 0, events: 0, smsMs: 0, smsMsN: 0, aiMs: 0, aiMsN: 0 });
+  }
+  for (const r of rows) {
+    const row = byDay.get(r.day);
+    if (!row) continue;
+    const n = Number(r.n);
+    row.events += n;
+    if (r.level === "error") row.errors += n;
+    if (r.event_type === "sms_sent") { row.smsSent += n; row.smsMs += Number(r.dur_total); row.smsMsN += Number(r.dur_n); }
+    else if (r.event_type === "sms_failed") row.smsFailed += n;
+    else if (r.event_type === "ai_answered") { row.aiAnswered += n; row.aiMs += Number(r.dur_total); row.aiMsN += Number(r.dur_n); }
+    else if (r.event_type === "ai_failed") row.aiFailed += n;
+  }
+  const out = [...byDay.values()].reverse().map((r) => ({
+    day: r.day, smsSent: r.smsSent, smsFailed: r.smsFailed, aiAnswered: r.aiAnswered, aiFailed: r.aiFailed,
+    errors: r.errors, events: r.events,
+    smsAvgMs: r.smsMsN ? Math.round(r.smsMs / r.smsMsN) : null,
+    aiAvgMs: r.aiMsN ? Math.round(r.aiMs / r.aiMsN) : null,
+  }));
+  if (req.query.format === "csv") {
+    const lines = [csvRow(["day", "sms_sent", "sms_failed", "ai_answered", "ai_failed", "errors", "total_events", "sms_avg_ms", "ai_avg_ms"])];
+    out.forEach((r) => lines.push(csvRow([r.day, r.smsSent, r.smsFailed, r.aiAnswered, r.aiFailed, r.errors, r.events, r.smsAvgMs, r.aiAvgMs])));
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="daily-totals-${ownerToday()}.csv"`);
+    return res.send(lines.join("\r\n") + "\r\n");
+  }
+  res.json({ days: out, retentionDays: ACTIVITY_RETENTION_DAYS });
 });
 
 app.get("/api/platform/health", requirePlatformAuth, async (req, res) => {
@@ -3308,6 +3450,9 @@ process.on("uncaughtException", (err) => {
 if (require.main === module) {
   initDb()
     .then(() => {
+      const runArchive = () => archiveOldActivity().then((n) => { if (n) console.log(`Archived ${n} old activity rows into daily totals`); }).catch((e) => console.error("Activity archive failed:", e.message));
+      runArchive();
+      setInterval(runArchive, 24 * 60 * 60 * 1000).unref();
       app.listen(PORT, () => {
         console.log(`Shift SMS backend running on port ${PORT}`);
         console.log(`Database: connected · multi-tenant auth: enabled`);
@@ -3564,4 +3709,4 @@ app.get("/api/owner/overview", requireOwnerAuth, async (req, res) => {
   });
 });
 
-module.exports = { app, pool, initDb, parseMetNoForecast, cleanEvents };
+module.exports = { app, pool, initDb, archiveOldActivity, parseMetNoForecast, cleanEvents };
