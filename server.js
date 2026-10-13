@@ -1318,7 +1318,7 @@ async function swapOverlaps(db, restaurantId, staffId, incoming, outgoingShiftId
 }
 
 function swapTodayFloor() {
-  return addDaysIso(new Date().toISOString().slice(0, 10), -1);
+  return addDaysIso(ownerToday(), -1);
 }
 
 function textSwapParty(staffId, restaurantId, body) {
@@ -2124,7 +2124,7 @@ app.get("/api/revenue-history", requireAuth, async (req, res) => {
   );
   const lastYearByWeek = {};
   hist.forEach((r) => { lastYearByWeek[r.w] = Number(r.amount); });
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ownerToday();
   res.json({ today, ...buildRevenueSummary({ year, today, weeks, thisYearByWeek, lastYearByWeek }) });
 });
 
@@ -2132,7 +2132,7 @@ app.get("/api/revenue-history", requireAuth, async (req, res) => {
 app.put("/api/revenue-history", requireAuth, async (req, res) => {
   const { weekStart, amount } = req.body || {};
   if (!isIsoDate(weekStart) || new Date(weekStart + "T00:00:00Z").getUTCDay() !== 1) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
-  if (weekStart < "2000-01-03" || weekStart > addDaysIso(new Date().toISOString().slice(0, 10), 7)) return res.status(400).json({ error: "weekStart is out of range" });
+  if (weekStart < "2000-01-03" || weekStart > addDaysIso(ownerToday(), 7)) return res.status(400).json({ error: "weekStart is out of range" });
   if (amount === null || amount === "" || amount === undefined) {
     await pool.query("DELETE FROM weekly_sales_history WHERE restaurant_id = $1 AND week_start = $2", [req.restaurantId, weekStart]);
     return res.json({ weekStart, amount: null });
@@ -2675,14 +2675,12 @@ app.post("/api/ai/ask", requireAuth, aiLimiter, async (req, res) => {
   if (!question || !question.trim()) return res.status(400).json({ error: "question is required" });
 
   try {
-    const today = new Date();
-    const weekAgo = new Date(today);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const twoWeeksOut = new Date(today);
-    twoWeeksOut.setDate(twoWeeksOut.getDate() + 14);
-    const twoWeeksAgo = new Date(today);
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-    const toDate = (d) => d.toISOString().slice(0, 10);
+    // Dates are the restaurant's local calendar days (not UTC), so "today" stays correct in the evening.
+    const today = ownerToday();
+    const weekAgo = addDaysIso(today, -7);
+    const twoWeeksOut = addDaysIso(today, 14);
+    const twoWeeksAgo = addDaysIso(today, -14);
+    const toDate = (d) => d;
 
     const [staffRows, openShiftRows, scheduleRows, postingRows, appRows, projRows, boardRows, ackRows, salesRows] = await Promise.all([
       pool.query("SELECT * FROM staff WHERE restaurant_id = $1", [req.restaurantId]),
@@ -2747,7 +2745,8 @@ app.post("/api/ai/ask", requireAuth, aiLimiter, async (req, res) => {
 
     const contextBlock = JSON.stringify(
       {
-        today: toDate(today),
+        today,
+        todayWeekday: new Date(today + "T00:00:00Z").toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }),
         teamMessageBoard: boardSummary,
         actualSalesLast14Days: salesSummary,
         staff: staffSummary,
