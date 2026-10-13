@@ -2270,14 +2270,45 @@ app.post("/api/ai/sales-forecast", requireAuth, aiLimiter, async (req, res) => {
     if (recent.length < 3 && lyDaily.length === 0 && lyWeek.length === 0) {
       return res.status(400).json({ error: "Not enough sales history yet — enter some actual sales, or last year's figures, and try again." });
     }
+    // Worked-out figures so the model has a real starting point instead of echoing last year:
+    // same-weekday average of recent actuals, and how this year has been running against last year lately.
+    const wdOf = (d) => new Date(d + "T00:00:00Z").getUTCDay();
+    const recentByDow = {};
+    recent.forEach((r) => { (recentByDow[wdOf(r.d)] = recentByDow[wdOf(r.d)] || []).push(Number(r.amount)); });
+    const { rows: lyPast } = await pool.query(
+      "SELECT proj_date::text AS d, last_year_amount FROM sales_projections WHERE restaurant_id = $1 AND proj_date >= $2 AND proj_date < $3 AND last_year_amount IS NOT NULL",
+      [rid, addDaysIso(weekStart, -56), weekStart]
+    );
+    const actualByDate = {};
+    recent.forEach((r) => { actualByDate[r.d] = Number(r.amount); });
+    let cmpThis = 0, cmpLast = 0, cmpDays = 0;
+    lyPast.forEach((r) => { const a = actualByDate[r.d], l = Number(r.last_year_amount); if (a !== undefined && l > 0) { cmpThis += a; cmpLast += l; cmpDays++; } });
+    const trend = cmpDays >= 5 && cmpLast > 0 ? Math.min(1.4, Math.max(0.6, cmpThis / cmpLast)) : null;
+    const lyByDate = {};
+    lyDaily.forEach((r) => { lyByDate[r.d] = Number(r.last_year_amount); });
+    const baselines = days.map((d) => {
+      const arr = (recentByDow[wdOf(d)] || []).slice(-6);
+      const recentAvg = arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+      const ly = lyByDate[d] !== undefined ? lyByDate[d] : null;
+      const lyAdj = ly !== null ? ly * (trend || 1) : null;
+      let base = null;
+      if (recentAvg !== null && lyAdj !== null) base = arr.length >= 2 ? 0.6 * recentAvg + 0.4 * lyAdj : 0.5 * recentAvg + 0.5 * lyAdj;
+      else if (recentAvg !== null) base = recentAvg;
+      else if (lyAdj !== null) base = lyAdj;
+      return { date: d, recentSameWeekdayAvg: recentAvg === null ? null : Math.round(recentAvg), recentSameWeekdayCount: arr.length, lastYearSameDay: ly, suggestedBaseline: base === null ? null : Math.round(base / 10) * 10 };
+    });
+    const baseByDate = {};
+    baselines.forEach((b) => { baseByDate[b.date] = b.suggestedBaseline; });
     const facts = {
+      thisYearVsLastYearRecently: trend === null ? null : { ratio: Math.round(trend * 100) / 100, comparedDays: cmpDays },
+      perDay: baselines,
       weekdaysOfTargetWeek: days.map((d) => ({ date: d, weekday: WEEKDAY_KEYS[new Date(d + "T00:00:00Z").getUTCDay()] })),
       recentDailySales: recent.map((r) => ({ date: r.d, weekday: WEEKDAY_KEYS[new Date(r.d + "T00:00:00Z").getUTCDay()], sales: Number(r.amount) })),
       lastYearSameDay: lyDaily.map((r) => ({ date: r.d, sales: Number(r.last_year_amount) })),
       lastYearSameWeekTotal: lyWeek[0] ? Number(lyWeek[0].amount) : null,
     };
     const { text, durationMs } = await callClaude({
-      system: "You forecast a restaurant's total daily sales (dollars) for the seven dates of one week. Use only the data given: the pattern by weekday in recent daily sales, any trend, and last year's figures. If a day has no reasonable basis, return null for it — never guess wildly. Round to the nearest 10 dollars. Reply with ONLY a JSON object: {\"days\":[{\"date\":\"YYYY-MM-DD\",\"amount\":number|null}]} covering the seven dates.",
+      system: "You forecast a restaurant's total daily sales (dollars) for the seven dates of one week. Use only the data given. For each day start from perDay.suggestedBaseline (it blends the recent same-weekday average with last year's figure scaled by how this year has been running against last year). Adjust it only for a clear reason in the data (a visible weekday pattern, an upward or downward trend in recentDailySales); the days must reflect their own weekday — do not return last year's number unchanged, and do not return the same value for every day. If a day has no baseline and no reasonable basis, return null — never guess wildly. Round to the nearest 10 dollars. Reply with ONLY a JSON object: {\"days\":[{\"date\":\"YYYY-MM-DD\",\"amount\":number|null}]} covering the seven dates.",
       user: JSON.stringify(facts),
       maxTokens: 800,
     });
@@ -2289,8 +2320,11 @@ app.post("/api/ai/sales-forecast", requireAuth, aiLimiter, async (req, res) => {
     const out = [];
     for (const d of parsed.days) {
       if (!d || !days.includes(d.date)) continue;
-      const amount = d.amount === null || d.amount === undefined ? null : Number(d.amount);
+      let amount = d.amount === null || d.amount === undefined ? null : Number(d.amount);
       if (amount !== null && (isNaN(amount) || amount < 0 || amount > 1e7)) continue;
+      // keep the model inside a sane band around the worked-out baseline
+      const base = baseByDate[d.date];
+      if (amount !== null && base && (amount < base * 0.6 || amount > base * 1.4)) amount = base;
       out.push({ date: d.date, amount: amount === null ? null : Math.round(amount) });
     }
     for (const d of out) {

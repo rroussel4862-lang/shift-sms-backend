@@ -122,6 +122,14 @@ describe("AI sales forecast", () => {
     expect(list.body.find((r) => r.date === "2026-04-13")).toMatchObject({ aiAmount: 4100, projectedAmount: null });
   });
 
+  test("an AI number far from the worked-out baseline is pulled back to it", async () => {
+    // earlier test saved a Monday actual of 4000 (2026-03-30), so the baseline for Monday 2026-04-13 is 4000
+    aiReply = '{"days":[{"date":"2026-04-13","amount":9000}]}';
+    const res = await A.agent.post("/api/ai/sales-forecast").send({ weekStart: "2026-04-13" });
+    expect(res.status).toBe(200);
+    expect(res.body.days).toEqual([{ date: "2026-04-13", amount: 4000 }]);
+  });
+
   test("an unreadable AI answer is reported, not saved", async () => {
     aiReply = "I cannot do that";
     const res = await A.agent.post("/api/ai/sales-forecast").send({ weekStart: "2026-04-13" });

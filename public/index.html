@@ -995,7 +995,7 @@ const T = {
     },
     snap: {
       noOneDay: "No one is scheduled this day.", noManagerDay: "No manager scheduled this day",
-      greetMorning: "Good morning", greetAfternoon: "Good afternoon", greetEvening: "Good evening", addName: "Add your name", askName: "What should we call you?", titleYesterday: "Yesterday's snapshot", titleTomorrow: "Tomorrow's snapshot", titleDay: "Day snapshot", todayBtn: "Today", prevDay: "Previous day", nextDay: "Next day",
+      forecastShort: "Forecast", greetMorning: "Good morning", greetAfternoon: "Good afternoon", greetEvening: "Good evening", addName: "Add your name", askName: "What should we call you?", titleYesterday: "Yesterday's snapshot", titleTomorrow: "Tomorrow's snapshot", titleDay: "Day snapshot", todayBtn: "Today", prevDay: "Previous day", nextDay: "Next day",
       weatherPast: "Weather wasn't saved for this day.", eventsNotRecorded: "Nearby events weren't saved for this day.",
       staffByRole: "How many staff, by role", title: "Today's snapshot", managerOnDuty: "Manager on duty", noManager: "No manager scheduled today",
       aiForecast: "AI forecast", noAiForecast: "Generate it in Back Office › Schedule", actualSales: "Actual sales", noActual: "Not entered yet", vsForecast: "vs your forecast", actualShort: "actual",
@@ -1149,7 +1149,7 @@ const T = {
     },
     snap: {
       noOneDay: "Personne n'est à l'horaire ce jour-là.", noManagerDay: "Aucun gérant à l'horaire ce jour-là",
-      greetMorning: "Bonjour", greetAfternoon: "Bon après-midi", greetEvening: "Bonsoir", addName: "Ajoutez votre nom", askName: "Comment doit-on vous appeler ?", titleYesterday: "L'aperçu d'hier", titleTomorrow: "L'aperçu de demain", titleDay: "Aperçu du jour", todayBtn: "Aujourd'hui", prevDay: "Jour précédent", nextDay: "Jour suivant",
+      forecastShort: "Prévision", greetMorning: "Bonjour", greetAfternoon: "Bon après-midi", greetEvening: "Bonsoir", addName: "Ajoutez votre nom", askName: "Comment doit-on vous appeler ?", titleYesterday: "L'aperçu d'hier", titleTomorrow: "L'aperçu de demain", titleDay: "Aperçu du jour", todayBtn: "Aujourd'hui", prevDay: "Jour précédent", nextDay: "Jour suivant",
       weatherPast: "La météo n'a pas été enregistrée pour ce jour.", eventsNotRecorded: "Les événements à proximité n'ont pas été enregistrés pour ce jour.",
       staffByRole: "Combien de personnes, par poste", title: "Aperçu du jour", managerOnDuty: "Gérant en service", noManager: "Aucun gérant à l'horaire aujourd'hui",
       aiForecast: "Prévision IA", noAiForecast: "À générer dans l'arrière-boutique › Horaire", actualSales: "Ventes réelles", noActual: "Pas encore saisies", vsForecast: "vs votre prévision", actualShort: "réel",
@@ -1303,7 +1303,7 @@ const T = {
     },
     snap: {
       noOneDay: "Nadie está programado este día.", noManagerDay: "Ningún gerente programado este día",
-      greetMorning: "Buenos días", greetAfternoon: "Buenas tardes", greetEvening: "Buenas noches", addName: "Añade tu nombre", askName: "¿Cómo debemos llamarte?", titleYesterday: "Resumen de ayer", titleTomorrow: "Resumen de mañana", titleDay: "Resumen del día", todayBtn: "Hoy", prevDay: "Día anterior", nextDay: "Día siguiente",
+      forecastShort: "Pronóstico", greetMorning: "Buenos días", greetAfternoon: "Buenas tardes", greetEvening: "Buenas noches", addName: "Añade tu nombre", askName: "¿Cómo debemos llamarte?", titleYesterday: "Resumen de ayer", titleTomorrow: "Resumen de mañana", titleDay: "Resumen del día", todayBtn: "Hoy", prevDay: "Día anterior", nextDay: "Día siguiente",
       weatherPast: "El clima no se guardó para este día.", eventsNotRecorded: "Los eventos cercanos no se guardaron para este día.",
       staffByRole: "Cuántas personas, por puesto", title: "Resumen del día", managerOnDuty: "Gerente de turno", noManager: "Ningún gerente programado hoy",
       aiForecast: "Pronóstico IA", noAiForecast: "Genéralo en Administración › Horario", actualSales: "Ventas reales", noActual: "Aún sin ingresar", vsForecast: "vs tu proyección", actualShort: "real",
@@ -2102,7 +2102,7 @@ function renderOverview() {
     tile(S("forecastSales"), has(forecast) ? m0(forecast) : "—", has(forecast) ? (split(sales.projectedByService) || lyVs) : S("noForecast")),
     tile(S("aiForecast"), has(sales.ai) ? m0(sales.ai) : "—", has(sales.ai) ? aiVs : S("noAiForecast")),
     tile(S("actualSales"), has(actual) ? m0(actual) : "—", has(actual) ? split(sales.actualByService) : S("noActual")),
-    tile(S("lastYear"), has(ly.amount) ? (ly.basis === "weekAvg" ? "~" : "") + m0(ly.amount) : "—", ly.basis === "weekAvg" ? S("lastYearAvg") : (ly.amount ? lyVs : S("noLastYear"))),
+    tile(S("lastYear"), has(ly.amount) ? (ly.basis === "weekAvg" ? "~" : "") + m0(ly.amount) : "—", ly.basis === "weekAvg" ? S("lastYearAvg") : (ly.amount ? (lyVs ? `${S("forecastShort")} ${lyVs}` : "") : S("noLastYear"))),
     tile(S("laborScheduled"), dayShifts.length ? m0(laborCost) : "—", ""),
     tile(S("laborPct"), laborPct !== null ? laborPct.toFixed(1) + "%" : "—", laborPct === null ? S("needForecast") : laborSub, pctCls),
   ].join("");
