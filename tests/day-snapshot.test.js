@@ -103,6 +103,16 @@ describe("daily snapshot", () => {
     expect(res.body.events).toBeNull();
   });
 
+  test("a failed lookup can be retried on demand", async () => {
+    // B's last failure was just now, so a retry inside the first minute is ignored; age the record to simulate time passing
+    await pool.query("UPDATE day_context SET events_at = events_at - 120000 WHERE events_error IS NOT NULL");
+    eventsReply = '{"events":[]}';
+    const first = await B.agent.get("/api/day-snapshot?refreshEvents=1");
+    expect(first.body.eventsStatus).toBe("pending");
+    const res = await pollUntil(B.agent, (b) => b.eventsStatus === "ok");
+    expect(res.body.events).toEqual([]);
+  });
+
   test("falls back to last year's week average when no daily figure was typed", async () => {
     const [y, m, d] = today().split("-").map(Number);
     const dt = new Date(Date.UTC(y, m - 1, d));

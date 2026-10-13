@@ -945,7 +945,7 @@ const T = {
       lunchShort: "Lunch", dinnerShort: "Dinner", whoScheduled: "Who's scheduled", weatherEvents: "Weather & events", eventsNearby: "Events nearby that may affect customer attendance",
       loading: "Loading…", needAddress: "Add your restaurant's address to see the weather and local events.", needAddressLink: "Add it in the Hiring tab", geoFailed: "We couldn't locate that address — check it in the Hiring tab.",
       weatherUnavailable: "Weather isn't available right now.", precip: "precip.",
-      eventsPending: "Looking up local events…", eventsNone: "No notable events found for today.", eventsNotConfigured: "Local events need the AI agent to be set up.", eventsFailed: "Couldn't look up local events right now.",
+      tryAgain: "Try again", eventsPending: "Looking up local events…", eventsNone: "No notable events found for today.", eventsNotConfigured: "Local events need the AI agent to be set up.", eventsFailed: "Couldn't look up local events right now.",
       eventsNote: "Found with a web search — double-check before planning around them.", impact_high: "High", impact_medium: "Medium", impact_low: "Low",
       wc: { clear: "Clear", fair: "Mostly clear", partly: "Partly cloudy", cloudy: "Cloudy", fog: "Fog", rain: "Rain", lightrain: "Light rain", heavyrain: "Heavy rain", snow: "Snow", lightsnow: "Light snow", heavysnow: "Heavy snow", sleet: "Sleet", thunder: "Thunderstorms" },
     },
@@ -1095,7 +1095,7 @@ const T = {
       lunchShort: "Dîner", dinnerShort: "Souper", whoScheduled: "Qui travaille", weatherEvents: "Météo et événements", eventsNearby: "Événements à proximité pouvant influencer la clientèle",
       loading: "Chargement…", needAddress: "Ajoutez l'adresse du restaurant pour voir la météo et les événements locaux.", needAddressLink: "À ajouter dans l'onglet Embauche", geoFailed: "Adresse introuvable — vérifiez-la dans l'onglet Embauche.",
       weatherUnavailable: "La météo n'est pas disponible pour le moment.", precip: "précip.",
-      eventsPending: "Recherche des événements locaux…", eventsNone: "Aucun événement notable trouvé aujourd'hui.", eventsNotConfigured: "Les événements locaux nécessitent l'agent IA.", eventsFailed: "Impossible de chercher les événements locaux pour le moment.",
+      tryAgain: "Réessayer", eventsPending: "Recherche des événements locaux…", eventsNone: "Aucun événement notable trouvé aujourd'hui.", eventsNotConfigured: "Les événements locaux nécessitent l'agent IA.", eventsFailed: "Impossible de chercher les événements locaux pour le moment.",
       eventsNote: "Trouvés par recherche web — vérifiez avant d'en tenir compte.", impact_high: "Élevé", impact_medium: "Moyen", impact_low: "Faible",
       wc: { clear: "Dégagé", fair: "Généralement dégagé", partly: "Partiellement nuageux", cloudy: "Nuageux", fog: "Brouillard", rain: "Pluie", lightrain: "Pluie légère", heavyrain: "Forte pluie", snow: "Neige", lightsnow: "Faible neige", heavysnow: "Forte neige", sleet: "Verglas", thunder: "Orages" },
     },
@@ -1245,7 +1245,7 @@ const T = {
       lunchShort: "Almuerzo", dinnerShort: "Cena", whoScheduled: "Quién trabaja", weatherEvents: "Clima y eventos", eventsNearby: "Eventos cercanos que podrían afectar la asistencia de clientes",
       loading: "Cargando…", needAddress: "Agrega la dirección del restaurante para ver el clima y los eventos locales.", needAddressLink: "Agrégala en la pestaña Contratación", geoFailed: "No pudimos ubicar esa dirección — revísala en la pestaña Contratación.",
       weatherUnavailable: "El clima no está disponible ahora.", precip: "precip.",
-      eventsPending: "Buscando eventos locales…", eventsNone: "No se encontraron eventos relevantes hoy.", eventsNotConfigured: "Los eventos locales requieren configurar el agente de IA.", eventsFailed: "No se pudieron buscar los eventos locales ahora.",
+      tryAgain: "Reintentar", eventsPending: "Buscando eventos locales…", eventsNone: "No se encontraron eventos relevantes hoy.", eventsNotConfigured: "Los eventos locales requieren configurar el agente de IA.", eventsFailed: "No se pudieron buscar los eventos locales ahora.",
       eventsNote: "Encontrados con una búsqueda web — verifícalos antes de planificar.", impact_high: "Alto", impact_medium: "Medio", impact_low: "Bajo",
       wc: { clear: "Despejado", fair: "Mayormente despejado", partly: "Parcialmente nublado", cloudy: "Nublado", fog: "Niebla", rain: "Lluvia", lightrain: "Lluvia ligera", heavyrain: "Lluvia fuerte", snow: "Nieve", lightsnow: "Nieve ligera", heavysnow: "Nevada fuerte", sleet: "Aguanieve", thunder: "Tormentas" },
     },
@@ -1874,9 +1874,9 @@ function render() {
 
 /* ============================== Overview: one snapshot card ============================== */
 let daySnap = null, daySnapTimer = null, daySnapTries = 0;
-async function loadDaySnapshot() {
+async function loadDaySnapshot(refreshEvents) {
   clearTimeout(daySnapTimer);
-  const r = await api("/api/day-snapshot");
+  const r = await api("/api/day-snapshot" + (refreshEvents ? "?refreshEvents=1" : ""));
   if (!r.ok) return;
   daySnap = r.data;
   renderOverview();
@@ -1969,7 +1969,7 @@ function renderOverview() {
     } else if (sn.eventsStatus === "not_configured") {
       eventsHtml = `<div class="snap-empty">${S("eventsNotConfigured")}</div>`;
     } else {
-      eventsHtml = `<div class="snap-empty">${S("eventsFailed")}</div>`;
+      eventsHtml = `<div class="snap-empty">${S("eventsFailed")} <a href="#" onclick="daySnapTries = 0; loadDaySnapshot(true); return false;">${S("tryAgain")}</a></div>`;
     }
   }
 

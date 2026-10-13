@@ -2111,7 +2111,11 @@ async function fetchJsonTimeout(url, options = {}, ms = 8000) {
   const timer = setTimeout(() => ctl.abort(), ms);
   try {
     const r = await fetch(url, { ...options, signal: ctl.signal });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    if (!r.ok) {
+      let detail = "";
+      try { detail = (await r.text()).slice(0, 400); } catch (e) { /* ignore */ }
+      throw new Error(`HTTP ${r.status} ${detail}`.trim());
+    }
     return await r.json();
   } finally {
     clearTimeout(timer);
@@ -2233,22 +2237,28 @@ function cleanEvents(raw) {
 
 async function fetchNearbyEvents(place, day) {
   if (!ANTHROPIC_API_KEY) { const e = new Error("not_configured"); e.code = "not_configured"; throw e; }
-  const [city, region, country] = place.split(",").map((x) => x.trim());
-  const aiRes = await fetchJsonTimeout("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
-      max_tokens: 1200,
-      system: "You help a restaurant manager anticipate how many customers will come in (customer attendance — not road or vehicle traffic). Search the web for events happening on the given date in the given city that could bring more or fewer guests to restaurants (concerts, sports games, festivals, conferences, parades, big markets, holidays). Ignore road closures and traffic conditions. Only list events you actually found in search results for that exact date; never guess or invent. Reply with ONLY a JSON object: {\"events\":[{\"name\":\"\",\"when\":\"e.g. 7:30 PM\",\"where\":\"venue or area\",\"impact\":\"high|medium|low\",\"note\":\"one short line on how it may affect customer attendance\"}]}. Use an empty array if nothing relevant was found. At most 5 events, most impactful first.",
-      messages: [{ role: "user", content: `Date: ${day}. City: ${place}.` }],
-      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3, user_location: { type: "approximate", city, region, country, timezone: SNAPSHOT_TZ } }],
-    }),
-  }, 60000);
-  const text = (aiRes.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
-  const parsed = extractJsonObject(text);
-  if (!parsed) throw new Error("unreadable events answer");
-  return cleanEvents(parsed.events);
+  const system = "You help a restaurant manager anticipate how many customers will come in (customer attendance — not road or vehicle traffic). Search the web for events happening on the given date in the given city that could bring more or fewer guests to restaurants (concerts, sports games, festivals, conferences, parades, big markets, holidays). Ignore road closures and traffic conditions. Only list events you actually found in search results for that exact date; never guess or invent. Reply with ONLY a JSON object: {\"events\":[{\"name\":\"\",\"when\":\"e.g. 7:30 PM\",\"where\":\"venue or area\",\"impact\":\"high|medium|low\",\"note\":\"one short line on how it may affect customer attendance\"}]}. Use an empty array if nothing relevant was found. At most 5 events, most impactful first.";
+  const messages = [{ role: "user", content: `Date: ${day}. City: ${place}.` }];
+  // A long search can pause the turn; keep going (a few times) until the model gives its final answer.
+  for (let round = 0; round < 4; round++) {
+    const data = await fetchJsonTimeout("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({
+        model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
+        max_tokens: 2000,
+        system,
+        messages,
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
+      }),
+    }, 90000);
+    if (data.stop_reason === "pause_turn") { messages.push({ role: "assistant", content: data.content }); continue; }
+    const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+    const parsed = extractJsonObject(text);
+    if (!parsed) throw new Error("unreadable events answer: " + text.slice(0, 200));
+    return cleanEvents(parsed.events);
+  }
+  throw new Error("events search did not finish");
 }
 
 async function refreshEvents(restaurantId, day, place) {
@@ -2317,7 +2327,9 @@ app.get("/api/day-snapshot", requireAuth, async (req, res) => {
 
     // events (slow: refreshed in the background, the page asks again while it's pending)
     const evAge = ctx.events_at ? Date.now() - Number(ctx.events_at) : Infinity;
-    const evFresh = ctx.events_error ? evAge < EVENTS_RETRY_MS : evAge < EVENTS_TTL_MS;
+    let evFresh = ctx.events_error ? evAge < EVENTS_RETRY_MS : evAge < EVENTS_TTL_MS;
+    // "Try again" from the card: re-run the lookup now, but not more than once a minute.
+    if (req.query.refreshEvents === "1" && evAge > 60 * 1000) evFresh = false;
     if (evFresh) {
       if (ctx.events_error) out.eventsStatus = ctx.events_error;
       else { out.events = ctx.events || []; out.eventsStatus = "ok"; }
