@@ -362,10 +362,10 @@
   </header>
 
   <nav class="sections">
-    <button class="section-btn active" id="sectionBtnStaff" onclick="showSection('staff')" data-i18n="nav.staff">Staff</button>
-    <button class="section-btn" id="sectionBtnSchedule" onclick="showSection('schedule')" data-i18n="nav.schedule">Schedule</button>
+    <button class="section-btn active" id="sectionBtnSchedule" onclick="showSection('schedule')" data-i18n="nav.schedule">Schedule</button>
     <button class="section-btn" id="sectionBtnSales" onclick="showSection('sales')" data-i18n="nav.sales">Sales</button>
     <button class="section-btn" id="sectionBtnRevenue" onclick="showSection('revenue')" data-i18n="nav.revenue">Revenue history</button>
+    <button class="section-btn" id="sectionBtnStaff" onclick="showSection('staff')" data-i18n="nav.staff">Staff</button>
   </nav>
 
   <div id="banner"></div>
@@ -1610,7 +1610,7 @@ function renderScheduleGrid() {
   document.getElementById("restaurantHeading").textContent = tr("headingOf", me.data.restaurant.name);
   window.__restaurantName = me.data.restaurant.name;
   document.title = me.data.restaurant.name + " — Back Office";
-  loadStaff();
+  loadStaff().then(() => showSection("schedule"));
 })();
 
 I18N.onChange(() => {
