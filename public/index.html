@@ -528,8 +528,8 @@
   .ov-day.sel { background: var(--ink); color: #fff; border-color: var(--ink); }
   .ov-day.is-today:not(.sel)::after { content: ""; position: absolute; bottom: 2px; width: 4px; height: 4px; border-radius: 50%; background: var(--scheduling); }
   .ov-day:disabled { opacity: .3; cursor: default; }
-  .ov-arrow { width: 30px; height: 40px; border: 1px solid rgba(35,38,31,.25); border-radius: 6px; background: none; color: inherit; font-size: 20px; cursor: pointer; flex-shrink: 0; }
-  .ov-today { border: 1px solid var(--ink); background: none; color: inherit; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; margin-left: auto; }
+  .ov-arrow { width: 44px; height: 34px; border: 1px solid rgba(35,38,31,.25); border-radius: 6px; background: none; color: inherit; font-size: 20px; cursor: pointer; flex-shrink: 0; }
+  .ov-today { border: 1px solid var(--ink); background: none; color: inherit; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
   .snap-h.sm { margin-top: 14px; }
   .snap-mgr { display: flex; justify-content: space-between; align-items: baseline; font-size: 18px; padding: 6px 0; border-bottom: 1px dashed rgba(35,38,31,.2); }
   .snap-mgr .num { font-size: 14px; opacity: .75; }
@@ -2037,20 +2037,11 @@ function renderOverview() {
   const dateLabel = new Date(selIso + "T12:00:00").toLocaleDateString(localeForLang(), { weekday: "long", month: "long", day: "numeric" });
   const isPastDay = selIso < ovToday();
   const dayTitle = !ovDate ? S("title") : selIso === ovShiftIso(ovToday(), -1) ? S("titleYesterday") : selIso === ovShiftIso(ovToday(), 1) ? S("titleTomorrow") : S("titleDay");
-  // day picker: previous/next day arrows and the 7 days of the selected week
-  const selD = new Date(selIso + "T12:00:00");
-  const weekMon = ovShiftIso(selIso, -((selD.getDay() + 6) % 7));
-  const dayChips = [0, 1, 2, 3, 4, 5, 6].map(i => {
-    const iso = ovShiftIso(weekMon, i);
-    const d = new Date(iso + "T12:00:00");
-    const dis = iso > ovShiftIso(ovToday(), 7) || iso < ovShiftIso(ovToday(), -60);
-    return `<button class="ov-day${iso === selIso ? " sel" : ""}${iso === ovToday() ? " is-today" : ""}"${dis ? " disabled" : ""} onclick="selectOverviewDay('${iso}')"><span>${escapeHtml(d.toLocaleDateString(localeForLang(), { weekday: "short" }))}</span><b>${d.getDate()}</b></button>`;
-  }).join("");
+  // day picker: just previous/next arrows, plus a "Today" button when away from today
   const dayPicker = `<div class="ov-picker">
       <button class="ov-arrow" aria-label="${escapeHtml(S("prevDay"))}" onclick="selectOverviewDay('${ovShiftIso(selIso, -1)}')">‹</button>
-      <div class="ov-days">${dayChips}</div>
-      <button class="ov-arrow" aria-label="${escapeHtml(S("nextDay"))}" onclick="selectOverviewDay('${ovShiftIso(selIso, 1)}')">›</button>
       ${ovDate ? `<button class="ov-today" onclick="selectOverviewDay('${ovToday()}')">${escapeHtml(S("todayBtn"))}</button>` : ""}
+      <button class="ov-arrow" style="margin-left:auto" aria-label="${escapeHtml(S("nextDay"))}" onclick="selectOverviewDay('${ovShiftIso(selIso, 1)}')">›</button>
     </div>`;
 
   // manager(s) on duty today
