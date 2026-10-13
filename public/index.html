@@ -562,8 +562,15 @@
   .snap-weather .ic { font-size: 38px; line-height: 1; }
   .snap-weather .big { font-size: 20px; font-weight: 600; } .snap-weather .lo { opacity: .6; font-weight: 400; }
   .snap-weather .sub, .snap-event .sub { font-size: 13px; opacity: .7; }
-  .snap-event { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px dashed rgba(35,38,31,.2); font-size: 14px; }
-  .snap-event .pill { flex-shrink: 0; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 3px 8px; border-radius: 999px; color: #fff; margin-top: 2px; }
+  .snap-event { padding: 7px 0; border-bottom: 1px dashed rgba(35,38,31,.2); font-size: 14px; }
+  .snap-event > summary, .snap-event > .sum { display: flex; gap: 10px; align-items: center; list-style: none; cursor: pointer; }
+  .snap-event > summary::-webkit-details-marker { display: none; }
+  .snap-event .nm { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .snap-event[open] .nm { white-space: normal; }
+  .snap-event .arr { flex-shrink: 0; opacity: .6; transition: transform .15s; }
+  .snap-event[open] .arr { transform: rotate(90deg); }
+  .snap-event .more { margin: 5px 0 2px; font-size: 13px; line-height: 1.45; }
+  .snap-event .pill { flex-shrink: 0; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 3px 8px; border-radius: 999px; color: #fff; margin-top: 0; }
   .snap-event .pill.high { background: #b3452c; } .snap-event .pill.medium { background: #c98a12; } .snap-event .pill.low { background: #7a7566; }
   .snap-foot { font-size: 11.5px; opacity: .55; margin-top: 6px; }
   .today-group { margin-top: 10px; }
@@ -1668,6 +1675,7 @@ function fmtClock(hhmm) {
 
 // Today's scheduled people grouped by service (lunch/brunch, dinner) and position — shared by the Scheduling tab and the Overview snapshot.
 const snapOpenSvc = new Set();
+const snapOpenEvents = new Set();
 function todayBreakdown() {
   const byStaff = new Map(); // one row per person: they may have more than one shift today
   todayShifts.forEach(sh => {
@@ -2014,11 +2022,15 @@ function renderOverview() {
       weatherHtml = `<div class="snap-empty">${S("weatherUnavailable")}</div>`;
     }
     if (sn.events && sn.events.length) {
-      eventsHtml = sn.events.map(e => `
-        <div class="snap-event">
-          <span class="pill ${e.impact}">${S("impact_" + e.impact)}</span>
-          <div><b>${escapeHtml(e.name)}</b>${e.when ? ` · ${escapeHtml(e.when)}` : ""}${e.where ? ` · ${escapeHtml(e.where)}` : ""}${e.note ? `<div class="sub">${escapeHtml(e.note)}</div>` : ""}</div>
-        </div>`).join("") + `<div class="snap-foot">${S("eventsNote")}</div>`;
+      eventsHtml = sn.events.map((e, i) => {
+        const key = `${i}|${e.name}`;
+        const detail = [e.when, e.where].filter(Boolean).map(escapeHtml).join(" · ");
+        const hasMore = detail || e.note;
+        const head = `<span class="pill ${e.impact}">${S("impact_" + e.impact)}</span><span class="nm">${escapeHtml(e.name)}</span>${hasMore ? `<span class="arr">▸</span>` : ""}`;
+        return hasMore
+          ? `<details class="snap-event" ${snapOpenEvents.has(key) ? "open" : ""} ontoggle="this.open ? snapOpenEvents.add(${escapeHtml(JSON.stringify(key))}) : snapOpenEvents.delete(${escapeHtml(JSON.stringify(key))})"><summary>${head}</summary><div class="more">${detail ? `<div>${detail}</div>` : ""}${e.note ? `<div class="sub">${escapeHtml(e.note)}</div>` : ""}</div></details>`
+          : `<div class="snap-event"><div class="sum">${head}</div></div>`;
+      }).join("") + `<div class="snap-foot">${S("eventsNote")}</div>`;
     } else if (sn.eventsStatus === "pending") {
       eventsHtml = `<div class="snap-empty">${S("eventsPending")}</div>`;
     } else if (sn.eventsStatus === "ok") {
