@@ -37,6 +37,13 @@ describe("lunch/brunch projected sales", () => {
     expect(res.body).toMatchObject({ projectedAmount: null, lunchAmount: null });
   });
 
+  test("last year's daily figure is stored alongside, without disturbing the rest", async () => {
+    const res = await A.agent.put("/api/sales-projections").send({ date: DAY, lastYearAmount: "4800" });
+    expect(res.body).toMatchObject({ projectedAmount: 5500, lunchAmount: 1800, lastYearAmount: 4800 });
+    const res2 = await A.agent.put("/api/sales-projections").send({ date: DAY, projectedAmount: 6000 });
+    expect(res2.body).toMatchObject({ projectedAmount: 6000, lastYearAmount: 4800 });
+  });
+
   test("rejects negatives and empty bodies", async () => {
     expect((await A.agent.put("/api/sales-projections").send({ date: DAY, lunchAmount: -5 })).status).toBe(400);
     expect((await A.agent.put("/api/sales-projections").send({ date: DAY })).status).toBe(400);

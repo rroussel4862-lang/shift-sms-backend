@@ -185,6 +185,25 @@ async function initDb() {
   // Lunch/brunch share of the day's sales (dinner = day total minus lunch/brunch). Same idea for the projection.
   await pool.query(`ALTER TABLE actual_sales ADD COLUMN IF NOT EXISTS lunch_amount NUMERIC;`);
   await pool.query(`ALTER TABLE sales_projections ADD COLUMN IF NOT EXISTS lunch_amount NUMERIC;`);
+  // What the restaurant sold on the same weekday a year earlier (typed in from POS history; shown on the manager's daily snapshot).
+  await pool.query(`ALTER TABLE sales_projections ADD COLUMN IF NOT EXISTS last_year_amount NUMERIC;`);
+  // Where the restaurant is (geocoded from its address) and a per-day cache of weather / nearby events for the daily snapshot.
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS geo_lat DOUBLE PRECISION;`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS geo_lon DOUBLE PRECISION;`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS geo_for TEXT;`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS geo_place TEXT;`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS day_context (
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      day DATE NOT NULL,
+      weather JSONB,
+      weather_at BIGINT,
+      events JSONB,
+      events_at BIGINT,
+      events_error TEXT,
+      PRIMARY KEY (restaurant_id, day)
+    );
+  `);
 
   // Food / beverage cost as a percent of sales (entered by the manager until a POS/inventory integration exists)
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS food_cost_pct NUMERIC;`);
@@ -1812,12 +1831,13 @@ app.get("/api/sales-projections", requireAuth, async (req, res) => {
       date: r.proj_date instanceof Date ? r.proj_date.toISOString().slice(0, 10) : r.proj_date,
       projectedAmount: r.projected_amount !== null ? Number(r.projected_amount) : null,
       lunchAmount: r.lunch_amount !== null && r.lunch_amount !== undefined ? Number(r.lunch_amount) : null,
+      lastYearAmount: r.last_year_amount !== null && r.last_year_amount !== undefined ? Number(r.last_year_amount) : null,
     }))
   );
 });
 
 app.put("/api/sales-projections", requireAuth, async (req, res) => {
-  const { date, projectedAmount, lunchAmount } = req.body || {};
+  const { date, projectedAmount, lunchAmount, lastYearAmount } = req.body || {};
   if (!date) return res.status(400).json({ error: "date is required" });
   const parse = (raw, label) => {
     if (raw === undefined) return { provided: false };
@@ -1828,23 +1848,27 @@ app.put("/api/sales-projections", requireAuth, async (req, res) => {
   };
   const total = parse(projectedAmount, "projected amount");
   const lunch = parse(lunchAmount, "lunch amount");
-  for (const p of [total, lunch]) if (p.error) return res.status(400).json({ error: p.error });
-  if (!total.provided && !lunch.provided) return res.status(400).json({ error: "projectedAmount or lunchAmount is required" });
+  const lastYear = parse(lastYearAmount, "last year amount");
+  for (const p of [total, lunch, lastYear]) if (p.error) return res.status(400).json({ error: p.error });
+  if (!total.provided && !lunch.provided && !lastYear.provided) return res.status(400).json({ error: "projectedAmount, lunchAmount or lastYearAmount is required" });
 
-  // Only the fields the request mentions are changed; the other one is left alone.
+  // Only the fields the request mentions are changed; the others are left alone.
   const { rows } = await pool.query(
-    `INSERT INTO sales_projections (id, restaurant_id, proj_date, projected_amount, lunch_amount, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6)
+    `INSERT INTO sales_projections (id, restaurant_id, proj_date, projected_amount, lunch_amount, last_year_amount, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
      ON CONFLICT (restaurant_id, proj_date) DO UPDATE SET
-       projected_amount = CASE WHEN $7 THEN EXCLUDED.projected_amount ELSE sales_projections.projected_amount END,
-       lunch_amount = CASE WHEN $8 THEN EXCLUDED.lunch_amount ELSE sales_projections.lunch_amount END
+       projected_amount = CASE WHEN $8 THEN EXCLUDED.projected_amount ELSE sales_projections.projected_amount END,
+       lunch_amount = CASE WHEN $9 THEN EXCLUDED.lunch_amount ELSE sales_projections.lunch_amount END,
+       last_year_amount = CASE WHEN $10 THEN EXCLUDED.last_year_amount ELSE sales_projections.last_year_amount END
      RETURNING *`,
-    [id(), req.restaurantId, date, total.provided ? total.value : null, lunch.provided ? lunch.value : null, Date.now(), total.provided, lunch.provided]
+    [id(), req.restaurantId, date, total.provided ? total.value : null, lunch.provided ? lunch.value : null, lastYear.provided ? lastYear.value : null, Date.now(), total.provided, lunch.provided, lastYear.provided]
   );
+  const num = (v) => (v !== null && v !== undefined ? Number(v) : null);
   res.json({
     date: rows[0].proj_date instanceof Date ? rows[0].proj_date.toISOString().slice(0, 10) : rows[0].proj_date,
-    projectedAmount: rows[0].projected_amount !== null ? Number(rows[0].projected_amount) : null,
-    lunchAmount: rows[0].lunch_amount !== null ? Number(rows[0].lunch_amount) : null,
+    projectedAmount: num(rows[0].projected_amount),
+    lunchAmount: num(rows[0].lunch_amount),
+    lastYearAmount: num(rows[0].last_year_amount),
   });
 });
 
@@ -2068,6 +2092,245 @@ app.put("/api/revenue-history", requireAuth, async (req, res) => {
     [req.restaurantId, weekStart, n, Date.now()]
   );
   res.json({ weekStart, amount: n });
+});
+
+// ---------- today's snapshot for the Manager interface: weather, nearby events, last year's figure ----------
+// Weather: MET Norway's free Locationforecast (needs an identifying User-Agent). Location: OpenStreetMap Nominatim (also needs one).
+// Events: one cached web search a day through the Anthropic API — it only ever sees the restaurant's city, never staff or sales data.
+
+const SNAPSHOT_TZ = "America/Toronto";
+const HTTP_UA = "OpenShiftRail/1.0 (https://openshiftrail.com)";
+const WEATHER_TTL_MS = 3 * 60 * 60 * 1000;
+const EVENTS_TTL_MS = 12 * 60 * 60 * 1000;
+const EVENTS_RETRY_MS = 30 * 60 * 1000;
+const geoFailedAt = new Map();      // restaurantId -> last failed geocode (don't hammer Nominatim)
+const eventsInFlight = new Map();   // `${restaurantId}|${day}` -> promise
+
+async function fetchJsonTimeout(url, options = {}, ms = 8000) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(url, { ...options, signal: ctl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function geocodeAddress(address) {
+  const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=" + encodeURIComponent(address);
+  const data = await fetchJsonTimeout(url, { headers: { "User-Agent": HTTP_UA, "Accept-Language": "en" } });
+  const hit = Array.isArray(data) ? data[0] : null;
+  if (!hit) return null;
+  const a = hit.address || {};
+  const city = a.city || a.town || a.village || a.municipality || a.suburb || "";
+  const place = [city, a.state || a.province || "", a.country || ""].filter(Boolean).join(", ");
+  return { lat: Number(hit.lat), lon: Number(hit.lon), place };
+}
+
+async function ensureRestaurantLocation(restaurantId) {
+  const { rows } = await pool.query("SELECT address, geo_lat, geo_lon, geo_for, geo_place FROM restaurants WHERE id = $1", [restaurantId]);
+  const r = rows[0];
+  if (!r || !r.address || !r.address.trim()) return { status: "no_address" };
+  const address = r.address.trim();
+  if (r.geo_lat !== null && r.geo_for === address) return { status: "ok", lat: r.geo_lat, lon: r.geo_lon, place: r.geo_place || "" };
+  const failed = geoFailedAt.get(restaurantId);
+  if (failed && Date.now() - failed < EVENTS_RETRY_MS) return { status: "geocode_failed" };
+  try {
+    const g = await geocodeAddress(address);
+    if (!g || isNaN(g.lat) || isNaN(g.lon)) { geoFailedAt.set(restaurantId, Date.now()); return { status: "geocode_failed" }; }
+    await pool.query("UPDATE restaurants SET geo_lat=$1, geo_lon=$2, geo_for=$3, geo_place=$4 WHERE id=$5", [g.lat, g.lon, address, g.place, restaurantId]);
+    geoFailedAt.delete(restaurantId);
+    return { status: "ok", lat: g.lat, lon: g.lon, place: g.place };
+  } catch (e) {
+    console.error("Geocode failed:", e.message);
+    geoFailedAt.set(restaurantId, Date.now());
+    return { status: "geocode_failed" };
+  }
+}
+
+function localParts(iso, tz) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso));
+  const g = (t) => parts.find((p) => p.type === t).value;
+  return { date: `${g("year")}-${g("month")}-${g("day")}`, hour: Number(g("hour")) };
+}
+
+function weatherCategory(symbol) {
+  const base = String(symbol || "").replace(/_(day|night|polartwilight)$/, "");
+  let category = "cloudy", intensity = "";
+  if (base.includes("thunder")) category = "thunder";
+  else if (base.includes("snow")) category = "snow";
+  else if (base.includes("sleet")) category = "sleet";
+  else if (base.includes("rain")) category = "rain";
+  else if (base === "fog") category = "fog";
+  else if (base === "clearsky") category = "clear";
+  else if (base === "fair") category = "fair";
+  else if (base === "partlycloudy") category = "partly";
+  if (base.startsWith("light")) intensity = "light";
+  else if (base.startsWith("heavy")) intensity = "heavy";
+  return { category, intensity };
+}
+
+// Pulls the restaurant's local day out of MET Norway's hourly series.
+function parseMetNoForecast(json, day, tz) {
+  const series = (json && json.properties && json.properties.timeseries) || [];
+  const hours = {};
+  series.forEach((e) => {
+    const lp = localParts(e.time, tz);
+    if (lp.date !== day) return;
+    const inst = e.data && e.data.instant && e.data.instant.details;
+    if (!inst || typeof inst.air_temperature !== "number") return;
+    const n1 = e.data.next_1_hours || e.data.next_6_hours || e.data.next_12_hours;
+    hours[lp.hour] = {
+      temp: inst.air_temperature,
+      symbol: n1 && n1.summary ? n1.summary.symbol_code : null,
+      precip: e.data.next_1_hours && e.data.next_1_hours.details ? e.data.next_1_hours.details.precipitation_amount || 0 : 0,
+    };
+  });
+  const hrs = Object.keys(hours).map(Number).sort((a, b) => a - b);
+  if (!hrs.length) return null;
+  const temps = hrs.map((h) => hours[h].temp);
+  const nearest = (target, lo, hi) => {
+    const cands = hrs.filter((h) => h >= lo && h <= hi).sort((a, b) => Math.abs(a - target) - Math.abs(b - target));
+    return cands.length ? hours[cands[0]] : null;
+  };
+  const lunch = nearest(12, 10, 14);
+  const dinner = nearest(19, 17, 21);
+  const rep = nearest(15, 9, 21) || hours[hrs[0]];
+  const wc = weatherCategory(rep.symbol);
+  const round = (v) => (v === null || v === undefined ? null : Math.round(v));
+  return {
+    tempMax: round(Math.max(...temps)),
+    tempMin: round(Math.min(...temps)),
+    lunchTemp: lunch ? round(lunch.temp) : null,
+    dinnerTemp: dinner ? round(dinner.temp) : null,
+    precipMm: Math.round(hrs.reduce((a, h) => a + (hours[h].precip || 0), 0) * 10) / 10,
+    category: wc.category,
+    intensity: wc.intensity,
+  };
+}
+
+async function fetchWeather(lat, lon, day) {
+  const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`;
+  const json = await fetchJsonTimeout(url, { headers: { "User-Agent": HTTP_UA } });
+  return parseMetNoForecast(json, day, SNAPSHOT_TZ);
+}
+
+function cleanEvents(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  return list
+    .filter((e) => e && typeof e.name === "string" && e.name.trim())
+    .slice(0, 6)
+    .map((e) => ({
+      name: e.name.trim().slice(0, 120),
+      when: typeof e.when === "string" ? e.when.trim().slice(0, 60) : "",
+      where: typeof e.where === "string" ? e.where.trim().slice(0, 120) : "",
+      impact: ["high", "medium", "low"].includes(e.impact) ? e.impact : "low",
+      note: typeof e.note === "string" ? e.note.trim().slice(0, 160) : "",
+    }));
+}
+
+async function fetchNearbyEvents(place, day) {
+  if (!ANTHROPIC_API_KEY) { const e = new Error("not_configured"); e.code = "not_configured"; throw e; }
+  const [city, region, country] = place.split(",").map((x) => x.trim());
+  const aiRes = await fetchJsonTimeout("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
+      max_tokens: 1200,
+      system: "You help a restaurant manager anticipate customer traffic. Search the web for events happening on the given date in the given city that could change restaurant traffic (concerts, sports games, festivals, conferences, parades, big markets, road closures). Only list events you actually found in search results for that exact date; never guess or invent. Reply with ONLY a JSON object: {\"events\":[{\"name\":\"\",\"when\":\"e.g. 7:30 PM\",\"where\":\"venue or area\",\"impact\":\"high|medium|low\",\"note\":\"one short line on how it may affect traffic\"}]}. Use an empty array if nothing relevant was found. At most 5 events, most impactful first.",
+      messages: [{ role: "user", content: `Date: ${day}. City: ${place}.` }],
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3, user_location: { type: "approximate", city, region, country, timezone: SNAPSHOT_TZ } }],
+    }),
+  }, 60000);
+  const text = (aiRes.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const parsed = extractJsonObject(text);
+  if (!parsed) throw new Error("unreadable events answer");
+  return cleanEvents(parsed.events);
+}
+
+async function refreshEvents(restaurantId, day, place) {
+  const key = `${restaurantId}|${day}`;
+  if (eventsInFlight.has(key)) return eventsInFlight.get(key);
+  const work = (async () => {
+    let events = null, error = null;
+    try { events = await fetchNearbyEvents(place, day); }
+    catch (e) { error = e.code === "not_configured" ? "not_configured" : "failed"; if (!e.code) console.error("Events lookup failed:", e.message); }
+    await pool.query(
+      `INSERT INTO day_context (restaurant_id, day, events, events_at, events_error) VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (restaurant_id, day) DO UPDATE SET events = EXCLUDED.events, events_at = EXCLUDED.events_at, events_error = EXCLUDED.events_error`,
+      [restaurantId, day, events ? JSON.stringify(events) : null, Date.now(), error]
+    );
+  })().finally(() => eventsInFlight.delete(key));
+  eventsInFlight.set(key, work);
+  return work;
+}
+
+// Last year's figure for today: the daily number the manager typed in, else last year's matching week averaged per day.
+async function lastYearForDay(restaurantId, day, dailyValue) {
+  if (dailyValue !== null && dailyValue !== undefined) return { amount: Number(dailyValue), basis: "day" };
+  const { rows } = await pool.query("SELECT amount FROM weekly_sales_history WHERE restaurant_id = $1 AND week_start = $2", [restaurantId, addDaysIso(mondayOfIso(day), -364)]);
+  if (rows[0]) return { amount: Math.round((Number(rows[0].amount) / 7) * 100) / 100, basis: "weekAvg" };
+  return { amount: null, basis: null };
+}
+
+app.get("/api/day-snapshot", requireAuth, async (req, res) => {
+  try {
+    const day = ownerToday();
+    const rid = req.restaurantId;
+    const num = (v) => (v !== null && v !== undefined ? Number(v) : null);
+
+    const { rows: pr } = await pool.query("SELECT projected_amount, lunch_amount, last_year_amount FROM sales_projections WHERE restaurant_id = $1 AND proj_date = $2", [rid, day]);
+    const p = pr[0] || {};
+    const sales = {
+      projected: num(p.projected_amount),
+      projectedLunch: num(p.lunch_amount),
+      lastYear: await lastYearForDay(rid, day, num(p.last_year_amount)),
+    };
+
+    const loc = await ensureRestaurantLocation(rid);
+    const out = { date: day, sales, location: loc.status, place: loc.place || "", weather: null, events: null, eventsStatus: null };
+    if (loc.status !== "ok") return res.json(out);
+
+    let { rows: cr } = await pool.query("SELECT * FROM day_context WHERE restaurant_id = $1 AND day = $2", [rid, day]);
+    let ctx = cr[0] || {};
+
+    // weather (quick)
+    if (ctx.weather && ctx.weather_at && Date.now() - Number(ctx.weather_at) < WEATHER_TTL_MS) {
+      out.weather = ctx.weather;
+    } else {
+      try {
+        const w = await fetchWeather(loc.lat, loc.lon, day);
+        out.weather = w || ctx.weather || null;
+        await pool.query(
+          `INSERT INTO day_context (restaurant_id, day, weather, weather_at) VALUES ($1,$2,$3,$4)
+           ON CONFLICT (restaurant_id, day) DO UPDATE SET weather = EXCLUDED.weather, weather_at = EXCLUDED.weather_at`,
+          [rid, day, w ? JSON.stringify(w) : null, Date.now()]
+        );
+      } catch (e) {
+        console.error("Weather lookup failed:", e.message);
+        out.weather = ctx.weather || null;
+      }
+    }
+
+    // events (slow: refreshed in the background, the page asks again while it's pending)
+    const evAge = ctx.events_at ? Date.now() - Number(ctx.events_at) : Infinity;
+    const evFresh = ctx.events_error ? evAge < EVENTS_RETRY_MS : evAge < EVENTS_TTL_MS;
+    if (evFresh) {
+      if (ctx.events_error) out.eventsStatus = ctx.events_error;
+      else { out.events = ctx.events || []; out.eventsStatus = "ok"; }
+    } else {
+      refreshEvents(rid, day, loc.place || "").catch((e) => console.error("Events refresh error:", e.message));
+      out.eventsStatus = "pending";
+      if (ctx.events && !ctx.events_error) out.events = ctx.events; // show yesterday-ish data while refreshing
+    }
+    res.json(out);
+  } catch (e) {
+    console.error("day-snapshot error:", e);
+    res.status(500).json({ error: "Could not build today's snapshot." });
+  }
 });
 
 // ---------- team message board (managers post, every staff member reads) ----------
@@ -3183,4 +3446,4 @@ app.get("/api/owner/overview", requireOwnerAuth, async (req, res) => {
   });
 });
 
-module.exports = { app, pool, initDb };
+module.exports = { app, pool, initDb, parseMetNoForecast, cleanEvents };

@@ -503,6 +503,33 @@
   .svc-head { display: flex; justify-content: space-between; align-items: center; font-family: 'Oswald', sans-serif; font-size: 14px; text-transform: uppercase; letter-spacing: .08em; margin: 16px 0 2px; padding: 6px 10px; border-radius: 4px; background: rgba(35,38,31,0.08); border-left: 4px solid var(--svc, var(--scheduling)); }
   .svc-head .n { font-size: 12px; opacity: .7; letter-spacing: .03em; }
   .svc-empty { font-size: 12.5px; opacity: .6; padding: 6px 10px; }
+  #overviewGrid { display: block; }
+  #contentWrap:has(#panelOverview.active) { max-width: 860px; }
+  .snapshot { padding: 22px 26px 20px; }
+  .snap-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px; border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 4px; }
+  .snap-head .eyebrow-s { font-family: 'Oswald', sans-serif; font-size: 20px; letter-spacing: .06em; text-transform: uppercase; }
+  .snap-head .date { font-size: 14px; opacity: .7; }
+  .snap-sec { margin-top: 18px; }
+  .snap-h { font-family: 'Oswald', sans-serif; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; opacity: .65; margin-bottom: 6px; }
+  .snap-h.sm { margin-top: 14px; }
+  .snap-mgr { display: flex; justify-content: space-between; align-items: baseline; font-size: 18px; padding: 6px 0; border-bottom: 1px dashed rgba(35,38,31,.2); }
+  .snap-mgr .num { font-size: 14px; opacity: .75; }
+  .snap-warn { background: #f3d9cf; color: #8a2f17; padding: 8px 12px; border-radius: 4px; font-size: 14px; }
+  .snap-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+  .snap-tile { background: rgba(35,38,31,.06); border-radius: 6px; padding: 10px 12px; }
+  .snap-tile .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; opacity: .65; }
+  .snap-tile .val { font-family: 'IBM Plex Mono', monospace; font-size: 26px; font-weight: 600; margin-top: 4px; }
+  .snap-tile .sub { font-size: 12px; opacity: .7; margin-top: 3px; }
+  .snap-tile.ok .val { color: #3d6b50; } .snap-tile.warn .val { color: #a8760a; } .snap-tile.bad .val { color: #b3452c; }
+  .snap-empty { font-size: 13.5px; opacity: .75; padding: 4px 0; } .snap-empty a { color: inherit; }
+  .snap-weather { display: flex; align-items: center; gap: 12px; }
+  .snap-weather .ic { font-size: 38px; line-height: 1; }
+  .snap-weather .big { font-size: 20px; font-weight: 600; } .snap-weather .lo { opacity: .6; font-weight: 400; }
+  .snap-weather .sub, .snap-event .sub { font-size: 13px; opacity: .7; }
+  .snap-event { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px dashed rgba(35,38,31,.2); font-size: 14px; }
+  .snap-event .pill { flex-shrink: 0; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 3px 8px; border-radius: 999px; color: #fff; margin-top: 2px; }
+  .snap-event .pill.high { background: #b3452c; } .snap-event .pill.medium { background: #c98a12; } .snap-event .pill.low { background: #7a7566; }
+  .snap-foot { font-size: 11.5px; opacity: .55; margin-top: 6px; }
   .today-group { margin-top: 10px; }
   .today-group-head { display: flex; justify-content: space-between; font-family: 'Oswald', sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; padding-bottom: 2px; }
   .file-pick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -678,7 +705,7 @@
       <div class="tab-panel active" id="panelOverview">
         <div class="module-header">
           <div class="eyebrow" data-i18n="overview.eyebrow">Overview</div>
-          <p data-i18n="overview.desc">Every section feeds this dashboard — tap a card to jump in.</p>
+          <p data-i18n="overview.desc">Today at a glance.</p>
         </div>
         <div class="overview-grid" id="overviewGrid"></div>
       </div>
@@ -905,11 +932,22 @@ const T = {
     ovExtra: { coursesInProgress: "Courses in progress", coursesSub: n => `${n} course${n === 1 ? "" : "s"} total`, salesWeek: "Sales this week", laborPct: p => `${p}% labor cost`, laborUnknown: "Tap to add sales", },
     topbar: { backOffice: "Back Office", logout: "Log out", allRestaurants: "← Restaurants" },
     overview: {
-      eyebrow: "Overview", desc: "Every section feeds this dashboard — tap a card to jump in.",
+      eyebrow: "Overview", desc: "Today at a glance.",
       openShifts: "Open shifts", posted: n => `${n} posted`, nonePosted: "None posted yet",
       staffLabel: "Staff", manageRoster: "Tap to manage roster",
       openPostings: "Open postings", applicantsTotal: n => `${n} applicant${n === 1 ? "" : "s"} total`,
       aiAgent: "AI agent", askLabel: "Ask", askSub: "Ask about staffing, cost, or hiring",
+    },
+    snap: {
+      staffByRole: "How many staff, by role", title: "Today's snapshot", managerOnDuty: "Manager on duty", noManager: "No manager scheduled today",
+      forecastSales: "Forecast sales", noForecast: "Enter today's forecast in Back Office › Schedule", lastYear: "Last year, same day", lastYearAvg: "average day, same week last year", noLastYear: "Add it in Back Office › Schedule",
+      vsLastYear: "vs last year", laborScheduled: "Labor scheduled", laborPct: "Forecast labor %", needForecast: "Needs a sales forecast",
+      lunchShort: "Lunch", dinnerShort: "Dinner", whoScheduled: "Who's scheduled", weatherEvents: "Weather & events", eventsNearby: "Events nearby that may affect traffic",
+      loading: "Loading…", needAddress: "Add your restaurant's address to see the weather and local events.", needAddressLink: "Add it in the Hiring tab", geoFailed: "We couldn't locate that address — check it in the Hiring tab.",
+      weatherUnavailable: "Weather isn't available right now.", precip: "precip.",
+      eventsPending: "Looking up local events…", eventsNone: "No notable events found for today.", eventsNotConfigured: "Local events need the AI agent to be set up.", eventsFailed: "Couldn't look up local events right now.",
+      eventsNote: "Found with a web search — double-check before planning around them.", impact_high: "High", impact_medium: "Medium", impact_low: "Low",
+      wc: { clear: "Clear", fair: "Mostly clear", partly: "Partly cloudy", cloudy: "Cloudy", fog: "Fog", rain: "Rain", lightrain: "Light rain", heavyrain: "Heavy rain", snow: "Snow", lightsnow: "Light snow", heavysnow: "Heavy snow", sleet: "Sleet", thunder: "Thunderstorms" },
     },
     scheduling: {
       swapCard: "Shift swap requests", swapNone: "No swap or give-away requests.", swapOverview: n => `${n} swap request${n === 1 ? "" : "s"} to approve`,
@@ -1044,11 +1082,22 @@ const T = {
     ovExtra: { coursesInProgress: "Cours en cours", coursesSub: n => `${n} cours au total`, salesWeek: "Ventes cette semaine", laborPct: p => `${p}% coût de main-d'œuvre`, laborUnknown: "Touchez pour ajouter des ventes", },
     topbar: { backOffice: "Back Office", logout: "Déconnexion", allRestaurants: "← Restaurants" },
     overview: {
-      eyebrow: "Aperçu", desc: "Chaque section alimente ce tableau de bord — touchez une carte pour y accéder.",
+      eyebrow: "Aperçu", desc: "Aujourd'hui en un coup d'œil.",
       openShifts: "Quarts ouverts", posted: n => `${n} publiés`, nonePosted: "Aucun publié",
       staffLabel: "Personnel", manageRoster: "Touchez pour gérer l'équipe",
       openPostings: "Postes ouverts", applicantsTotal: n => `${n} candidature${n === 1 ? "" : "s"} au total`,
       aiAgent: "Agent IA", askLabel: "Demander", askSub: "Posez une question sur le personnel, les coûts ou l'embauche",
+    },
+    snap: {
+      staffByRole: "Combien de personnes, par poste", title: "Aperçu du jour", managerOnDuty: "Gérant en service", noManager: "Aucun gérant à l'horaire aujourd'hui",
+      forecastSales: "Ventes prévues", noForecast: "Entrez la prévision du jour dans l'arrière-boutique › Horaire", lastYear: "Même jour l'an dernier", lastYearAvg: "journée moyenne, même semaine l'an dernier", noLastYear: "À ajouter dans l'arrière-boutique › Horaire",
+      vsLastYear: "vs l'an dernier", laborScheduled: "Main-d'œuvre prévue", laborPct: "% main-d'œuvre prévu", needForecast: "Prévision de ventes requise",
+      lunchShort: "Dîner", dinnerShort: "Souper", whoScheduled: "Qui travaille", weatherEvents: "Météo et événements", eventsNearby: "Événements à proximité pouvant influencer l'achalandage",
+      loading: "Chargement…", needAddress: "Ajoutez l'adresse du restaurant pour voir la météo et les événements locaux.", needAddressLink: "À ajouter dans l'onglet Embauche", geoFailed: "Adresse introuvable — vérifiez-la dans l'onglet Embauche.",
+      weatherUnavailable: "La météo n'est pas disponible pour le moment.", precip: "précip.",
+      eventsPending: "Recherche des événements locaux…", eventsNone: "Aucun événement notable trouvé aujourd'hui.", eventsNotConfigured: "Les événements locaux nécessitent l'agent IA.", eventsFailed: "Impossible de chercher les événements locaux pour le moment.",
+      eventsNote: "Trouvés par recherche web — vérifiez avant d'en tenir compte.", impact_high: "Élevé", impact_medium: "Moyen", impact_low: "Faible",
+      wc: { clear: "Dégagé", fair: "Généralement dégagé", partly: "Partiellement nuageux", cloudy: "Nuageux", fog: "Brouillard", rain: "Pluie", lightrain: "Pluie légère", heavyrain: "Forte pluie", snow: "Neige", lightsnow: "Faible neige", heavysnow: "Forte neige", sleet: "Verglas", thunder: "Orages" },
     },
     scheduling: {
       swapCard: "Demandes d'échange de quarts", swapNone: "Aucune demande d'échange ou de cession.", swapOverview: n => `${n} demande${n === 1 ? "" : "s"} d'échange à approuver`,
@@ -1183,11 +1232,22 @@ const T = {
     ovExtra: { coursesInProgress: "Cursos en progreso", coursesSub: n => `${n} curso${n === 1 ? "" : "s"} en total`, salesWeek: "Ventas esta semana", laborPct: p => `${p}% costo de mano de obra`, laborUnknown: "Toca para agregar ventas", },
     topbar: { backOffice: "Back Office", logout: "Cerrar sesión", allRestaurants: "← Restaurantes" },
     overview: {
-      eyebrow: "Resumen", desc: "Cada sección alimenta este panel — toca una tarjeta para acceder.",
+      eyebrow: "Resumen", desc: "Hoy de un vistazo.",
       openShifts: "Turnos abiertos", posted: n => `${n} publicados`, nonePosted: "Ninguno publicado",
       staffLabel: "Personal", manageRoster: "Toca para administrar el personal",
       openPostings: "Vacantes abiertas", applicantsTotal: n => `${n} candidato${n === 1 ? "" : "s"} en total`,
       aiAgent: "Agente IA", askLabel: "Preguntar", askSub: "Pregunta sobre personal, costos o contratación",
+    },
+    snap: {
+      staffByRole: "Cuántas personas, por puesto", title: "Resumen del día", managerOnDuty: "Gerente de turno", noManager: "Ningún gerente programado hoy",
+      forecastSales: "Ventas proyectadas", noForecast: "Ingresa la proyección de hoy en Administración › Horario", lastYear: "Mismo día el año pasado", lastYearAvg: "día promedio, misma semana del año pasado", noLastYear: "Agrégalo en Administración › Horario",
+      vsLastYear: "vs año pasado", laborScheduled: "Mano de obra programada", laborPct: "% de mano de obra proyectado", needForecast: "Requiere proyección de ventas",
+      lunchShort: "Almuerzo", dinnerShort: "Cena", whoScheduled: "Quién trabaja", weatherEvents: "Clima y eventos", eventsNearby: "Eventos cercanos que podrían afectar el tráfico",
+      loading: "Cargando…", needAddress: "Agrega la dirección del restaurante para ver el clima y los eventos locales.", needAddressLink: "Agrégala en la pestaña Contratación", geoFailed: "No pudimos ubicar esa dirección — revísala en la pestaña Contratación.",
+      weatherUnavailable: "El clima no está disponible ahora.", precip: "precip.",
+      eventsPending: "Buscando eventos locales…", eventsNone: "No se encontraron eventos relevantes hoy.", eventsNotConfigured: "Los eventos locales requieren configurar el agente de IA.", eventsFailed: "No se pudieron buscar los eventos locales ahora.",
+      eventsNote: "Encontrados con una búsqueda web — verifícalos antes de planificar.", impact_high: "Alto", impact_medium: "Medio", impact_low: "Bajo",
+      wc: { clear: "Despejado", fair: "Mayormente despejado", partly: "Parcialmente nublado", cloudy: "Nublado", fog: "Niebla", rain: "Lluvia", lightrain: "Lluvia ligera", heavyrain: "Lluvia fuerte", snow: "Nieve", lightsnow: "Nieve ligera", heavysnow: "Nevada fuerte", sleet: "Aguanieve", thunder: "Tormentas" },
     },
     scheduling: {
       swapCard: "Solicitudes de cambio de turnos", swapNone: "No hay solicitudes de cambio ni de cesión.", swapOverview: n => `${n} solicitud${n === 1 ? "" : "es"} de cambio por aprobar`,
@@ -1332,8 +1392,9 @@ renderLangSwitch("landingLangSwitch");
 renderLangSwitch("appLangSwitch");
 applyStaticTranslations();
 
-const ROLES = ["Line Cook", "Server", "Host", "Bartender", "Busser", "Dishwasher", "Prep Cook", "Expo"];
+const ROLES = ["Manager", "Server", "Bartender", "Busser", "Host", "Line Cook", "Dishwasher", "Prep Cook", "Expo"];
 const ROLE_LABELS = {
+  "Manager": { en: "Manager", fr: "Gérant(e)", es: "Gerente" },
   "Line Cook": { en: "Line Cook", fr: "Cuisinier de ligne", es: "Cocinero de línea" },
   "Server": { en: "Server", fr: "Serveur/Serveuse", es: "Mesero/a" },
   "Host": { en: "Host", fr: "Hôte/Hôtesse", es: "Anfitrión/a" },
@@ -1534,6 +1595,8 @@ async function loadAll() {
   const td = await api(`/api/schedule?start=${todayIso}&end=${todayIso}`);
   if (td.ok) todayShifts = td.data;
   render();
+  daySnapTries = 0;
+  loadDaySnapshot();
   if (!payroll || currentTab === "payroll") loadPayroll();
 }
 
@@ -1558,10 +1621,8 @@ function fmtClock(hhmm) {
   return `${h12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
 }
 
-// Staff on today's schedule, grouped by position, with a headcount per position.
-function renderToday() {
-  const el = document.getElementById("todayScheduled");
-  if (!el) return;
+// Today's scheduled people grouped by service (lunch/brunch, dinner) and position — shared by the Scheduling tab and the Overview snapshot.
+function todayBreakdown() {
   const byStaff = new Map(); // one row per person: they may have more than one shift today
   todayShifts.forEach(sh => {
     const person = staff.find(p => p.id === sh.staffId);
@@ -1574,27 +1635,14 @@ function renderToday() {
   });
   const entries = [...byStaff.values()];
   const uniquePeople = new Set(entries.map(e => e.person.id)).size;
-  const dateLabel = new Date().toLocaleDateString(localeForLang(), { weekday: "long", month: "short", day: "numeric" });
-
-  if (entries.length === 0) {
-    el.innerHTML = `
-      <div class="stub plain">
-        <div class="meta" style="margin:0">${escapeHtml(dateLabel)}</div>
-        <h3>${t("scheduling.todayEmpty")}</h3>
-        <div class="meta">${t("scheduling.todayEmptyHint")}</div>
-        <a class="mini outline" style="text-decoration:none;display:inline-block" href="/backoffice.html">${t("scheduling.openBackOffice")}</a>
-      </div>`;
-    return;
-  }
-
-  const order = ["Server", "Host", "Bartender", "Busser", "Line Cook", "Prep Cook", "Dishwasher", "Expo"]; // front of house first
+  const order = ["Manager", "Server", "Bartender", "Busser", "Host", "Line Cook", "Prep Cook", "Dishwasher", "Expo"]; // front of house first
   const sortKeys = keys => keys.sort((a, b) => {
     const ia = order.indexOf(a), ib = order.indexOf(b);
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
   });
   const allGroups = new Map();
-  entries.forEach(e => { const k = e.role || ""; allGroups.set(k, (allGroups.get(k) || 0) + 1); });
-  const chips = sortKeys([...allGroups.keys()]).map(k => `<span class="pos-chip"><b>${allGroups.get(k)}</b> ${escapeHtml(k ? roleLabel(k) : t("scheduling.todayUnknownPosition"))}</span>`).join("");
+  entries.forEach(e => { const k = e.role || ""; if (!allGroups.has(k)) allGroups.set(k, new Set()); allGroups.get(k).add(e.person.id); });
+  const chips = sortKeys([...allGroups.keys()]).map(k => `<span class="pos-chip"><b>${allGroups.get(k).size}</b> ${escapeHtml(k ? roleLabel(k) : t("scheduling.todayUnknownPosition"))}</span>`).join("");
 
   const serviceBlock = (svc, label, color) => {
     const list = entries.filter(e => e.svc === svc);
@@ -1617,6 +1665,26 @@ function renderToday() {
     }).join("");
   };
   const body = serviceBlock("lunch", t("scheduling.svcLunch"), "#E2A33B") + serviceBlock("dinner", t("scheduling.svcDinner"), "#B5456B");
+  return { entries, uniquePeople, chips, body };
+}
+
+// Staff on today's schedule, grouped by position, with a headcount per position.
+function renderToday() {
+  const el = document.getElementById("todayScheduled");
+  if (!el) return;
+  const { entries, uniquePeople, chips, body } = todayBreakdown();
+  const dateLabel = new Date().toLocaleDateString(localeForLang(), { weekday: "long", month: "short", day: "numeric" });
+
+  if (entries.length === 0) {
+    el.innerHTML = `
+      <div class="stub plain">
+        <div class="meta" style="margin:0">${escapeHtml(dateLabel)}</div>
+        <h3>${t("scheduling.todayEmpty")}</h3>
+        <div class="meta">${t("scheduling.todayEmptyHint")}</div>
+        <a class="mini outline" style="text-decoration:none;display:inline-block" href="/backoffice.html">${t("scheduling.openBackOffice")}</a>
+      </div>`;
+    return;
+  }
 
   el.innerHTML = `
     <div class="stub" style="--accent:var(--scheduling)">
@@ -1804,27 +1872,122 @@ function render() {
   renderPayroll();
 }
 
+/* ============================== Overview: one snapshot card ============================== */
+let daySnap = null, daySnapTimer = null, daySnapTries = 0;
+async function loadDaySnapshot() {
+  clearTimeout(daySnapTimer);
+  const r = await api("/api/day-snapshot");
+  if (!r.ok) return;
+  daySnap = r.data;
+  renderOverview();
+  // the events search runs in the background on the server; ask again until it lands
+  if (daySnap.eventsStatus === "pending" && daySnapTries < 8) { daySnapTries++; daySnapTimer = setTimeout(loadDaySnapshot, 9000); }
+}
+
+function shiftHours(start, end) {
+  const [sh, sm] = String(start).split(":").map(Number), [eh, em] = String(end).split(":").map(Number);
+  let a = sh * 60 + (sm || 0), b = eh * 60 + (em || 0);
+  if (b <= a) b += 24 * 60;
+  return (b - a) / 60;
+}
+
 function renderOverview() {
-  const grid = document.getElementById("overviewGrid");
-  if (!grid) return;
-  const openShiftCount = shifts.filter(s => s.status === "open").length;
-  const openPostings = postings.filter(p => p.status === "open").length;
-  const stats = [
-    { id: "comms", accent: "var(--comms)", label: t("overview.aiAgent"), value: t("overview.askLabel"), sub: t("overview.askSub") },
-    { id: "shifts", accent: "var(--scheduling)", label: t("overview.openShifts"), value: openShiftCount, sub: swapRequests.some(w => w.status === "pending") ? t("scheduling.swapOverview", swapRequests.filter(w => w.status === "pending").length) : (shifts.length ? t("overview.posted", shifts.length) : t("overview.nonePosted")) },
-    { id: "staff", accent: "var(--staffcolor)", label: t("overview.staffLabel"), value: staff.length, sub: t("overview.manageRoster") },
-    { id: "payroll", accent: "var(--payroll)", label: t("ovExtra.salesWeek"), value: payroll && payrollNumbers().totalSales > 0 ? "$" + money(payrollNumbers().totalSales) : "—", sub: payroll && payrollNumbers().laborPct !== null ? t("ovExtra.laborPct", payrollNumbers().laborPct) : t("ovExtra.laborUnknown") },
-    { id: "training", accent: "var(--training)", label: t("ovExtra.coursesInProgress"), value: trainingItems.filter(i => i.kind === "course" && i.assignments.some(a => !a.done)).length, sub: t("ovExtra.coursesSub", trainingItems.filter(i => i.kind === "course").length) },
-    { id: "hiring", accent: "var(--hiring)", label: t("overview.openPostings"), value: openPostings, sub: t("overview.applicantsTotal", applications.length) },
-  ];
-  grid.innerHTML = stats.map(s => `
-    <div class="overview-card" style="--accent:${s.accent}" onclick="switchTab('${s.id}')">
-      <div class="corner"></div>
-      <div class="label">${s.label}</div>
-      <div class="big-num">${s.value}</div>
-      <div class="sub">${s.sub}</div>
-    </div>
-  `).join("");
+  const el = document.getElementById("overviewGrid");
+  if (!el) return;
+  const S = k => t("snap." + k);
+  const dateLabel = new Date().toLocaleDateString(localeForLang(), { weekday: "long", month: "long", day: "numeric" });
+
+  // manager(s) on duty today
+  const mgrs = todayShifts
+    .filter(sh => sh.role === "Manager" || (!sh.role && (staff.find(p => p.id === sh.staffId) || {}).roles && staff.find(p => p.id === sh.staffId).roles[0] === "Manager"))
+    .map(sh => ({ name: (staff.find(p => p.id === sh.staffId) || {}).name || "?", start: sh.startTime, end: sh.endTime }))
+    .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+  const mgrHtml = mgrs.length
+    ? mgrs.map(m => `<div class="snap-mgr"><b>${escapeHtml(m.name)}</b><span class="num">${fmtClock(m.start)}–${fmtClock(m.end)}</span></div>`).join("")
+    : `<div class="snap-warn">${S("noManager")}</div>`;
+
+  // sales + labor
+  const sales = (daySnap && daySnap.sales) || {};
+  const forecast = sales.projected;
+  const ly = sales.lastYear || {};
+  let laborCost = 0;
+  todayShifts.forEach(sh => { const p = staff.find(x => x.id === sh.staffId); laborCost += shiftHours(sh.startTime, sh.endTime) * ((p && p.hourlyRate) || 0); });
+  const laborPct = forecast && forecast > 0 ? (laborCost / forecast) * 100 : null;
+  const pctCls = laborPct === null ? "" : laborPct < 25 ? "ok" : laborPct < 35 ? "warn" : "bad";
+  const m0 = v => "$" + Math.round(v).toLocaleString(localeForLang());
+  const tile = (label, value, sub, cls) => `<div class="snap-tile ${cls || ""}"><div class="lbl">${label}</div><div class="val">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
+  const lyVs = (forecast && ly.amount) ? (() => { const d = Math.round((forecast / ly.amount - 1) * 100); return `${d >= 0 ? "+" : ""}${d}% ${S("vsLastYear")}`; })() : "";
+  const tiles = [
+    tile(S("forecastSales"), forecast !== null && forecast !== undefined ? m0(forecast) : "—", forecast ? (sales.projectedLunch ? `${S("lunchShort")} ${m0(sales.projectedLunch)} · ${S("dinnerShort")} ${m0(forecast - sales.projectedLunch)}` : lyVs) : S("noForecast")),
+    tile(S("lastYear"), ly.amount !== null && ly.amount !== undefined ? (ly.basis === "weekAvg" ? "~" : "") + m0(ly.amount) : "—", ly.basis === "weekAvg" ? S("lastYearAvg") : (ly.amount ? lyVs : S("noLastYear"))),
+    tile(S("laborScheduled"), todayShifts.length ? m0(laborCost) : "—", ""),
+    tile(S("laborPct"), laborPct !== null ? laborPct.toFixed(1) + "%" : "—", laborPct === null ? S("needForecast") : "", pctCls),
+  ].join("");
+
+  // staff by role + who's scheduled
+  const tb = todayBreakdown();
+  const emptyHtml = `<div class="snap-empty">${t("scheduling.todayEmpty")} <a href="/backoffice.html">${t("scheduling.openBackOffice")}</a></div>`;
+  const chipsHtml = tb.entries.length ? `<div class="pos-chips">${tb.chips}</div>` : emptyHtml;
+  const scheduled = tb.entries.length ? tb.body : emptyHtml;
+
+  // weather + events
+  let weatherHtml = "", eventsHtml = "";
+  const sn = daySnap;
+  if (!sn) {
+    weatherHtml = `<div class="snap-empty">${S("loading")}</div>`;
+  } else if (sn.location === "no_address") {
+    weatherHtml = `<div class="snap-empty">${S("needAddress")} <a href="#" onclick="switchTab('hiring');return false;">${S("needAddressLink")}</a></div>`;
+  } else if (sn.location === "geocode_failed") {
+    weatherHtml = `<div class="snap-empty">${S("geoFailed")}</div>`;
+  } else {
+    const w = sn.weather;
+    if (w) {
+      const icons = { clear: "☀️", fair: "🌤️", partly: "⛅", cloudy: "☁️", fog: "🌫️", rain: "🌧️", snow: "🌨️", sleet: "🌨️", thunder: "⛈️" };
+      const wcKey = (w.intensity && T[LANG].snap.wc[w.intensity + w.category]) ? w.intensity + w.category : w.category;
+      const label = T[LANG].snap.wc[wcKey] || T.en.snap.wc[wcKey] || "";
+      weatherHtml = `
+        <div class="snap-weather">
+          <span class="ic">${icons[w.category] || "🌡️"}</span>
+          <div>
+            <div class="big">${w.tempMax}°C <span class="lo">/ ${w.tempMin}°C</span> · ${escapeHtml(label)}</div>
+            <div class="sub">${w.lunchTemp !== null ? `${S("lunchShort")} ${w.lunchTemp}°` : ""}${w.lunchTemp !== null && w.dinnerTemp !== null ? " · " : ""}${w.dinnerTemp !== null ? `${S("dinnerShort")} ${w.dinnerTemp}°` : ""}${w.precipMm > 0 ? ` · ${S("precip")} ${w.precipMm} mm` : ""}</div>
+          </div>
+        </div>`;
+    } else {
+      weatherHtml = `<div class="snap-empty">${S("weatherUnavailable")}</div>`;
+    }
+    if (sn.events && sn.events.length) {
+      eventsHtml = sn.events.map(e => `
+        <div class="snap-event">
+          <span class="pill ${e.impact}">${S("impact_" + e.impact)}</span>
+          <div><b>${escapeHtml(e.name)}</b>${e.when ? ` · ${escapeHtml(e.when)}` : ""}${e.where ? ` · ${escapeHtml(e.where)}` : ""}${e.note ? `<div class="sub">${escapeHtml(e.note)}</div>` : ""}</div>
+        </div>`).join("") + `<div class="snap-foot">${S("eventsNote")}</div>`;
+    } else if (sn.eventsStatus === "pending") {
+      eventsHtml = `<div class="snap-empty">${S("eventsPending")}</div>`;
+    } else if (sn.eventsStatus === "ok") {
+      eventsHtml = `<div class="snap-empty">${S("eventsNone")}</div>`;
+    } else if (sn.eventsStatus === "not_configured") {
+      eventsHtml = `<div class="snap-empty">${S("eventsNotConfigured")}</div>`;
+    } else {
+      eventsHtml = `<div class="snap-empty">${S("eventsFailed")}</div>`;
+    }
+  }
+
+  el.innerHTML = `
+    <div class="stub snapshot" style="--accent:var(--scheduling)">
+      <div class="snap-head"><div class="eyebrow-s">${S("title")}</div><div class="date">${escapeHtml(dateLabel)}</div></div>
+
+      <div class="snap-sec"><div class="snap-h">${S("managerOnDuty")}</div>${mgrHtml}</div>
+      <div class="snap-tiles">${tiles}</div>
+
+      <div class="snap-sec"><div class="snap-h">${S("staffByRole")}</div>${chipsHtml}</div>
+      <div class="snap-sec"><div class="snap-h">${S("whoScheduled")}</div>${scheduled}</div>
+
+      <div class="snap-sec"><div class="snap-h">${S("weatherEvents")}</div>
+        ${weatherHtml}
+        ${eventsHtml ? `<div class="snap-h sm">${S("eventsNearby")}</div>${eventsHtml}` : ""}
+      </div>
+    </div>`;
 }
 
 /* ============================== Shift swaps ============================== */

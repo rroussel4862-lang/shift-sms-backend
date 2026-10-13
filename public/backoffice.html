@@ -461,6 +461,7 @@
             <tr class="proj-row" id="scheduleProjRow"></tr>
             <tr class="proj-row sub-row" id="scheduleProjLunchRow"></tr>
             <tr class="proj-row sub-row" id="scheduleProjDinnerRow"></tr>
+            <tr class="proj-row" id="scheduleLastYearRow"></tr>
             <tr class="index-row" id="scheduleIndexRow"></tr>
           </thead>
           <tbody id="scheduleBody"></tbody>
@@ -534,7 +535,7 @@ I18N.add({
     "err.network": "Network error — is the server running?",
     "sched.h2": "Weekly schedule", "sched.desc": "Assign staff to shifts for the week. Drag a shift to move it, or copy/paste it to another day. Hours and labor cost are calculated live from each person's rate.",
     "sched.foh": "Front of House", "sched.boh": "Back of House", "sched.prev": "← Prev week", "sched.next": "Next week →", "sched.today": "This week",
-    "sched.copied": "Shift copied — click \"Paste here\" on any cell to duplicate it.", "sched.discard": "Discard", "sched.saveDrafts": "Save shifts", "sched.unsaved1": "1 pasted shift not saved yet", "sched.unsavedN": "{n} pasted shifts not saved yet", "sched.laborShort": "labor", "sched.svcBoth": "Both services", "sched.svcLunch": "Lunch / Brunch", "sched.svcDinner": "Dinner", "sched.saveFail": "{n} shift(s) could not be saved and were kept for review.",
+    "sched.copied": "Shift copied — click \"Paste here\" on any cell to duplicate it.", "sched.discard": "Discard", "sched.saveDrafts": "Save shifts", "sched.unsaved1": "1 pasted shift not saved yet", "sched.unsavedN": "{n} pasted shifts not saved yet", "sched.lastYear": "Last year, same day", "sched.laborShort": "labor", "sched.svcBoth": "Both services", "sched.svcLunch": "Lunch / Brunch", "sched.svcDinner": "Dinner", "sched.saveFail": "{n} shift(s) could not be saved and were kept for review.",
     "sched.staffCol": "Staff", "sched.total": "Total", "sched.aiForecast": "AI forecast", "sched.notYet": "not yet available", "sched.actual": "Actual sales", "sched.projected": "Projected sales",
     "sched.dailyTotals": "Daily totals", "sched.laborIndex": "Labor cost index",
     "sched.aiTitle": "✨ AI scheduler", "sched.aiHint": "Describe the week in plain words. The AI fills the grid for the staff shown below, respecting their availability. You'll preview it before anything is saved.",
@@ -549,7 +550,7 @@ I18N.add({
     "sched.rolePh": "Role (optional)", "sched.addShift": "+ Add", "sched.paste": "Paste here", "common.edit": "Edit", "common.cancel": "Cancel", "common.save": "Save", "common.copy": "Copy", "common.delete": "Delete",
     "house.foh": "FOH", "house.boh": "BOH",
     "days.0": "Mon", "days.1": "Tue", "days.2": "Wed", "days.3": "Thu", "days.4": "Fri", "days.5": "Sat", "days.6": "Sun",
-    "role.Line Cook": "Line Cook", "role.Server": "Server", "role.Host": "Host", "role.Bartender": "Bartender", "role.Busser": "Busser", "role.Dishwasher": "Dishwasher", "role.Prep Cook": "Prep Cook", "role.Expo": "Expo",
+    "role.Manager": "Manager", "role.Line Cook": "Line Cook", "role.Server": "Server", "role.Host": "Host", "role.Bartender": "Bartender", "role.Busser": "Busser", "role.Dishwasher": "Dishwasher", "role.Prep Cook": "Prep Cook", "role.Expo": "Expo",
   },
   fr: {
     title: "Arrière-boutique — Open Shift Rail",
@@ -577,7 +578,7 @@ I18N.add({
     "err.network": "Erreur réseau — le serveur est-il en marche?",
     "sched.h2": "Horaire de la semaine", "sched.desc": "Assignez le personnel aux quarts de la semaine. Glissez un quart pour le déplacer, ou copiez-collez-le à un autre jour. Les heures et le coût de la main-d'œuvre sont calculés en direct selon le taux de chaque personne.",
     "sched.foh": "Salle", "sched.boh": "Cuisine", "sched.prev": "← Semaine préc.", "sched.next": "Semaine suiv. →", "sched.today": "Cette semaine",
-    "sched.copied": "Quart copié — cliquez sur « Coller ici » dans n'importe quelle case pour le dupliquer.", "sched.discard": "Annuler", "sched.saveDrafts": "Enregistrer les quarts", "sched.unsaved1": "1 quart collé non enregistré", "sched.unsavedN": "{n} quarts collés non enregistrés", "sched.laborShort": "main-d'œuvre", "sched.svcBoth": "Les deux services", "sched.svcLunch": "Dîner / Brunch", "sched.svcDinner": "Souper", "sched.saveFail": "{n} quart(s) n'ont pas pu être enregistrés et ont été conservés.",
+    "sched.copied": "Quart copié — cliquez sur « Coller ici » dans n'importe quelle case pour le dupliquer.", "sched.discard": "Annuler", "sched.saveDrafts": "Enregistrer les quarts", "sched.unsaved1": "1 quart collé non enregistré", "sched.unsavedN": "{n} quarts collés non enregistrés", "sched.lastYear": "Même jour l'an dernier", "sched.laborShort": "main-d'œuvre", "sched.svcBoth": "Les deux services", "sched.svcLunch": "Dîner / Brunch", "sched.svcDinner": "Souper", "sched.saveFail": "{n} quart(s) n'ont pas pu être enregistrés et ont été conservés.",
     "sched.staffCol": "Personnel", "sched.total": "Total", "sched.aiForecast": "Prévision IA", "sched.notYet": "pas encore disponible", "sched.actual": "Ventes réelles", "sched.projected": "Ventes prévues",
     "sched.dailyTotals": "Totaux quotidiens", "sched.laborIndex": "Indice du coût de main-d'œuvre",
     "sched.aiTitle": "✨ Planificateur IA", "sched.aiHint": "Décrivez la semaine en mots simples. L'IA remplit la grille pour le personnel affiché ci-dessous, selon leurs disponibilités. Vous verrez un aperçu avant l'enregistrement.",
@@ -592,7 +593,7 @@ I18N.add({
     "sched.rolePh": "Poste (facultatif)", "sched.addShift": "+ Ajouter", "sched.paste": "Coller ici", "common.edit": "Modifier", "common.cancel": "Annuler", "common.save": "Enregistrer", "common.copy": "Copier", "common.delete": "Supprimer",
     "house.foh": "Salle", "house.boh": "Cuisine",
     "days.0": "Lun", "days.1": "Mar", "days.2": "Mer", "days.3": "Jeu", "days.4": "Ven", "days.5": "Sam", "days.6": "Dim",
-    "role.Line Cook": "Cuisinier de ligne", "role.Server": "Serveur/Serveuse", "role.Host": "Hôte/Hôtesse", "role.Bartender": "Barman/Barmaid", "role.Busser": "Aide-serveur", "role.Dishwasher": "Plongeur/Plongeuse", "role.Prep Cook": "Cuisinier de préparation", "role.Expo": "Expéditeur",
+    "role.Manager": "Gérant(e)", "role.Line Cook": "Cuisinier de ligne", "role.Server": "Serveur/Serveuse", "role.Host": "Hôte/Hôtesse", "role.Bartender": "Barman/Barmaid", "role.Busser": "Aide-serveur", "role.Dishwasher": "Plongeur/Plongeuse", "role.Prep Cook": "Cuisinier de préparation", "role.Expo": "Expéditeur",
   },
   es: {
     title: "Oficina — Open Shift Rail",
@@ -620,7 +621,7 @@ I18N.add({
     "err.network": "Error de red — ¿está el servidor en marcha?",
     "sched.h2": "Horario semanal", "sched.desc": "Asigna personal a los turnos de la semana. Arrastra un turno para moverlo, o cópialo y pégalo en otro día. Las horas y el costo laboral se calculan en vivo según la tarifa de cada persona.",
     "sched.foh": "Salón", "sched.boh": "Cocina", "sched.prev": "← Semana ant.", "sched.next": "Semana sig. →", "sched.today": "Esta semana",
-    "sched.copied": "Turno copiado — haz clic en «Pegar aquí» en cualquier celda para duplicarlo.", "sched.discard": "Descartar", "sched.saveDrafts": "Guardar turnos", "sched.unsaved1": "1 turno pegado sin guardar", "sched.unsavedN": "{n} turnos pegados sin guardar", "sched.laborShort": "mano de obra", "sched.svcBoth": "Ambos servicios", "sched.svcLunch": "Almuerzo / Brunch", "sched.svcDinner": "Cena", "sched.saveFail": "{n} turno(s) no se pudieron guardar y se conservaron.",
+    "sched.copied": "Turno copiado — haz clic en «Pegar aquí» en cualquier celda para duplicarlo.", "sched.discard": "Descartar", "sched.saveDrafts": "Guardar turnos", "sched.unsaved1": "1 turno pegado sin guardar", "sched.unsavedN": "{n} turnos pegados sin guardar", "sched.lastYear": "Mismo día el año pasado", "sched.laborShort": "mano de obra", "sched.svcBoth": "Ambos servicios", "sched.svcLunch": "Almuerzo / Brunch", "sched.svcDinner": "Cena", "sched.saveFail": "{n} turno(s) no se pudieron guardar y se conservaron.",
     "sched.staffCol": "Personal", "sched.total": "Total", "sched.aiForecast": "Pronóstico IA", "sched.notYet": "aún no disponible", "sched.actual": "Ventas reales", "sched.projected": "Ventas proyectadas",
     "sched.dailyTotals": "Totales diarios", "sched.laborIndex": "Índice de costo laboral",
     "sched.aiTitle": "✨ Planificador IA", "sched.aiHint": "Describe la semana con tus palabras. La IA llena la cuadrícula del personal mostrado abajo, respetando su disponibilidad. Verás una vista previa antes de guardar nada.",
@@ -635,7 +636,7 @@ I18N.add({
     "sched.rolePh": "Puesto (opcional)", "sched.addShift": "+ Agregar", "sched.paste": "Pegar aquí", "common.edit": "Editar", "common.cancel": "Cancelar", "common.save": "Guardar", "common.copy": "Copiar", "common.delete": "Eliminar",
     "house.foh": "Salón", "house.boh": "Cocina",
     "days.0": "Lun", "days.1": "Mar", "days.2": "Mié", "days.3": "Jue", "days.4": "Vie", "days.5": "Sáb", "days.6": "Dom",
-    "role.Line Cook": "Cocinero de línea", "role.Server": "Mesero/a", "role.Host": "Anfitrión/a", "role.Bartender": "Bartender", "role.Busser": "Ayudante de mesero", "role.Dishwasher": "Lavaplatos", "role.Prep Cook": "Cocinero de preparación", "role.Expo": "Expo",
+    "role.Manager": "Gerente", "role.Line Cook": "Cocinero de línea", "role.Server": "Mesero/a", "role.Host": "Anfitrión/a", "role.Bartender": "Bartender", "role.Busser": "Ayudante de mesero", "role.Dishwasher": "Lavaplatos", "role.Prep Cook": "Cocinero de preparación", "role.Expo": "Expo",
   },
 });
 const tr = (k, ...a) => I18N.t(k, ...a);
@@ -644,10 +645,11 @@ const houseLabel = () => tr(houseView === "foh" ? "sched.foh" : "sched.boh");
 const houseShort = () => tr(houseView === "foh" ? "house.foh" : "house.boh");
 
 let staff = [];
-const ROLES = ["Line Cook", "Server", "Host", "Bartender", "Busser", "Dishwasher", "Prep Cook", "Expo"];
-const FOH_ROLES = ["Server", "Host", "Bartender", "Busser"];
+const ROLES = ["Manager", "Server", "Bartender", "Busser", "Host", "Line Cook", "Dishwasher", "Prep Cook", "Expo"];
+const FOH_ROLES = ["Manager", "Server", "Bartender", "Busser", "Host"]; // grid order: manager first
 const BOH_ROLES = ["Line Cook", "Dishwasher", "Prep Cook", "Expo"];
 const ROLE_COLORS = {
+  "Manager": "#B08A1E",
   "Line Cook": "#C1623A",
   "Server": "#4A7FB5",
   "Host": "#8C6FA0",
@@ -666,6 +668,7 @@ let salesProjections = {};
 let actualSales = {};
 let projLunch = {};     // date -> projected lunch/brunch sales
 let actualLunch = {};   // date -> actual lunch/brunch sales
+let lastYearSales = {}; // date -> what the restaurant sold on this weekday a year ago (typed in)
 let actualSource = {};  // date -> 'manual' | 'pos'
 let addingCell = null;
 let editingShiftId = null;
@@ -887,7 +890,8 @@ let aiApplied = null;    // { ids, count } — the last batch added, so it can b
 
 function visibleStaffForView() {
   const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
-  return staff.filter(p => (p.roles || []).some(r => activeRoles.includes(r)));
+  // managers are scheduled by hand — the AI scheduler never fills their shifts
+  return staff.filter(p => (p.roles || []).some(r => r !== "Manager" && activeRoles.includes(r)));
 }
 
 function renderAiSched() {
@@ -1118,9 +1122,9 @@ async function loadSchedule() {
   ]);
   if (shiftsResult.ok) scheduleShifts = shiftsResult.data;
   else showBanner(shiftsResult.error, "warn");
-  salesProjections = {}; projLunch = {}; actualLunch = {}; actualSource = {};
+  salesProjections = {}; projLunch = {}; actualLunch = {}; actualSource = {}; lastYearSales = {};
   if (projResult.ok) {
-    projResult.data.forEach(p => { salesProjections[p.date] = p.projectedAmount; projLunch[p.date] = p.lunchAmount; });
+    projResult.data.forEach(p => { salesProjections[p.date] = p.projectedAmount; projLunch[p.date] = p.lunchAmount; lastYearSales[p.date] = p.lastYearAmount; });
   }
   actualSales = {};
   if (actualResult.ok) {
@@ -1150,6 +1154,16 @@ async function saveProjection(dateStr, value) {
   } else {
     showBanner(result.error, "warn");
   }
+}
+
+async function saveLastYear(dateStr, input) {
+  const raw = input.value.trim().replace(/[$,\s]/g, "");
+  const prev = lastYearSales[dateStr];
+  if ((raw === "" && (prev === null || prev === undefined)) || (raw !== "" && Number(raw) === prev)) return;
+  const result = await api("/api/sales-projections", { method: "PUT", body: JSON.stringify({ date: dateStr, lastYearAmount: raw === "" ? null : raw }) });
+  if (!result.ok) { showBanner(result.error, "warn"); return loadSchedule(); }
+  lastYearSales[dateStr] = result.data.lastYearAmount;
+  renderScheduleGrid();
 }
 
 async function saveLunchSales(kind, dateStr, input) {
@@ -1489,6 +1503,15 @@ function renderScheduleGrid() {
   document.getElementById("scheduleActualDinnerRow").innerHTML = `<td class="row-label sub">↳ ${dinnerLabel}</td>${aD.cells}<td class="day-total">${aD.total}</td>`;
   document.getElementById("scheduleProjLunchRow").innerHTML = `<td class="row-label sub">↳ ${lunchLabel}</td>${pL.cells}<td class="day-total">${pL.total}</td>`;
   document.getElementById("scheduleProjDinnerRow").innerHTML = `<td class="row-label sub">↳ ${dinnerLabel}</td>${pD.cells}<td class="day-total">${pD.total}</td>`;
+
+  let lyTot = 0, lyAny = false;
+  const lyCells = weekDates.map(d => {
+    const dateStr = toISODate(d);
+    const val = lastYearSales[dateStr];
+    if (val !== undefined && val !== null) { lyTot += val; lyAny = true; }
+    return `<td><input type="text" inputmode="decimal" value="${val !== undefined && val !== null ? val : ''}" placeholder="$" onblur="saveLastYear('${dateStr}', this)" /></td>`;
+  }).join("");
+  document.getElementById("scheduleLastYearRow").innerHTML = `<td class="row-label">${tr("sched.lastYear")}</td>${lyCells}<td class="day-total">${lyAny ? money(lyTot) : "—"}</td>`;
 
   const body = document.getElementById("scheduleBody");
   if (groups.length === 0) {
