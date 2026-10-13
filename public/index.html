@@ -1632,7 +1632,8 @@ let applicantFilterPostingId = null;
 
 let swapRequests = [];
 async function loadAll() {
-  const [s, sh, po, ap] = await Promise.all([api("/api/staff"), api("/api/shifts"), api("/api/hiring/postings"), api("/api/hiring/applications")]);
+  const [s, sh, po, ap, sv] = await Promise.all([api("/api/staff"), api("/api/shifts"), api("/api/hiring/postings"), api("/api/hiring/applications"), api("/api/services")]);
+  if (sv.ok && Array.isArray(sv.data.services) && sv.data.services.length) SERVICE_LIST = sv.data.services;
   if (s.ok) staff = s.data;
   if (sh.ok) shifts = sh.data;
   if (po.ok) postings = po.data;
@@ -1674,6 +1675,42 @@ function fmtClock(hhmm) {
 }
 
 // Today's scheduled people grouped by service (lunch/brunch, dinner) and position — shared by the Scheduling tab and the Overview snapshot.
+// Each restaurant's own services (set in Back Office > Schedule > Services & hours). A shift belongs to the last service starting at or before it.
+let SERVICE_LIST = [{ id: "lunch", name: "Lunch / Brunch", from: "00:00" }, { id: "dinner", name: "Dinner", from: "15:00" }];
+const SVC_COLORS = ["#E2A33B", "#B5456B", "#4F7CAC", "#5E8C61"];
+function svcOfTime(startTime) {
+  let sid = SERVICE_LIST[0].id;
+  SERVICE_LIST.forEach(sv => { if ((startTime || "") >= sv.from) sid = sv.id; });
+  return sid;
+}
+function svcLabel(sv) {
+  if (sv.id === "lunch" && sv.name === "Lunch / Brunch") return t("scheduling.svcLunch");
+  if (sv.id === "dinner" && sv.name === "Dinner") return t("scheduling.svcDinner");
+  return sv.name;
+}
+// Temperature around the middle of each service (from the hourly forecast); older cached forecasts only know lunch and dinner.
+function svcTemps(w, list) {
+  const parts = [];
+  list.forEach((sv, i) => {
+    const next = list[i + 1];
+    const startH = sv.from === "00:00" ? 10 : parseInt(sv.from.slice(0, 2), 10);
+    const endH = next ? parseInt(next.from.slice(0, 2), 10) : Math.min(23, startH + 5);
+    const mid = Math.round((startH + Math.max(endH, startH + 1)) / 2);
+    let temp = null;
+    if (w.byHour && Object.keys(w.byHour).length) {
+      const hs = Object.keys(w.byHour).map(Number).sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
+      if (hs.length && Math.abs(hs[0] - mid) <= 3) temp = w.byHour[hs[0]];
+    } else if (sv.id === "lunch") temp = w.lunchTemp;
+    else if (sv.id === "dinner") temp = w.dinnerTemp;
+    if (temp !== null && temp !== undefined) parts.push(`${svcShort(sv)} ${temp}°`);
+  });
+  return parts.join(" · ");
+}
+function svcShort(sv) {
+  if (sv.id === "lunch" && sv.name === "Lunch / Brunch") return T[LANG].snap.lunchShort;
+  if (sv.id === "dinner" && sv.name === "Dinner") return T[LANG].snap.dinnerShort;
+  return sv.name;
+}
 const snapOpenSvc = new Set();
 const snapOpenEvents = new Set();
 function todayBreakdown() {
@@ -1682,7 +1719,7 @@ function todayBreakdown() {
     const person = staff.find(p => p.id === sh.staffId);
     if (!person) return;
     const role = sh.role || (person.roles && person.roles[0]) || "";
-    const svc = (sh.startTime || "") < "15:00" ? "lunch" : "dinner";
+    const svc = svcOfTime(sh.startTime);
     const key = person.id + "|" + role + "|" + svc;
     if (!byStaff.has(key)) byStaff.set(key, { person, role, svc, times: [] });
     byStaff.get(key).times.push({ start: sh.startTime, end: sh.endTime });
@@ -1721,8 +1758,8 @@ function todayBreakdown() {
       </div>`;
     }).join(""));
   };
-  const body = serviceBlock("lunch", t("scheduling.svcLunch"), "#E2A33B") + serviceBlock("dinner", t("scheduling.svcDinner"), "#B5456B");
-  const bodyCollapsed = serviceBlock("lunch", t("scheduling.svcLunch"), "#E2A33B", true) + serviceBlock("dinner", t("scheduling.svcDinner"), "#B5456B", true);
+  const body = SERVICE_LIST.map((sv, i) => serviceBlock(sv.id, svcLabel(sv), SVC_COLORS[i % SVC_COLORS.length])).join("");
+  const bodyCollapsed = SERVICE_LIST.map((sv, i) => serviceBlock(sv.id, svcLabel(sv), SVC_COLORS[i % SVC_COLORS.length], true)).join("");
   return { entries, uniquePeople, chips, body, bodyCollapsed };
 }
 
@@ -1976,14 +2013,19 @@ function renderOverview() {
   const tile = (label, value, sub, cls) => `<div class="snap-tile ${cls || ""}"><div class="lbl">${label}</div><div class="val">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
   const lyVs = (forecast && ly.amount) ? (() => { const d = Math.round((forecast / ly.amount - 1) * 100); return `${d >= 0 ? "+" : ""}${d}% ${S("vsLastYear")}`; })() : "";
   const has = v => v !== null && v !== undefined;
-  const split = (l, d) => (has(l) || has(d)) ? `${S("lunchShort")} ${has(l) ? m0(l) : "—"} · ${S("dinnerShort")} ${has(d) ? m0(d) : "—"}` : "";
+  const svcList = (daySnap && daySnap.services) || SERVICE_LIST;
+  const split = (byService) => {
+    byService = byService || {};
+    if (svcList.length < 2 || !svcList.some(sv => has(byService[sv.id]))) return "";
+    return svcList.map(sv => `${svcShort(sv)} ${has(byService[sv.id]) ? m0(byService[sv.id]) : "—"}`).join(" · ");
+  };
   const actual = sales.actual;
   const actualPct = has(actual) && actual > 0 && todayShifts.length ? (laborCost / actual) * 100 : null;
   const aiVs = (has(sales.ai) && forecast) ? (() => { const d = Math.round((sales.ai / forecast - 1) * 100); return `${d >= 0 ? "+" : ""}${d}% ${S("vsForecast")}`; })() : "";
   const tiles = [
-    tile(S("forecastSales"), has(forecast) ? m0(forecast) : "—", has(forecast) ? (split(sales.projectedLunch, sales.projectedDinner) || lyVs) : S("noForecast")),
+    tile(S("forecastSales"), has(forecast) ? m0(forecast) : "—", has(forecast) ? (split(sales.projectedByService) || lyVs) : S("noForecast")),
     tile(S("aiForecast"), has(sales.ai) ? m0(sales.ai) : "—", has(sales.ai) ? aiVs : S("noAiForecast")),
-    tile(S("actualSales"), has(actual) ? m0(actual) : "—", has(actual) ? split(sales.actualLunch, sales.actualDinner) : S("noActual")),
+    tile(S("actualSales"), has(actual) ? m0(actual) : "—", has(actual) ? split(sales.actualByService) : S("noActual")),
     tile(S("lastYear"), has(ly.amount) ? (ly.basis === "weekAvg" ? "~" : "") + m0(ly.amount) : "—", ly.basis === "weekAvg" ? S("lastYearAvg") : (ly.amount ? lyVs : S("noLastYear"))),
     tile(S("laborScheduled"), todayShifts.length ? m0(laborCost) : "—", ""),
     tile(S("laborPct"), laborPct !== null ? laborPct.toFixed(1) + "%" : "—", laborPct === null ? S("needForecast") : (actualPct !== null ? `${S("actualShort")} ${actualPct.toFixed(1)}%` : ""), pctCls),
@@ -2015,7 +2057,7 @@ function renderOverview() {
           <span class="ic">${icons[w.category] || "🌡️"}</span>
           <div>
             <div class="big">${w.tempMax}°C <span class="lo">/ ${w.tempMin}°C</span> · ${escapeHtml(label)}</div>
-            <div class="sub">${w.lunchTemp !== null ? `${S("lunchShort")} ${w.lunchTemp}°` : ""}${w.lunchTemp !== null && w.dinnerTemp !== null ? " · " : ""}${w.dinnerTemp !== null ? `${S("dinnerShort")} ${w.dinnerTemp}°` : ""}${w.precipMm > 0 ? ` · ${S("precip")} ${w.precipMm} mm` : ""}</div>
+            <div class="sub">${[svcTemps(w, svcList), w.precipMm > 0 ? `${S("precip")} ${w.precipMm} mm` : ""].filter(Boolean).join(" · ")}</div>
           </div>
         </div>`;
     } else {

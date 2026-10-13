@@ -191,6 +191,15 @@ async function initDb() {
   await pool.query(`ALTER TABLE sales_projections ADD COLUMN IF NOT EXISTS dinner_amount NUMERIC;`);
   await pool.query(`ALTER TABLE sales_projections ADD COLUMN IF NOT EXISTS ai_amount NUMERIC;`);
   await pool.query(`ALTER TABLE actual_sales ADD COLUMN IF NOT EXISTS dinner_amount NUMERIC;`);
+  // Each restaurant defines its own services (breakfast / lunch / dinner / ...). Sales per service live in a JSON map
+  // {serviceId: amount}; the old lunch/dinner columns are migrated into it once and no longer written.
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS services JSONB;`);
+  await pool.query(`ALTER TABLE sales_projections ADD COLUMN IF NOT EXISTS service_amounts JSONB;`);
+  await pool.query(`ALTER TABLE actual_sales ADD COLUMN IF NOT EXISTS service_amounts JSONB;`);
+  await pool.query(`UPDATE sales_projections SET service_amounts = jsonb_strip_nulls(jsonb_build_object('lunch', lunch_amount, 'dinner', dinner_amount))
+                    WHERE service_amounts IS NULL AND (lunch_amount IS NOT NULL OR dinner_amount IS NOT NULL)`);
+  await pool.query(`UPDATE actual_sales SET service_amounts = jsonb_strip_nulls(jsonb_build_object('lunch', lunch_amount, 'dinner', dinner_amount))
+                    WHERE service_amounts IS NULL AND (lunch_amount IS NOT NULL OR dinner_amount IS NOT NULL)`);
   // Where the restaurant is (geocoded from its address) and a per-day cache of weather / nearby events for the daily snapshot.
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS geo_lat DOUBLE PRECISION;`);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS geo_lon DOUBLE PRECISION;`);
@@ -1837,6 +1846,115 @@ app.delete("/api/schedule/:id", requireAuth, async (req, res) => {
 
 // ---------- projected sales (manual daily entry) ----------
 
+// ---------- services (breakfast / lunch / dinner ... per restaurant) ----------
+// A service starts at `from` (HH:MM) and runs until the next service starts. A shift belongs to the last service whose
+// `from` is at or before the shift's start time; shifts that start before the first service belong to the first one.
+
+const DEFAULT_SERVICES = [
+  { id: "lunch", name: "Lunch / Brunch", from: "00:00" },
+  { id: "dinner", name: "Dinner", from: "15:00" },
+];
+
+function normalizeServices(input) {
+  if (!Array.isArray(input) || input.length < 1 || input.length > 4) return { error: "Add between 1 and 4 services." };
+  const out = [];
+  const usedIds = new Set();
+  for (const raw of input) {
+    const name = String((raw && raw.name) || "").trim().slice(0, 30);
+    const from = String((raw && raw.from) || "");
+    if (!name) return { error: "Every service needs a name." };
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(from)) return { error: `"${name}" needs a start time like 11:00.` };
+    let sid = String((raw && raw.id) || "");
+    if (!/^[a-z0-9_-]{1,20}$/.test(sid) || usedIds.has(sid)) sid = "s" + crypto.randomBytes(3).toString("hex");
+    usedIds.add(sid);
+    out.push({ id: sid, name, from });
+  }
+  out.sort((x, y) => x.from.localeCompare(y.from));
+  for (let i = 1; i < out.length; i++) if (out[i].from === out[i - 1].from) return { error: "Two services can't start at the same time." };
+  return { services: out };
+}
+
+async function getServices(restaurantId) {
+  const { rows } = await pool.query("SELECT services FROM restaurants WHERE id = $1", [restaurantId]);
+  const sv = rows[0] && rows[0].services;
+  return Array.isArray(sv) && sv.length ? sv : DEFAULT_SERVICES;
+}
+
+app.get("/api/services", requireAuth, async (req, res) => {
+  res.json({ services: await getServices(req.restaurantId) });
+});
+
+app.put("/api/services", requireAuth, async (req, res) => {
+  const r = normalizeServices((req.body || {}).services);
+  if (r.error) return res.status(400).json({ error: r.error });
+  await pool.query("UPDATE restaurants SET services = $1::jsonb WHERE id = $2", [JSON.stringify(r.services), req.restaurantId]);
+  logActivity({ restaurantId: req.restaurantId, eventType: "services_updated", detail: r.services.map((x) => `${x.name} ${x.from}`).join(" · ") });
+  res.json({ services: r.services });
+});
+
+const parseMoneyField = (raw, label) => {
+  if (raw === undefined) return { provided: false };
+  if (raw === null || raw === "") return { provided: true, value: null };
+  const n = Number(raw);
+  if (isNaN(n) || n < 0) return { error: `${label} must be a positive number` };
+  return { provided: true, value: n };
+};
+
+// Reads per-service amounts from a request body: `serviceAmounts: {id: value}` (and the older lunchAmount / dinnerAmount keys).
+function parseServiceAmounts(body, services) {
+  const ids = new Set(services.map((x) => x.id));
+  const provided = new Map();
+  const add = (sid, raw, label) => {
+    if (!ids.has(sid)) return { error: `unknown service "${sid}"` };
+    const p = parseMoneyField(raw, label);
+    if (p.error) return p;
+    if (p.provided) provided.set(sid, p.value);
+    return {};
+  };
+  const sa = body && body.serviceAmounts;
+  if (sa && typeof sa === "object" && !Array.isArray(sa)) {
+    for (const k of Object.keys(sa)) { const r = add(k, sa[k], `${k} amount`); if (r.error) return r; }
+  }
+  if (body && body.lunchAmount !== undefined) { const r = add("lunch", body.lunchAmount, "lunch amount"); if (r.error) return r; }
+  if (body && body.dinnerAmount !== undefined) { const r = add("dinner", body.dinnerAmount, "dinner amount"); if (r.error) return r; }
+  return { provided };
+}
+
+function mergeServiceAmounts(prev, provided) {
+  const out = { ...(prev && typeof prev === "object" ? prev : {}) };
+  provided.forEach((v, k) => { if (v === null) delete out[k]; else out[k] = v; });
+  return out;
+}
+function sumServiceAmounts(amounts, services) {
+  let any = false, sum = 0;
+  for (const sv of services) {
+    const v = amounts && amounts[sv.id];
+    if (v !== undefined && v !== null) { any = true; sum += Number(v); }
+  }
+  return any ? Math.round(sum * 100) / 100 : null;
+}
+const cleanAmounts = (a) => {
+  const out = {};
+  if (a && typeof a === "object") Object.keys(a).forEach((k) => { if (a[k] !== null && a[k] !== undefined) out[k] = Number(a[k]); });
+  return out;
+};
+
+// ---------- projected sales (manual daily entry) ----------
+
+function projectionRowToJson(r) {
+  const num = (v) => (v !== null && v !== undefined ? Number(v) : null);
+  const serviceAmounts = cleanAmounts(r.service_amounts);
+  return {
+    date: r.proj_date instanceof Date ? r.proj_date.toISOString().slice(0, 10) : r.proj_date,
+    projectedAmount: num(r.projected_amount),
+    serviceAmounts,
+    lunchAmount: serviceAmounts.lunch !== undefined ? serviceAmounts.lunch : null,
+    dinnerAmount: serviceAmounts.dinner !== undefined ? serviceAmounts.dinner : null,
+    lastYearAmount: num(r.last_year_amount),
+    aiAmount: num(r.ai_amount),
+  };
+}
+
 app.get("/api/sales-projections", requireAuth, async (req, res) => {
   const { start, end } = req.query;
   if (!start || !end) return res.status(400).json({ error: "start and end date query params are required (YYYY-MM-DD)" });
@@ -1844,72 +1962,38 @@ app.get("/api/sales-projections", requireAuth, async (req, res) => {
     "SELECT * FROM sales_projections WHERE restaurant_id = $1 AND proj_date >= $2 AND proj_date <= $3",
     [req.restaurantId, start, end]
   );
-  res.json(
-    rows.map((r) => ({
-      date: r.proj_date instanceof Date ? r.proj_date.toISOString().slice(0, 10) : r.proj_date,
-      projectedAmount: r.projected_amount !== null ? Number(r.projected_amount) : null,
-      lunchAmount: r.lunch_amount !== null && r.lunch_amount !== undefined ? Number(r.lunch_amount) : null,
-      lastYearAmount: r.last_year_amount !== null && r.last_year_amount !== undefined ? Number(r.last_year_amount) : null,
-      dinnerAmount: r.dinner_amount !== null && r.dinner_amount !== undefined ? Number(r.dinner_amount) : null,
-      aiAmount: r.ai_amount !== null && r.ai_amount !== undefined ? Number(r.ai_amount) : null,
-    }))
-  );
+  res.json(rows.map(projectionRowToJson));
 });
 
 app.put("/api/sales-projections", requireAuth, async (req, res) => {
-  const { date, projectedAmount, lunchAmount, dinnerAmount, lastYearAmount } = req.body || {};
+  const { date, projectedAmount, lastYearAmount } = req.body || {};
   if (!date) return res.status(400).json({ error: "date is required" });
-  const parse = (raw, label) => {
-    if (raw === undefined) return { provided: false };
-    if (raw === null || raw === "") return { provided: true, value: null };
-    const n = Number(raw);
-    if (isNaN(n) || n < 0) return { error: `${label} must be a positive number` };
-    return { provided: true, value: n };
-  };
-  const total = parse(projectedAmount, "projected amount");
-  const lunch = parse(lunchAmount, "lunch amount");
-  const dinner = parse(dinnerAmount, "dinner amount");
-  const lastYear = parse(lastYearAmount, "last year amount");
-  for (const p of [total, lunch, dinner, lastYear]) if (p.error) return res.status(400).json({ error: p.error });
-  if (!total.provided && !lunch.provided && !dinner.provided && !lastYear.provided) return res.status(400).json({ error: "projectedAmount, lunchAmount, dinnerAmount or lastYearAmount is required" });
+  const services = await getServices(req.restaurantId);
+  const total = parseMoneyField(projectedAmount, "projected amount");
+  const lastYear = parseMoneyField(lastYearAmount, "last year amount");
+  const sa = parseServiceAmounts(req.body, services);
+  for (const p of [total, lastYear, sa]) if (p.error) return res.status(400).json({ error: p.error });
+  if (!total.provided && !sa.provided.size && !lastYear.provided) return res.status(400).json({ error: "projectedAmount, serviceAmounts or lastYearAmount is required" });
 
-  // Only the fields the request mentions are changed; the others are left alone.
+  const { rows: existing } = await pool.query("SELECT service_amounts FROM sales_projections WHERE restaurant_id = $1 AND proj_date = $2", [req.restaurantId, date]);
+  const merged = sa.provided.size ? mergeServiceAmounts(existing[0] && existing[0].service_amounts, sa.provided) : null;
+  // Typing a service forecast makes the day's total = the sum of the services (unless the total itself was sent).
+  const setTotal = total.provided || !!merged;
+  const totalVal = total.provided ? total.value : merged ? sumServiceAmounts(merged, services) : null;
+
   const { rows } = await pool.query(
-    `INSERT INTO sales_projections (id, restaurant_id, proj_date, projected_amount, lunch_amount, dinner_amount, last_year_amount, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    `INSERT INTO sales_projections (id, restaurant_id, proj_date, projected_amount, service_amounts, last_year_amount, created_at)
+     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)
      ON CONFLICT (restaurant_id, proj_date) DO UPDATE SET
-       projected_amount = CASE WHEN $9 THEN EXCLUDED.projected_amount ELSE sales_projections.projected_amount END,
-       lunch_amount = CASE WHEN $10 THEN EXCLUDED.lunch_amount ELSE sales_projections.lunch_amount END,
-       dinner_amount = CASE WHEN $11 THEN EXCLUDED.dinner_amount ELSE sales_projections.dinner_amount END,
-       last_year_amount = CASE WHEN $12 THEN EXCLUDED.last_year_amount ELSE sales_projections.last_year_amount END
+       projected_amount = CASE WHEN $8 THEN EXCLUDED.projected_amount ELSE sales_projections.projected_amount END,
+       service_amounts = CASE WHEN $9 THEN EXCLUDED.service_amounts ELSE sales_projections.service_amounts END,
+       last_year_amount = CASE WHEN $10 THEN EXCLUDED.last_year_amount ELSE sales_projections.last_year_amount END
      RETURNING *`,
-    [id(), req.restaurantId, date, total.provided ? total.value : null, lunch.provided ? lunch.value : null, dinner.provided ? dinner.value : null, lastYear.provided ? lastYear.value : null, Date.now(),
-     total.provided, lunch.provided, dinner.provided, lastYear.provided]
+    [id(), req.restaurantId, date, setTotal ? totalVal : null, merged ? JSON.stringify(merged) : null, lastYear.provided ? lastYear.value : null, Date.now(),
+     setTotal, !!merged, lastYear.provided]
   );
-  let row = rows[0];
-  // Typing a lunch or dinner forecast makes the day's total = lunch + dinner (unless the total itself was sent).
-  if ((lunch.provided || dinner.provided) && !total.provided) {
-    const upd = await pool.query(
-      `UPDATE sales_projections SET projected_amount = CASE WHEN lunch_amount IS NULL AND dinner_amount IS NULL THEN NULL ELSE COALESCE(lunch_amount,0) + COALESCE(dinner_amount,0) END
-       WHERE restaurant_id = $1 AND proj_date = $2 RETURNING *`,
-      [req.restaurantId, date]
-    );
-    row = upd.rows[0];
-  }
-  res.json(projectionRowToJson(row));
+  res.json(projectionRowToJson(rows[0]));
 });
-
-function projectionRowToJson(r) {
-  const num = (v) => (v !== null && v !== undefined ? Number(v) : null);
-  return {
-    date: r.proj_date instanceof Date ? r.proj_date.toISOString().slice(0, 10) : r.proj_date,
-    projectedAmount: num(r.projected_amount),
-    lunchAmount: num(r.lunch_amount),
-    dinnerAmount: num(r.dinner_amount),
-    lastYearAmount: num(r.last_year_amount),
-    aiAmount: num(r.ai_amount),
-  };
-}
 
 // ---------- actual sales (empty until a POS integration exists; this is the slot it will write into) ----------
 
@@ -1920,8 +2004,9 @@ function actualSalesRowToJson(r) {
     amount: num(r.amount),
     foodAmount: num(r.food_amount),
     bevAmount: num(r.bev_amount),
-    lunchAmount: num(r.lunch_amount),
-    dinnerAmount: num(r.dinner_amount),
+    serviceAmounts: cleanAmounts(r.service_amounts),
+    lunchAmount: r.service_amounts && r.service_amounts.lunch !== undefined && r.service_amounts.lunch !== null ? Number(r.service_amounts.lunch) : null,
+    dinnerAmount: r.service_amounts && r.service_amounts.dinner !== undefined && r.service_amounts.dinner !== null ? Number(r.service_amounts.dinner) : null,
     source: r.source,
   };
 }
@@ -1941,39 +2026,31 @@ app.get("/api/actual-sales", requireAuth, async (req, res) => {
 //  - amount only: a POS total with no split. The food/beverage split is cleared so the total stays authoritative.
 // Empty string or null clears a value.
 app.put("/api/actual-sales", requireAuth, async (req, res) => {
-  const { date, amount, foodAmount, bevAmount, lunchAmount, dinnerAmount, source } = req.body || {};
+  const { date, amount, foodAmount, bevAmount, source } = req.body || {};
   if (!date) return res.status(400).json({ error: "date is required" });
 
-  const parseMoney = (raw, label) => {
-    if (raw === undefined) return { provided: false };
-    if (raw === null || raw === "") return { provided: true, value: null };
-    const n = Number(raw);
-    if (isNaN(n) || n < 0) return { error: `${label} must be a positive number` };
-    return { provided: true, value: n };
-  };
-  const total = parseMoney(amount, "amount");
-  const food = parseMoney(foodAmount, "foodAmount");
-  const bev = parseMoney(bevAmount, "bevAmount");
-  const lunch = parseMoney(lunchAmount, "lunchAmount");
-  const dinner = parseMoney(dinnerAmount, "dinnerAmount");
-  for (const p of [total, food, bev, lunch, dinner]) if (p.error) return res.status(400).json({ error: p.error });
+  const services = await getServices(req.restaurantId);
+  const total = parseMoneyField(amount, "amount");
+  const food = parseMoneyField(foodAmount, "foodAmount");
+  const bev = parseMoneyField(bevAmount, "bevAmount");
+  const sa = parseServiceAmounts(req.body, services);
+  for (const p of [total, food, bev, sa]) if (p.error) return res.status(400).json({ error: p.error });
 
-  // Lunch and/or dinner only (the schedule grid's boxes): the day's total becomes lunch + dinner,
+  // Per-service amounts only (the schedule grid's boxes): the day's total becomes the sum of the services,
   // unless the day already has a food/beverage split — then that split stays the authority for the total.
-  if ((lunch.provided || dinner.provided) && !total.provided && !food.provided && !bev.provided) {
+  if (sa.provided.size && !total.provided && !food.provided && !bev.provided) {
     const { rows: existing } = await pool.query("SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date = $2", [req.restaurantId, date]);
     const prev = existing[0] || {};
     const prevNum = (v) => (v !== null && v !== undefined ? Number(v) : null);
-    const lunchVal = lunch.provided ? lunch.value : prevNum(prev.lunch_amount);
-    const dinnerVal = dinner.provided ? dinner.value : prevNum(prev.dinner_amount);
-    const hasCategorySplit = prev.food_amount !== null && prev.food_amount !== undefined || prev.bev_amount !== null && prev.bev_amount !== undefined;
-    const amt2 = hasCategorySplit ? prevNum(prev.amount) : (lunchVal === null && dinnerVal === null ? null : (lunchVal || 0) + (dinnerVal || 0));
+    const merged = mergeServiceAmounts(prev.service_amounts, sa.provided);
+    const hasCategorySplit = (prev.food_amount !== null && prev.food_amount !== undefined) || (prev.bev_amount !== null && prev.bev_amount !== undefined);
+    const amt2 = hasCategorySplit ? prevNum(prev.amount) : sumServiceAmounts(merged, services);
     const { rows } = await pool.query(
-      `INSERT INTO actual_sales (id, restaurant_id, sale_date, amount, lunch_amount, dinner_amount, source, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       ON CONFLICT (restaurant_id, sale_date) DO UPDATE SET amount = EXCLUDED.amount, lunch_amount = EXCLUDED.lunch_amount, dinner_amount = EXCLUDED.dinner_amount
+      `INSERT INTO actual_sales (id, restaurant_id, sale_date, amount, service_amounts, source, created_at)
+       VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)
+       ON CONFLICT (restaurant_id, sale_date) DO UPDATE SET amount = EXCLUDED.amount, service_amounts = EXCLUDED.service_amounts
        RETURNING *`,
-      [id(), req.restaurantId, date, amt2, lunchVal, dinnerVal, (source || "manual").trim(), Date.now()]
+      [id(), req.restaurantId, date, amt2, JSON.stringify(merged), (source || "manual").trim(), Date.now()]
     );
     return res.json(actualSalesRowToJson(rows[0]));
   }
@@ -2002,11 +2079,11 @@ app.put("/api/actual-sales", requireAuth, async (req, res) => {
      RETURNING *`,
     [newId, req.restaurantId, date, amt, foodVal, bevVal, (source || "manual").trim(), Date.now()]
   );
-  if (lunch.provided || dinner.provided) {
+  if (sa.provided.size) {
+    const merged = mergeServiceAmounts(rows[0].service_amounts, sa.provided);
     const upd = await pool.query(
-      `UPDATE actual_sales SET lunch_amount = CASE WHEN $1 THEN $2::numeric ELSE lunch_amount END, dinner_amount = CASE WHEN $3 THEN $4::numeric ELSE dinner_amount END
-       WHERE restaurant_id = $5 AND sale_date = $6 RETURNING *`,
-      [lunch.provided, lunch.provided ? lunch.value : null, dinner.provided, dinner.provided ? dinner.value : null, req.restaurantId, date]
+      "UPDATE actual_sales SET service_amounts = $1::jsonb WHERE restaurant_id = $2 AND sale_date = $3 RETURNING *",
+      [JSON.stringify(merged), req.restaurantId, date]
     );
     return res.json(actualSalesRowToJson(upd.rows[0]));
   }
@@ -2320,6 +2397,7 @@ function parseMetNoForecast(json, day, tz) {
     tempMin: round(Math.min(...temps)),
     lunchTemp: lunch ? round(lunch.temp) : null,
     dinnerTemp: dinner ? round(dinner.temp) : null,
+    byHour: Object.fromEntries(hrs.map((h) => [h, round(hours[h].temp)])),
     precipMm: Math.round(hrs.reduce((a, h) => a + (hours[h].precip || 0), 0) * 10) / 10,
     category: wc.category,
     intensity: wc.intensity,
@@ -2403,23 +2481,22 @@ app.get("/api/day-snapshot", requireAuth, async (req, res) => {
     const rid = req.restaurantId;
     const num = (v) => (v !== null && v !== undefined ? Number(v) : null);
 
-    const { rows: pr } = await pool.query("SELECT projected_amount, lunch_amount, dinner_amount, last_year_amount, ai_amount FROM sales_projections WHERE restaurant_id = $1 AND proj_date = $2", [rid, day]);
-    const { rows: ar } = await pool.query("SELECT amount, lunch_amount, dinner_amount FROM actual_sales WHERE restaurant_id = $1 AND sale_date = $2", [rid, day]);
+    const services = await getServices(rid);
+    const { rows: pr } = await pool.query("SELECT projected_amount, service_amounts, last_year_amount, ai_amount FROM sales_projections WHERE restaurant_id = $1 AND proj_date = $2", [rid, day]);
+    const { rows: ar } = await pool.query("SELECT amount, service_amounts FROM actual_sales WHERE restaurant_id = $1 AND sale_date = $2", [rid, day]);
     const p = pr[0] || {};
     const a = ar[0] || {};
     const sales = {
       projected: num(p.projected_amount),
-      projectedLunch: num(p.lunch_amount),
-      projectedDinner: num(p.dinner_amount),
+      projectedByService: cleanAmounts(p.service_amounts),
       ai: num(p.ai_amount),
       actual: num(a.amount),
-      actualLunch: num(a.lunch_amount),
-      actualDinner: num(a.dinner_amount),
+      actualByService: cleanAmounts(a.service_amounts),
       lastYear: await lastYearForDay(rid, day, num(p.last_year_amount)),
     };
 
     const loc = await ensureRestaurantLocation(rid);
-    const out = { date: day, sales, location: loc.status, place: loc.place || "", weather: null, events: null, eventsStatus: null };
+    const out = { date: day, services, sales, location: loc.status, place: loc.place || "", weather: null, events: null, eventsStatus: null };
     if (loc.status !== "ok") return res.json(out);
 
     let { rows: cr } = await pool.query("SELECT * FROM day_context WHERE restaurant_id = $1 AND day = $2", [rid, day]);

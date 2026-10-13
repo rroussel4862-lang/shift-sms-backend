@@ -124,7 +124,7 @@ describe("AI assistant sees the board and sales", () => {
   test("board and sales data are included in the context, scoped to this restaurant", async () => {
     await A.agent.post("/api/board").send({ title: "Policy", body: "New phone policy for everyone." });
     await B.agent.post("/api/board").send({ title: "Secret B post", body: "Only restaurant B should know." });
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Toronto" }); // the restaurant's local day, same as the server
     await A.agent.put("/api/actual-sales").send({ date: today, foodAmount: 1200, bevAmount: 800 });
 
     nextReply = "ok";

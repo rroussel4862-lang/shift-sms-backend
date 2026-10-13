@@ -66,7 +66,7 @@ describe("daily snapshot", () => {
     const res = await A.agent.get("/api/day-snapshot");
     expect(res.status).toBe(200);
     expect(res.body.location).toBe("no_address");
-    expect(res.body.sales).toMatchObject({ projected: 6500, projectedLunch: 2000, lastYear: { amount: 5900, basis: "day" } });
+    expect(res.body.sales).toMatchObject({ projected: 6500, projectedByService: { lunch: 2000 }, lastYear: { amount: 5900, basis: "day" } });
     expect(res.body.weather).toBeNull();
     expect(calls.length).toBe(0);
   });
