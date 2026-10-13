@@ -472,9 +472,9 @@ async function loadHealth() {
   }
   const h = result.data;
   const dbCls = !h.database.ok ? "bad" : h.database.latencyMs > 300 ? "warn" : "ok";
-  const smsCls = h.sms.failedLastHour > 0 ? (h.sms.failedLastHour > h.sms.sentLastHour ? "bad" : "warn") : "ok";
-  const aiCls = h.ai.failedLastHour > 0 ? (h.ai.failedLastHour > h.ai.answeredLastHour ? "bad" : "warn") : "ok";
-  const totalErrors = h.errorsLastHour.reduce((sum, e) => sum + e.count, 0);
+  const smsCls = h.sms.failedToday > 0 ? (h.sms.failedToday > h.sms.sentToday ? "bad" : "warn") : "ok";
+  const aiCls = h.ai.failedToday > 0 ? (h.ai.failedToday > h.ai.answeredToday ? "bad" : "warn") : "ok";
+  const totalErrors = h.errorsToday.reduce((sum, e) => sum + e.count, 0);
   const errCls = totalErrors === 0 ? "ok" : totalErrors < 5 ? "warn" : "bad";
 
   grid.innerHTML = `
@@ -484,19 +484,19 @@ async function loadHealth() {
       <div class="detail">Connection ${h.database.ok ? "healthy" : "failing"}</div>
     </div>
     <div class="health-card">
-      <div class="label">SMS (last hour)</div>
-      <div class="value ${smsCls}">${h.sms.sentLastHour} sent</div>
-      <div class="detail">${h.sms.failedLastHour} failed${h.sms.avgLatencyMs ? ` · avg ${h.sms.avgLatencyMs}ms` : ""}</div>
+      <div class="label">SMS (today)</div>
+      <div class="value ${smsCls}">${h.sms.sentToday} sent</div>
+      <div class="detail">${h.sms.failedToday} failed${h.sms.avgLatencyMs ? ` · avg ${h.sms.avgLatencyMs}ms` : ""}</div>
     </div>
     <div class="health-card">
-      <div class="label">AI agent (last hour)</div>
-      <div class="value ${aiCls}">${h.ai.answeredLastHour} answered</div>
-      <div class="detail">${h.ai.failedLastHour} failed${h.ai.avgLatencyMs ? ` · avg ${h.ai.avgLatencyMs}ms` : ""}</div>
+      <div class="label">AI agent (today)</div>
+      <div class="value ${aiCls}">${h.ai.answeredToday} answered</div>
+      <div class="detail">${h.ai.failedToday} failed${h.ai.avgLatencyMs ? ` · avg ${h.ai.avgLatencyMs}ms` : ""}</div>
     </div>
     <div class="health-card">
-      <div class="label">Errors (last hour)</div>
+      <div class="label">Errors (today)</div>
       <div class="value ${errCls}">${totalErrors}</div>
-      <div class="detail">${h.errorsLastHour.length === 0 ? "None" : h.errorsLastHour.map(e => `${e.eventType}: ${e.count}`).join(", ")}</div>
+      <div class="detail">${h.errorsToday.length === 0 ? "None" : h.errorsToday.map(e => `${e.eventType}: ${e.count}`).join(", ")}</div>
     </div>
   `;
 }

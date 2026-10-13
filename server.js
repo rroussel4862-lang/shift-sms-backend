@@ -3261,7 +3261,9 @@ app.get("/api/platform/health", requirePlatformAuth, async (req, res) => {
   }
   const dbLatencyMs = Date.now() - dbStart;
 
-  const sinceHour = Date.now() - 60 * 60 * 1000;
+  // "Today" = since local midnight in the owner's time zone (not a rolling hour).
+  const midnight = await pool.query("SELECT (EXTRACT(EPOCH FROM date_trunc('day', now() AT TIME ZONE $1) AT TIME ZONE $1) * 1000)::bigint AS ms", [OWNER_TZ]);
+  const sinceHour = Number(midnight.rows[0].ms);
   const [smsStats, aiStats, failureCounts] = await Promise.all([
     pool.query("SELECT COUNT(*) FILTER (WHERE event_type = 'sms_sent') AS sent, COUNT(*) FILTER (WHERE event_type = 'sms_failed') AS failed, AVG(duration_ms) FILTER (WHERE event_type = 'sms_sent') AS avg_ms FROM activity_log WHERE created_at > $1 AND event_type IN ('sms_sent','sms_failed')", [sinceHour]),
     pool.query("SELECT COUNT(*) FILTER (WHERE event_type = 'ai_answered') AS answered, COUNT(*) FILTER (WHERE event_type = 'ai_failed') AS failed, AVG(duration_ms) FILTER (WHERE event_type = 'ai_answered') AS avg_ms FROM activity_log WHERE created_at > $1 AND event_type IN ('ai_answered','ai_failed')", [sinceHour]),
@@ -3271,16 +3273,16 @@ app.get("/api/platform/health", requirePlatformAuth, async (req, res) => {
   res.json({
     database: { ok: dbOk, latencyMs: dbLatencyMs },
     sms: {
-      sentLastHour: Number(smsStats.rows[0].sent || 0),
-      failedLastHour: Number(smsStats.rows[0].failed || 0),
+      sentToday: Number(smsStats.rows[0].sent || 0),
+      failedToday: Number(smsStats.rows[0].failed || 0),
       avgLatencyMs: smsStats.rows[0].avg_ms ? Math.round(Number(smsStats.rows[0].avg_ms)) : null,
     },
     ai: {
-      answeredLastHour: Number(aiStats.rows[0].answered || 0),
-      failedLastHour: Number(aiStats.rows[0].failed || 0),
+      answeredToday: Number(aiStats.rows[0].answered || 0),
+      failedToday: Number(aiStats.rows[0].failed || 0),
       avgLatencyMs: aiStats.rows[0].avg_ms ? Math.round(Number(aiStats.rows[0].avg_ms)) : null,
     },
-    errorsLastHour: failureCounts.rows.map((r) => ({ eventType: r.event_type, count: Number(r.count) })),
+    errorsToday: failureCounts.rows.map((r) => ({ eventType: r.event_type, count: Number(r.count) })),
   });
 });
 
