@@ -520,6 +520,16 @@
   details.svc-det > summary::-webkit-details-marker { display: none; }
   details.svc-det > summary .svc-head::after { content: "▸"; margin-left: 8px; transition: transform .15s; display: inline-block; }
   details.svc-det[open] > summary .svc-head::after { transform: rotate(90deg); }
+  .ov-picker { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .ov-days { display: flex; gap: 4px; flex: 1; min-width: 0; }
+  .ov-day { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 0; border: 1px solid rgba(35,38,31,.25); border-radius: 6px; background: rgba(35,38,31,.04); color: inherit; font: inherit; cursor: pointer; position: relative; }
+  .ov-day span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
+  .ov-day b { font-family: 'Oswald', sans-serif; font-size: 15px; }
+  .ov-day.sel { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .ov-day.is-today:not(.sel)::after { content: ""; position: absolute; bottom: 2px; width: 4px; height: 4px; border-radius: 50%; background: var(--scheduling); }
+  .ov-day:disabled { opacity: .3; cursor: default; }
+  .ov-arrow { width: 30px; height: 40px; border: 1px solid rgba(35,38,31,.25); border-radius: 6px; background: none; color: inherit; font-size: 20px; cursor: pointer; flex-shrink: 0; }
+  .ov-today { border: 1px solid var(--ink); background: none; color: inherit; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; margin-left: auto; }
   .snap-h.sm { margin-top: 14px; }
   .snap-mgr { display: flex; justify-content: space-between; align-items: baseline; font-size: 18px; padding: 6px 0; border-bottom: 1px dashed rgba(35,38,31,.2); }
   .snap-mgr .num { font-size: 14px; opacity: .75; }
@@ -982,6 +992,9 @@ const T = {
       aiAgent: "AI agent", askLabel: "Ask", askSub: "Ask about staffing, cost, or hiring",
     },
     snap: {
+      noOneDay: "No one is scheduled this day.", noManagerDay: "No manager scheduled this day",
+      titleYesterday: "Yesterday's snapshot", titleTomorrow: "Tomorrow's snapshot", titleDay: "Day snapshot", todayBtn: "Today", prevDay: "Previous day", nextDay: "Next day",
+      weatherPast: "Weather wasn't saved for this day.", eventsNotRecorded: "Nearby events weren't saved for this day.",
       staffByRole: "How many staff, by role", title: "Today's snapshot", managerOnDuty: "Manager on duty", noManager: "No manager scheduled today",
       aiForecast: "AI forecast", noAiForecast: "Generate it in Back Office › Schedule", actualSales: "Actual sales", noActual: "Not entered yet", vsForecast: "vs your forecast", actualShort: "actual",
       forecastSales: "Forecast sales", noForecast: "Enter today's forecast in Back Office › Schedule", lastYear: "Last year, same day", lastYearAvg: "average day, same week last year", noLastYear: "Add it in Back Office › Schedule",
@@ -1133,6 +1146,9 @@ const T = {
       aiAgent: "Agent IA", askLabel: "Demander", askSub: "Posez une question sur le personnel, les coûts ou l'embauche",
     },
     snap: {
+      noOneDay: "Personne n'est à l'horaire ce jour-là.", noManagerDay: "Aucun gérant à l'horaire ce jour-là",
+      titleYesterday: "L'aperçu d'hier", titleTomorrow: "L'aperçu de demain", titleDay: "Aperçu du jour", todayBtn: "Aujourd'hui", prevDay: "Jour précédent", nextDay: "Jour suivant",
+      weatherPast: "La météo n'a pas été enregistrée pour ce jour.", eventsNotRecorded: "Les événements à proximité n'ont pas été enregistrés pour ce jour.",
       staffByRole: "Combien de personnes, par poste", title: "Aperçu du jour", managerOnDuty: "Gérant en service", noManager: "Aucun gérant à l'horaire aujourd'hui",
       aiForecast: "Prévision IA", noAiForecast: "À générer dans l'arrière-boutique › Horaire", actualSales: "Ventes réelles", noActual: "Pas encore saisies", vsForecast: "vs votre prévision", actualShort: "réel",
       forecastSales: "Ventes prévues", noForecast: "Entrez la prévision du jour dans l'arrière-boutique › Horaire", lastYear: "Même jour l'an dernier", lastYearAvg: "journée moyenne, même semaine l'an dernier", noLastYear: "À ajouter dans l'arrière-boutique › Horaire",
@@ -1284,6 +1300,9 @@ const T = {
       aiAgent: "Agente IA", askLabel: "Preguntar", askSub: "Pregunta sobre personal, costos o contratación",
     },
     snap: {
+      noOneDay: "Nadie está programado este día.", noManagerDay: "Ningún gerente programado este día",
+      titleYesterday: "Resumen de ayer", titleTomorrow: "Resumen de mañana", titleDay: "Resumen del día", todayBtn: "Hoy", prevDay: "Día anterior", nextDay: "Día siguiente",
+      weatherPast: "El clima no se guardó para este día.", eventsNotRecorded: "Los eventos cercanos no se guardaron para este día.",
       staffByRole: "Cuántas personas, por puesto", title: "Resumen del día", managerOnDuty: "Gerente de turno", noManager: "Ningún gerente programado hoy",
       aiForecast: "Pronóstico IA", noAiForecast: "Genéralo en Administración › Horario", actualSales: "Ventas reales", noActual: "Aún sin ingresar", vsForecast: "vs tu proyección", actualShort: "real",
       forecastSales: "Ventas proyectadas", noForecast: "Ingresa la proyección de hoy en Administración › Horario", lastYear: "Mismo día el año pasado", lastYearAvg: "día promedio, misma semana del año pasado", noLastYear: "Agrégalo en Administración › Horario",
@@ -1713,9 +1732,9 @@ function svcShort(sv) {
 }
 const snapOpenSvc = new Set();
 const snapOpenEvents = new Set();
-function todayBreakdown() {
-  const byStaff = new Map(); // one row per person: they may have more than one shift today
-  todayShifts.forEach(sh => {
+function todayBreakdown(shiftList) {
+  const byStaff = new Map(); // one row per person: they may have more than one shift that day
+  (shiftList || todayShifts).forEach(sh => {
     const person = staff.find(p => p.id === sh.staffId);
     if (!person) return;
     const role = sh.role || (person.roles && person.roles[0]) || "";
@@ -1969,10 +1988,33 @@ function render() {
 
 /* ============================== Overview: one snapshot card ============================== */
 let daySnap = null, daySnapTimer = null, daySnapTries = 0;
+// Overview day picker: null = today. Another day shows that day's schedule, sales, weather and events.
+let ovDate = null, ovShiftsList = [];
+const ovToday = () => isoLocal(new Date());
+const ovShiftIso = (iso, n) => { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return isoLocal(d); };
+const ovShifts = () => (ovDate ? ovShiftsList : todayShifts);
+async function selectOverviewDay(iso) {
+  const today = ovToday();
+  if (iso > ovShiftIso(today, 7) || iso < ovShiftIso(today, -60)) return;
+  ovDate = iso === today ? null : iso;
+  clearTimeout(daySnapTimer); daySnap = null; daySnapTries = 0;
+  const wanted = ovDate;
+  if (wanted) {
+    const r = await api(`/api/schedule?start=${wanted}&end=${wanted}`);
+    if (ovDate !== wanted) return; // the user already moved on
+    ovShiftsList = r.ok ? r.data : [];
+  }
+  renderOverview();
+  loadDaySnapshot();
+}
 async function loadDaySnapshot(refreshEvents) {
   clearTimeout(daySnapTimer);
-  const r = await api("/api/day-snapshot" + (refreshEvents ? "?refreshEvents=1" : ""));
-  if (!r.ok) return;
+  const asked = ovDate;
+  const qs = [];
+  if (asked) qs.push("date=" + asked);
+  if (refreshEvents) qs.push("refreshEvents=1");
+  const r = await api("/api/day-snapshot" + (qs.length ? "?" + qs.join("&") : ""));
+  if (!r.ok || ovDate !== asked) return;
   daySnap = r.data;
   renderOverview();
   // the events search runs in the background on the server; ask again until it lands
@@ -1990,23 +2032,42 @@ function renderOverview() {
   const el = document.getElementById("overviewGrid");
   if (!el) return;
   const S = k => t("snap." + k);
-  const dateLabel = new Date().toLocaleDateString(localeForLang(), { weekday: "long", month: "long", day: "numeric" });
+  const selIso = ovDate || ovToday();
+  const dayShifts = ovShifts();
+  const dateLabel = new Date(selIso + "T12:00:00").toLocaleDateString(localeForLang(), { weekday: "long", month: "long", day: "numeric" });
+  const isPastDay = selIso < ovToday();
+  const dayTitle = !ovDate ? S("title") : selIso === ovShiftIso(ovToday(), -1) ? S("titleYesterday") : selIso === ovShiftIso(ovToday(), 1) ? S("titleTomorrow") : S("titleDay");
+  // day picker: previous/next day arrows and the 7 days of the selected week
+  const selD = new Date(selIso + "T12:00:00");
+  const weekMon = ovShiftIso(selIso, -((selD.getDay() + 6) % 7));
+  const dayChips = [0, 1, 2, 3, 4, 5, 6].map(i => {
+    const iso = ovShiftIso(weekMon, i);
+    const d = new Date(iso + "T12:00:00");
+    const dis = iso > ovShiftIso(ovToday(), 7) || iso < ovShiftIso(ovToday(), -60);
+    return `<button class="ov-day${iso === selIso ? " sel" : ""}${iso === ovToday() ? " is-today" : ""}"${dis ? " disabled" : ""} onclick="selectOverviewDay('${iso}')"><span>${escapeHtml(d.toLocaleDateString(localeForLang(), { weekday: "short" }))}</span><b>${d.getDate()}</b></button>`;
+  }).join("");
+  const dayPicker = `<div class="ov-picker">
+      <button class="ov-arrow" aria-label="${escapeHtml(S("prevDay"))}" onclick="selectOverviewDay('${ovShiftIso(selIso, -1)}')">‹</button>
+      <div class="ov-days">${dayChips}</div>
+      <button class="ov-arrow" aria-label="${escapeHtml(S("nextDay"))}" onclick="selectOverviewDay('${ovShiftIso(selIso, 1)}')">›</button>
+      ${ovDate ? `<button class="ov-today" onclick="selectOverviewDay('${ovToday()}')">${escapeHtml(S("todayBtn"))}</button>` : ""}
+    </div>`;
 
   // manager(s) on duty today
-  const mgrs = todayShifts
+  const mgrs = dayShifts
     .filter(sh => sh.role === "Manager" || (!sh.role && (staff.find(p => p.id === sh.staffId) || {}).roles && staff.find(p => p.id === sh.staffId).roles[0] === "Manager"))
     .map(sh => ({ name: (staff.find(p => p.id === sh.staffId) || {}).name || "?", start: sh.startTime, end: sh.endTime }))
     .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
   const mgrHtml = mgrs.length
     ? mgrs.map(m => `<div class="snap-mgr"><b>${escapeHtml(m.name)}</b><span class="num">${fmtClock(m.start)}–${fmtClock(m.end)}</span></div>`).join("")
-    : `<div class="snap-warn">${S("noManager")}</div>`;
+    : `<div class="snap-warn">${S(ovDate ? "noManagerDay" : "noManager")}</div>`;
 
   // sales + labor
   const sales = (daySnap && daySnap.sales) || {};
   const forecast = sales.projected;
   const ly = sales.lastYear || {};
   let laborCost = 0;
-  todayShifts.forEach(sh => { const p = staff.find(x => x.id === sh.staffId); laborCost += shiftHours(sh.startTime, sh.endTime) * ((p && p.hourlyRate) || 0); });
+  dayShifts.forEach(sh => { const p = staff.find(x => x.id === sh.staffId); laborCost += shiftHours(sh.startTime, sh.endTime) * ((p && p.hourlyRate) || 0); });
   const laborPct = forecast && forecast > 0 ? (laborCost / forecast) * 100 : null;
   const pctCls = laborPct === null ? "" : laborPct < 25 ? "ok" : laborPct < 35 ? "warn" : "bad";
   const m0 = v => "$" + Math.round(v).toLocaleString(localeForLang());
@@ -2020,20 +2081,20 @@ function renderOverview() {
     return svcList.map(sv => `${svcShort(sv)} ${has(byService[sv.id]) ? m0(byService[sv.id]) : "—"}`).join(" · ");
   };
   const actual = sales.actual;
-  const actualPct = has(actual) && actual > 0 && todayShifts.length ? (laborCost / actual) * 100 : null;
+  const actualPct = has(actual) && actual > 0 && dayShifts.length ? (laborCost / actual) * 100 : null;
   const aiVs = (has(sales.ai) && forecast) ? (() => { const d = Math.round((sales.ai / forecast - 1) * 100); return `${d >= 0 ? "+" : ""}${d}% ${S("vsForecast")}`; })() : "";
   const tiles = [
     tile(S("forecastSales"), has(forecast) ? m0(forecast) : "—", has(forecast) ? (split(sales.projectedByService) || lyVs) : S("noForecast")),
     tile(S("aiForecast"), has(sales.ai) ? m0(sales.ai) : "—", has(sales.ai) ? aiVs : S("noAiForecast")),
     tile(S("actualSales"), has(actual) ? m0(actual) : "—", has(actual) ? split(sales.actualByService) : S("noActual")),
     tile(S("lastYear"), has(ly.amount) ? (ly.basis === "weekAvg" ? "~" : "") + m0(ly.amount) : "—", ly.basis === "weekAvg" ? S("lastYearAvg") : (ly.amount ? lyVs : S("noLastYear"))),
-    tile(S("laborScheduled"), todayShifts.length ? m0(laborCost) : "—", ""),
+    tile(S("laborScheduled"), dayShifts.length ? m0(laborCost) : "—", ""),
     tile(S("laborPct"), laborPct !== null ? laborPct.toFixed(1) + "%" : "—", laborPct === null ? S("needForecast") : (actualPct !== null ? `${S("actualShort")} ${actualPct.toFixed(1)}%` : ""), pctCls),
   ].join("");
 
   // staff by role + who's scheduled
-  const tb = todayBreakdown();
-  const emptyHtml = `<div class="snap-empty">${t("scheduling.todayEmpty")} <a href="/backoffice.html">${t("scheduling.openBackOffice")}</a></div>`;
+  const tb = todayBreakdown(dayShifts);
+  const emptyHtml = `<div class="snap-empty">${ovDate ? S("noOneDay") : t("scheduling.todayEmpty")} <a href="/backoffice.html">${t("scheduling.openBackOffice")}</a></div>`;
   const chipsHtml = tb.entries.length ? `<div class="pos-chips">${tb.chips}</div>` : emptyHtml;
   const scheduled = tb.entries.length ? tb.bodyCollapsed : emptyHtml;
 
@@ -2061,7 +2122,7 @@ function renderOverview() {
           </div>
         </div>`;
     } else {
-      weatherHtml = `<div class="snap-empty">${S("weatherUnavailable")}</div>`;
+      weatherHtml = `<div class="snap-empty">${S(isPastDay ? "weatherPast" : "weatherUnavailable")}</div>`;
     }
     if (sn.events && sn.events.length) {
       eventsHtml = sn.events.map((e, i) => {
@@ -2073,6 +2134,8 @@ function renderOverview() {
           ? `<details class="snap-event" ${snapOpenEvents.has(key) ? "open" : ""} ontoggle="this.open ? snapOpenEvents.add(${escapeHtml(JSON.stringify(key))}) : snapOpenEvents.delete(${escapeHtml(JSON.stringify(key))})"><summary>${head}</summary><div class="more">${detail ? `<div>${detail}</div>` : ""}${e.note ? `<div class="sub">${escapeHtml(e.note)}</div>` : ""}</div></details>`
           : `<div class="snap-event"><div class="sum">${head}</div></div>`;
       }).join("") + `<div class="snap-foot">${S("eventsNote")}</div>`;
+    } else if (sn.eventsStatus === "not_recorded") {
+      eventsHtml = `<div class="snap-empty">${S("eventsNotRecorded")}</div>`;
     } else if (sn.eventsStatus === "pending") {
       eventsHtml = `<div class="snap-empty">${S("eventsPending")}</div>`;
     } else if (sn.eventsStatus === "ok") {
@@ -2086,7 +2149,8 @@ function renderOverview() {
 
   el.innerHTML = `
     <div class="stub snapshot" style="--accent:var(--scheduling)">
-      <div class="snap-head"><div class="eyebrow-s">${S("title")}</div><div class="date">${escapeHtml(dateLabel)}</div></div>
+      ${dayPicker}
+      <div class="snap-head"><div class="eyebrow-s">${dayTitle}</div><div class="date">${escapeHtml(dateLabel)}</div></div>
 
       <div class="snap-sec"><div class="snap-h">${S("managerOnDuty")}</div>${mgrHtml}</div>
       <div class="snap-tiles">${tiles}</div>

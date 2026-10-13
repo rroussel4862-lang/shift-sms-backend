@@ -122,4 +122,19 @@ describe("daily snapshot", () => {
     const res = await B.agent.get("/api/day-snapshot");
     expect(res.body.sales.lastYear).toEqual({ amount: 5000, basis: "weekAvg" });
   });
+
+  test("?date= : out-of-range is rejected, a past day returns saved data only and never hits the network", async () => {
+    const iso = (n) => { const [y, m, d] = today().split("-").map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+    expect((await A.agent.get("/api/day-snapshot?date=nonsense")).status).toBe(400);
+    expect((await A.agent.get("/api/day-snapshot?date=" + iso(-61))).status).toBe(400);
+    expect((await A.agent.get("/api/day-snapshot?date=" + iso(15))).status).toBe(400);
+    const y = iso(-1);
+    await A.agent.put("/api/actual-sales").send({ date: y, foodSales: 3000, beverageSales: 1000 });
+    calls = [];
+    const res = await A.agent.get("/api/day-snapshot?date=" + y);
+    expect(res.status).toBe(200);
+    expect(res.body.date).toBe(y);
+    expect(res.body.eventsStatus).toBe("not_recorded");
+    expect(calls.length).toBe(0);
+  });
 });

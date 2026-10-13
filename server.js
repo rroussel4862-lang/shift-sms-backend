@@ -2475,9 +2475,19 @@ async function lastYearForDay(restaurantId, day, dailyValue) {
   return { amount: null, basis: null };
 }
 
+// ?date=YYYY-MM-DD shows another day (yesterday, tomorrow ... within 60 days back / 14 days ahead); default is today.
+// Past days never trigger a new weather or events lookup: they show what was already saved on that day, if anything.
 app.get("/api/day-snapshot", requireAuth, async (req, res) => {
   try {
-    const day = ownerToday();
+    const todayDay = ownerToday();
+    let day = todayDay;
+    if (req.query.date !== undefined && req.query.date !== "") {
+      if (!isIsoDate(String(req.query.date)) || req.query.date < addDaysIso(todayDay, -60) || req.query.date > addDaysIso(todayDay, 14)) {
+        return res.status(400).json({ error: "date must be YYYY-MM-DD, within 60 days back and 14 days ahead" });
+      }
+      day = String(req.query.date);
+    }
+    const isPast = day < todayDay;
     const rid = req.restaurantId;
     const num = (v) => (v !== null && v !== undefined ? Number(v) : null);
 
@@ -2501,6 +2511,13 @@ app.get("/api/day-snapshot", requireAuth, async (req, res) => {
 
     let { rows: cr } = await pool.query("SELECT * FROM day_context WHERE restaurant_id = $1 AND day = $2", [rid, day]);
     let ctx = cr[0] || {};
+
+    if (isPast) {
+      out.weather = ctx.weather || null;
+      if (ctx.events && !ctx.events_error) { out.events = ctx.events; out.eventsStatus = "ok"; }
+      else out.eventsStatus = "not_recorded";
+      return res.json(out);
+    }
 
     // weather (quick)
     if (ctx.weather && ctx.weather_at && Date.now() - Number(ctx.weather_at) < WEATHER_TTL_MS) {
