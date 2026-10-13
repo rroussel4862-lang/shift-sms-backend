@@ -293,6 +293,36 @@
     td { border: none; padding: 6px 4px; }
     td::before { content: attr(data-label); display: block; font-size: 10px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 3px; }
   }
+
+  /* ---------- Schedule: bigger, easier to read, colour-coded by role ---------- */
+  main:has(#sectionSchedule.active) { max-width: none; }
+  #sectionSchedule .grid-wrap { max-height: calc(100vh - 90px); }
+  table.schedule-grid { min-width: 1380px; font-size: 15px; }
+  table.schedule-grid th, table.schedule-grid td { padding: 10px; }
+  table.schedule-grid thead th { font-size: 14px; padding: 12px 8px; }
+  table.schedule-grid thead th .day-date { font-size: 13px; margin-top: 3px; }
+  table.schedule-grid .row-label { font-size: 12.5px; }
+  table.schedule-grid .proj-row input { font-size: 14px; padding: 7px; background: #fff; color: var(--grid-text); }
+  table.schedule-grid .day-total, table.schedule-grid .index-row td { font-size: 14px; }
+  .staff-cell { min-width: 150px; width: 150px; }
+  .staff-cell .name { font-size: 16px; }
+  .staff-cell .rate { font-size: 13px; margin-top: 2px; }
+  .day-cell { min-width: 170px; }
+  .shift-chip { font-size: 14px; padding: 9px 10px; margin-bottom: 7px; border-left-width: 5px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  .shift-chip .times { font-size: 14.5px; font-weight: 600; }
+  .shift-chip .role-tag { font-size: 12.5px; margin-top: 3px; }
+  .shift-chip .chip-btn { font-size: 16px; padding: 3px 5px; }
+  .add-shift-btn, .paste-btn { font-size: 13px; padding: 9px; }
+  .shift-form input, .shift-form select { font-size: 14px; padding: 7px 8px; }
+  .shift-form .form-actions button { font-size: 13px; padding: 8px; }
+  tr.svc-row td { font-size: 17px; padding: 12px 14px; }
+  tr.role-row td { font-size: 15px; padding: 9px 14px; background: var(--role-color); color: #fff; border-left-width: 8px; border-left-color: rgba(0,0,0,.25); }
+  tr.role-row .cnt { color: rgba(255,255,255,.8); font-size: 13px; }
+  tr.rl td.staff-cell { background: color-mix(in srgb, var(--role-color) 24%, #fff); border-left: 8px solid var(--role-color); }
+  tr.rl td.day-cell { background: color-mix(in srgb, var(--role-color) 11%, #fff); }
+  tr.rl td.day-cell.drag-over { background: color-mix(in srgb, var(--role-color) 32%, #fff); }
+  tr.rl td.day-total { background: color-mix(in srgb, var(--role-color) 18%, #fff); }
+  tr.rl td { border-bottom-color: color-mix(in srgb, var(--role-color) 35%, #fff); border-right-color: color-mix(in srgb, var(--role-color) 35%, #fff); }
 </style>
 </head>
 <body>
@@ -1371,7 +1401,7 @@ function renderScheduleGrid() {
           }).join("");
           svcHours += weekHours; svcCost += weekCost;
           return `
-        <tr>
+        <tr class="rl" style="--role-color:${roleColor(g.role)}">
           <td class="staff-cell">
             <div class="name">${escapeHtml(p.name)}</div>
             <div class="rate num">${p.hourlyRate !== null ? "$" + p.hourlyRate.toFixed(2) + "/hr" : "no rate"}</div>
