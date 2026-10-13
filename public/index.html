@@ -1710,7 +1710,7 @@ function svcLabel(sv) {
   return sv.name;
 }
 // Temperature around the middle of each service (from the hourly forecast); older cached forecasts only know lunch and dinner.
-function svcTemps(w, list) {
+function svcTemps(w, list, activeIds) {
   const parts = [];
   list.forEach((sv, i) => {
     const next = list[i + 1];
@@ -1723,7 +1723,7 @@ function svcTemps(w, list) {
       if (hs.length && Math.abs(hs[0] - mid) <= 3) temp = w.byHour[hs[0]];
     } else if (sv.id === "lunch") temp = w.lunchTemp;
     else if (sv.id === "dinner") temp = w.dinnerTemp;
-    if (temp !== null && temp !== undefined) parts.push(`${svcShort(sv)} ${temp}°`);
+    if (temp !== null && temp !== undefined && (!activeIds || activeIds.has(sv.id))) parts.push(`${svcShort(sv)} ${temp}°`);
   });
   return parts.join(" · ");
 }
@@ -1734,7 +1734,7 @@ function svcShort(sv) {
 }
 const snapOpenSvc = new Set();
 const snapOpenEvents = new Set();
-function todayBreakdown(shiftList) {
+function todayBreakdown(shiftList, activeIds) {
   const byStaff = new Map(); // one row per person: they may have more than one shift that day
   (shiftList || todayShifts).forEach(sh => {
     const person = staff.find(p => p.id === sh.staffId);
@@ -1780,7 +1780,8 @@ function todayBreakdown(shiftList) {
     }).join(""));
   };
   const body = SERVICE_LIST.map((sv, i) => serviceBlock(sv.id, svcLabel(sv), SVC_COLORS[i % SVC_COLORS.length])).join("");
-  const bodyCollapsed = SERVICE_LIST.map((sv, i) => serviceBlock(sv.id, svcLabel(sv), SVC_COLORS[i % SVC_COLORS.length], true)).join("");
+  // overview: a service with no staff scheduled and no forecast/actual sales that day is left out entirely
+  const bodyCollapsed = SERVICE_LIST.map((sv, i) => [sv, i]).filter(([sv]) => !activeIds || SERVICE_LIST.length < 2 || activeIds.has(sv.id) || entries.some(e => e.svc === sv.id)).map(([sv, i]) => serviceBlock(sv.id, svcLabel(sv), SVC_COLORS[i % SVC_COLORS.length], true)).join("");
   return { entries, uniquePeople, chips, body, bodyCollapsed };
 }
 
@@ -2075,7 +2076,7 @@ function renderOverview() {
   const split = (byService) => {
     byService = byService || {};
     if (svcList.length < 2 || !svcList.some(sv => has(byService[sv.id]))) return "";
-    return svcList.map(sv => `${svcShort(sv)} ${has(byService[sv.id]) ? m0(byService[sv.id]) : "—"}`).join(" · ");
+    return svcList.filter(sv => has(byService[sv.id])).map(sv => `${svcShort(sv)} ${has(byService[sv.id]) ? m0(byService[sv.id]) : "—"}`).join(" · ");
   };
   const actual = sales.actual;
   const actualPct = has(actual) && actual > 0 && dayShifts.length ? (laborCost / actual) * 100 : null;
@@ -2090,7 +2091,10 @@ function renderOverview() {
   ].join("");
 
   // staff by role + who's scheduled
-  const tb = todayBreakdown(dayShifts);
+  const activeSvc = new Set();
+  [sales.projectedByService, sales.actualByService].forEach(m => Object.keys(m || {}).forEach(id => { if (m[id] > 0) activeSvc.add(id); }));
+  dayShifts.forEach(sh => activeSvc.add(svcOfTime(sh.startTime)));
+  const tb = todayBreakdown(dayShifts, activeSvc);
   const emptyHtml = `<div class="snap-empty">${ovDate ? S("noOneDay") : t("scheduling.todayEmpty")} <a href="/backoffice.html">${t("scheduling.openBackOffice")}</a></div>`;
   const chipsHtml = tb.entries.length ? `<div class="pos-chips">${tb.chips}</div>` : emptyHtml;
   const scheduled = tb.entries.length ? tb.bodyCollapsed : emptyHtml;
@@ -2115,7 +2119,7 @@ function renderOverview() {
           <span class="ic">${icons[w.category] || "🌡️"}</span>
           <div>
             <div class="big">${w.tempMax}°C <span class="lo">/ ${w.tempMin}°C</span> · ${escapeHtml(label)}</div>
-            <div class="sub">${[svcTemps(w, svcList), w.precipMm > 0 ? `${S("precip")} ${w.precipMm} mm` : ""].filter(Boolean).join(" · ")}</div>
+            <div class="sub">${[svcTemps(w, svcList, activeSvc), w.precipMm > 0 ? `${S("precip")} ${w.precipMm} mm` : ""].filter(Boolean).join(" · ")}</div>
           </div>
         </div>`;
     } else {
