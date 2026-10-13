@@ -187,6 +187,10 @@ async function initDb() {
   await pool.query(`ALTER TABLE sales_projections ADD COLUMN IF NOT EXISTS lunch_amount NUMERIC;`);
   // What the restaurant sold on the same weekday a year earlier (typed in from POS history; shown on the manager's daily snapshot).
   await pool.query(`ALTER TABLE sales_projections ADD COLUMN IF NOT EXISTS last_year_amount NUMERIC;`);
+  // Forecast = lunch/brunch + dinner (typed by the manager); projected_amount stays the day's total so every older consumer keeps working.
+  await pool.query(`ALTER TABLE sales_projections ADD COLUMN IF NOT EXISTS dinner_amount NUMERIC;`);
+  await pool.query(`ALTER TABLE sales_projections ADD COLUMN IF NOT EXISTS ai_amount NUMERIC;`);
+  await pool.query(`ALTER TABLE actual_sales ADD COLUMN IF NOT EXISTS dinner_amount NUMERIC;`);
   // Where the restaurant is (geocoded from its address) and a per-day cache of weather / nearby events for the daily snapshot.
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS geo_lat DOUBLE PRECISION;`);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS geo_lon DOUBLE PRECISION;`);
@@ -1832,12 +1836,14 @@ app.get("/api/sales-projections", requireAuth, async (req, res) => {
       projectedAmount: r.projected_amount !== null ? Number(r.projected_amount) : null,
       lunchAmount: r.lunch_amount !== null && r.lunch_amount !== undefined ? Number(r.lunch_amount) : null,
       lastYearAmount: r.last_year_amount !== null && r.last_year_amount !== undefined ? Number(r.last_year_amount) : null,
+      dinnerAmount: r.dinner_amount !== null && r.dinner_amount !== undefined ? Number(r.dinner_amount) : null,
+      aiAmount: r.ai_amount !== null && r.ai_amount !== undefined ? Number(r.ai_amount) : null,
     }))
   );
 });
 
 app.put("/api/sales-projections", requireAuth, async (req, res) => {
-  const { date, projectedAmount, lunchAmount, lastYearAmount } = req.body || {};
+  const { date, projectedAmount, lunchAmount, dinnerAmount, lastYearAmount } = req.body || {};
   if (!date) return res.status(400).json({ error: "date is required" });
   const parse = (raw, label) => {
     if (raw === undefined) return { provided: false };
@@ -1848,29 +1854,48 @@ app.put("/api/sales-projections", requireAuth, async (req, res) => {
   };
   const total = parse(projectedAmount, "projected amount");
   const lunch = parse(lunchAmount, "lunch amount");
+  const dinner = parse(dinnerAmount, "dinner amount");
   const lastYear = parse(lastYearAmount, "last year amount");
-  for (const p of [total, lunch, lastYear]) if (p.error) return res.status(400).json({ error: p.error });
-  if (!total.provided && !lunch.provided && !lastYear.provided) return res.status(400).json({ error: "projectedAmount, lunchAmount or lastYearAmount is required" });
+  for (const p of [total, lunch, dinner, lastYear]) if (p.error) return res.status(400).json({ error: p.error });
+  if (!total.provided && !lunch.provided && !dinner.provided && !lastYear.provided) return res.status(400).json({ error: "projectedAmount, lunchAmount, dinnerAmount or lastYearAmount is required" });
 
   // Only the fields the request mentions are changed; the others are left alone.
   const { rows } = await pool.query(
-    `INSERT INTO sales_projections (id, restaurant_id, proj_date, projected_amount, lunch_amount, last_year_amount, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)
+    `INSERT INTO sales_projections (id, restaurant_id, proj_date, projected_amount, lunch_amount, dinner_amount, last_year_amount, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
      ON CONFLICT (restaurant_id, proj_date) DO UPDATE SET
-       projected_amount = CASE WHEN $8 THEN EXCLUDED.projected_amount ELSE sales_projections.projected_amount END,
-       lunch_amount = CASE WHEN $9 THEN EXCLUDED.lunch_amount ELSE sales_projections.lunch_amount END,
-       last_year_amount = CASE WHEN $10 THEN EXCLUDED.last_year_amount ELSE sales_projections.last_year_amount END
+       projected_amount = CASE WHEN $9 THEN EXCLUDED.projected_amount ELSE sales_projections.projected_amount END,
+       lunch_amount = CASE WHEN $10 THEN EXCLUDED.lunch_amount ELSE sales_projections.lunch_amount END,
+       dinner_amount = CASE WHEN $11 THEN EXCLUDED.dinner_amount ELSE sales_projections.dinner_amount END,
+       last_year_amount = CASE WHEN $12 THEN EXCLUDED.last_year_amount ELSE sales_projections.last_year_amount END
      RETURNING *`,
-    [id(), req.restaurantId, date, total.provided ? total.value : null, lunch.provided ? lunch.value : null, lastYear.provided ? lastYear.value : null, Date.now(), total.provided, lunch.provided, lastYear.provided]
+    [id(), req.restaurantId, date, total.provided ? total.value : null, lunch.provided ? lunch.value : null, dinner.provided ? dinner.value : null, lastYear.provided ? lastYear.value : null, Date.now(),
+     total.provided, lunch.provided, dinner.provided, lastYear.provided]
   );
-  const num = (v) => (v !== null && v !== undefined ? Number(v) : null);
-  res.json({
-    date: rows[0].proj_date instanceof Date ? rows[0].proj_date.toISOString().slice(0, 10) : rows[0].proj_date,
-    projectedAmount: num(rows[0].projected_amount),
-    lunchAmount: num(rows[0].lunch_amount),
-    lastYearAmount: num(rows[0].last_year_amount),
-  });
+  let row = rows[0];
+  // Typing a lunch or dinner forecast makes the day's total = lunch + dinner (unless the total itself was sent).
+  if ((lunch.provided || dinner.provided) && !total.provided) {
+    const upd = await pool.query(
+      `UPDATE sales_projections SET projected_amount = CASE WHEN lunch_amount IS NULL AND dinner_amount IS NULL THEN NULL ELSE COALESCE(lunch_amount,0) + COALESCE(dinner_amount,0) END
+       WHERE restaurant_id = $1 AND proj_date = $2 RETURNING *`,
+      [req.restaurantId, date]
+    );
+    row = upd.rows[0];
+  }
+  res.json(projectionRowToJson(row));
 });
+
+function projectionRowToJson(r) {
+  const num = (v) => (v !== null && v !== undefined ? Number(v) : null);
+  return {
+    date: r.proj_date instanceof Date ? r.proj_date.toISOString().slice(0, 10) : r.proj_date,
+    projectedAmount: num(r.projected_amount),
+    lunchAmount: num(r.lunch_amount),
+    dinnerAmount: num(r.dinner_amount),
+    lastYearAmount: num(r.last_year_amount),
+    aiAmount: num(r.ai_amount),
+  };
+}
 
 // ---------- actual sales (empty until a POS integration exists; this is the slot it will write into) ----------
 
@@ -1882,6 +1907,7 @@ function actualSalesRowToJson(r) {
     foodAmount: num(r.food_amount),
     bevAmount: num(r.bev_amount),
     lunchAmount: num(r.lunch_amount),
+    dinnerAmount: num(r.dinner_amount),
     source: r.source,
   };
 }
@@ -1901,7 +1927,7 @@ app.get("/api/actual-sales", requireAuth, async (req, res) => {
 //  - amount only: a POS total with no split. The food/beverage split is cleared so the total stays authoritative.
 // Empty string or null clears a value.
 app.put("/api/actual-sales", requireAuth, async (req, res) => {
-  const { date, amount, foodAmount, bevAmount, lunchAmount, source } = req.body || {};
+  const { date, amount, foodAmount, bevAmount, lunchAmount, dinnerAmount, source } = req.body || {};
   if (!date) return res.status(400).json({ error: "date is required" });
 
   const parseMoney = (raw, label) => {
@@ -1915,16 +1941,25 @@ app.put("/api/actual-sales", requireAuth, async (req, res) => {
   const food = parseMoney(foodAmount, "foodAmount");
   const bev = parseMoney(bevAmount, "bevAmount");
   const lunch = parseMoney(lunchAmount, "lunchAmount");
-  for (const p of [total, food, bev, lunch]) if (p.error) return res.status(400).json({ error: p.error });
+  const dinner = parseMoney(dinnerAmount, "dinnerAmount");
+  for (const p of [total, food, bev, lunch, dinner]) if (p.error) return res.status(400).json({ error: p.error });
 
-  // Lunch/brunch only: leave the day's total and food/beverage split exactly as they are.
-  if (lunch.provided && !total.provided && !food.provided && !bev.provided) {
+  // Lunch and/or dinner only (the schedule grid's boxes): the day's total becomes lunch + dinner,
+  // unless the day already has a food/beverage split — then that split stays the authority for the total.
+  if ((lunch.provided || dinner.provided) && !total.provided && !food.provided && !bev.provided) {
+    const { rows: existing } = await pool.query("SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date = $2", [req.restaurantId, date]);
+    const prev = existing[0] || {};
+    const prevNum = (v) => (v !== null && v !== undefined ? Number(v) : null);
+    const lunchVal = lunch.provided ? lunch.value : prevNum(prev.lunch_amount);
+    const dinnerVal = dinner.provided ? dinner.value : prevNum(prev.dinner_amount);
+    const hasCategorySplit = prev.food_amount !== null && prev.food_amount !== undefined || prev.bev_amount !== null && prev.bev_amount !== undefined;
+    const amt2 = hasCategorySplit ? prevNum(prev.amount) : (lunchVal === null && dinnerVal === null ? null : (lunchVal || 0) + (dinnerVal || 0));
     const { rows } = await pool.query(
-      `INSERT INTO actual_sales (id, restaurant_id, sale_date, amount, lunch_amount, source, created_at)
-       VALUES ($1,$2,$3,NULL,$4,$5,$6)
-       ON CONFLICT (restaurant_id, sale_date) DO UPDATE SET lunch_amount = EXCLUDED.lunch_amount
+      `INSERT INTO actual_sales (id, restaurant_id, sale_date, amount, lunch_amount, dinner_amount, source, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (restaurant_id, sale_date) DO UPDATE SET amount = EXCLUDED.amount, lunch_amount = EXCLUDED.lunch_amount, dinner_amount = EXCLUDED.dinner_amount
        RETURNING *`,
-      [id(), req.restaurantId, date, lunch.value, (source || "manual").trim(), Date.now()]
+      [id(), req.restaurantId, date, amt2, lunchVal, dinnerVal, (source || "manual").trim(), Date.now()]
     );
     return res.json(actualSalesRowToJson(rows[0]));
   }
@@ -1953,8 +1988,12 @@ app.put("/api/actual-sales", requireAuth, async (req, res) => {
      RETURNING *`,
     [newId, req.restaurantId, date, amt, foodVal, bevVal, (source || "manual").trim(), Date.now()]
   );
-  if (lunch.provided) {
-    const upd = await pool.query("UPDATE actual_sales SET lunch_amount = $1 WHERE restaurant_id = $2 AND sale_date = $3 RETURNING *", [lunch.value, req.restaurantId, date]);
+  if (lunch.provided || dinner.provided) {
+    const upd = await pool.query(
+      `UPDATE actual_sales SET lunch_amount = CASE WHEN $1 THEN $2::numeric ELSE lunch_amount END, dinner_amount = CASE WHEN $3 THEN $4::numeric ELSE dinner_amount END
+       WHERE restaurant_id = $5 AND sale_date = $6 RETURNING *`,
+      [lunch.provided, lunch.provided ? lunch.value : null, dinner.provided, dinner.provided ? dinner.value : null, req.restaurantId, date]
+    );
     return res.json(actualSalesRowToJson(upd.rows[0]));
   }
   res.json(actualSalesRowToJson(rows[0]));
@@ -2092,6 +2131,64 @@ app.put("/api/revenue-history", requireAuth, async (req, res) => {
     [req.restaurantId, weekStart, n, Date.now()]
   );
   res.json({ weekStart, amount: n });
+});
+
+// ---------- AI sales forecast: fills the "AI forecasted sales" row of the schedule grid ----------
+// Looks at recent daily sales by weekday plus last year's numbers; never invents a basis — days without one stay empty.
+app.post("/api/ai/sales-forecast", requireAuth, aiLimiter, async (req, res) => {
+  if (!aiBoardGuard(req, res)) return;
+  const weekStart = String((req.body && req.body.weekStart) || "");
+  if (!isIsoDate(weekStart) || new Date(weekStart + "T00:00:00Z").getUTCDay() !== 1) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
+  const rid = req.restaurantId;
+  const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDaysIso(weekStart, i));
+  try {
+    const { rows: recent } = await pool.query(
+      "SELECT sale_date::text AS d, amount FROM actual_sales WHERE restaurant_id = $1 AND sale_date >= $2 AND sale_date < $3 AND amount IS NOT NULL ORDER BY sale_date",
+      [rid, addDaysIso(weekStart, -84), weekStart]
+    );
+    const { rows: lyDaily } = await pool.query(
+      "SELECT proj_date::text AS d, last_year_amount FROM sales_projections WHERE restaurant_id = $1 AND proj_date >= $2 AND proj_date <= $3 AND last_year_amount IS NOT NULL",
+      [rid, days[0], days[6]]
+    );
+    const { rows: lyWeek } = await pool.query("SELECT amount FROM weekly_sales_history WHERE restaurant_id = $1 AND week_start = $2", [rid, addDaysIso(weekStart, -364)]);
+    if (recent.length < 3 && lyDaily.length === 0 && lyWeek.length === 0) {
+      return res.status(400).json({ error: "Not enough sales history yet — enter some actual sales, or last year's figures, and try again." });
+    }
+    const facts = {
+      weekdaysOfTargetWeek: days.map((d) => ({ date: d, weekday: WEEKDAY_KEYS[new Date(d + "T00:00:00Z").getUTCDay()] })),
+      recentDailySales: recent.map((r) => ({ date: r.d, weekday: WEEKDAY_KEYS[new Date(r.d + "T00:00:00Z").getUTCDay()], sales: Number(r.amount) })),
+      lastYearSameDay: lyDaily.map((r) => ({ date: r.d, sales: Number(r.last_year_amount) })),
+      lastYearSameWeekTotal: lyWeek[0] ? Number(lyWeek[0].amount) : null,
+    };
+    const { text, durationMs } = await callClaude({
+      system: "You forecast a restaurant's total daily sales (dollars) for the seven dates of one week. Use only the data given: the pattern by weekday in recent daily sales, any trend, and last year's figures. If a day has no reasonable basis, return null for it — never guess wildly. Round to the nearest 10 dollars. Reply with ONLY a JSON object: {\"days\":[{\"date\":\"YYYY-MM-DD\",\"amount\":number|null}]} covering the seven dates.",
+      user: JSON.stringify(facts),
+      maxTokens: 800,
+    });
+    const parsed = extractJsonObject(text);
+    if (!parsed || !Array.isArray(parsed.days)) {
+      logActivity({ restaurantId: rid, eventType: "ai_failed", level: "error", detail: "sales-forecast: unparseable reply", durationMs });
+      return res.status(502).json({ error: "The AI agent couldn't build a forecast — try again." });
+    }
+    const out = [];
+    for (const d of parsed.days) {
+      if (!d || !days.includes(d.date)) continue;
+      const amount = d.amount === null || d.amount === undefined ? null : Number(d.amount);
+      if (amount !== null && (isNaN(amount) || amount < 0 || amount > 1e7)) continue;
+      out.push({ date: d.date, amount: amount === null ? null : Math.round(amount) });
+    }
+    for (const d of out) {
+      await pool.query(
+        `INSERT INTO sales_projections (id, restaurant_id, proj_date, ai_amount, created_at) VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT (restaurant_id, proj_date) DO UPDATE SET ai_amount = EXCLUDED.ai_amount`,
+        [id(), rid, d.date, d.amount, Date.now()]
+      );
+    }
+    logActivity({ restaurantId: rid, eventType: "ai_answered", detail: `sales-forecast: week of ${weekStart}`, durationMs });
+    res.json({ days: out });
+  } catch (e) {
+    handleAiBoardError(res, req, "ai_failed", e);
+  }
 });
 
 // ---------- today's snapshot for the Manager interface: weather, nearby events, last year's figure ----------
@@ -2292,11 +2389,18 @@ app.get("/api/day-snapshot", requireAuth, async (req, res) => {
     const rid = req.restaurantId;
     const num = (v) => (v !== null && v !== undefined ? Number(v) : null);
 
-    const { rows: pr } = await pool.query("SELECT projected_amount, lunch_amount, last_year_amount FROM sales_projections WHERE restaurant_id = $1 AND proj_date = $2", [rid, day]);
+    const { rows: pr } = await pool.query("SELECT projected_amount, lunch_amount, dinner_amount, last_year_amount, ai_amount FROM sales_projections WHERE restaurant_id = $1 AND proj_date = $2", [rid, day]);
+    const { rows: ar } = await pool.query("SELECT amount, lunch_amount, dinner_amount FROM actual_sales WHERE restaurant_id = $1 AND sale_date = $2", [rid, day]);
     const p = pr[0] || {};
+    const a = ar[0] || {};
     const sales = {
       projected: num(p.projected_amount),
       projectedLunch: num(p.lunch_amount),
+      projectedDinner: num(p.dinner_amount),
+      ai: num(p.ai_amount),
+      actual: num(a.amount),
+      actualLunch: num(a.lunch_amount),
+      actualDinner: num(a.dinner_amount),
       lastYear: await lastYearForDay(rid, day, num(p.last_year_amount)),
     };
 

@@ -511,6 +511,10 @@
   .snap-head .date { font-size: 14px; opacity: .7; }
   .snap-sec { margin-top: 18px; }
   .snap-h { font-family: 'Oswald', sans-serif; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; opacity: .65; margin-bottom: 6px; }
+  details.svc-det > summary { list-style: none; cursor: pointer; }
+  details.svc-det > summary::-webkit-details-marker { display: none; }
+  details.svc-det > summary .svc-head::after { content: "▸"; margin-left: 8px; transition: transform .15s; display: inline-block; }
+  details.svc-det[open] > summary .svc-head::after { transform: rotate(90deg); }
   .snap-h.sm { margin-top: 14px; }
   .snap-mgr { display: flex; justify-content: space-between; align-items: baseline; font-size: 18px; padding: 6px 0; border-bottom: 1px dashed rgba(35,38,31,.2); }
   .snap-mgr .num { font-size: 14px; opacity: .75; }
@@ -940,6 +944,7 @@ const T = {
     },
     snap: {
       staffByRole: "How many staff, by role", title: "Today's snapshot", managerOnDuty: "Manager on duty", noManager: "No manager scheduled today",
+      aiForecast: "AI forecast", noAiForecast: "Generate it in Back Office › Schedule", actualSales: "Actual sales", noActual: "Not entered yet", vsForecast: "vs your forecast", actualShort: "actual",
       forecastSales: "Forecast sales", noForecast: "Enter today's forecast in Back Office › Schedule", lastYear: "Last year, same day", lastYearAvg: "average day, same week last year", noLastYear: "Add it in Back Office › Schedule",
       vsLastYear: "vs last year", laborScheduled: "Labor scheduled", laborPct: "Forecast labor %", needForecast: "Needs a sales forecast",
       lunchShort: "Lunch", dinnerShort: "Dinner", whoScheduled: "Who's scheduled", weatherEvents: "Weather & events", eventsNearby: "Events nearby that may affect customer attendance",
@@ -1090,6 +1095,7 @@ const T = {
     },
     snap: {
       staffByRole: "Combien de personnes, par poste", title: "Aperçu du jour", managerOnDuty: "Gérant en service", noManager: "Aucun gérant à l'horaire aujourd'hui",
+      aiForecast: "Prévision IA", noAiForecast: "À générer dans l'arrière-boutique › Horaire", actualSales: "Ventes réelles", noActual: "Pas encore saisies", vsForecast: "vs votre prévision", actualShort: "réel",
       forecastSales: "Ventes prévues", noForecast: "Entrez la prévision du jour dans l'arrière-boutique › Horaire", lastYear: "Même jour l'an dernier", lastYearAvg: "journée moyenne, même semaine l'an dernier", noLastYear: "À ajouter dans l'arrière-boutique › Horaire",
       vsLastYear: "vs l'an dernier", laborScheduled: "Main-d'œuvre prévue", laborPct: "% main-d'œuvre prévu", needForecast: "Prévision de ventes requise",
       lunchShort: "Dîner", dinnerShort: "Souper", whoScheduled: "Qui travaille", weatherEvents: "Météo et événements", eventsNearby: "Événements à proximité pouvant influencer la clientèle",
@@ -1240,6 +1246,7 @@ const T = {
     },
     snap: {
       staffByRole: "Cuántas personas, por puesto", title: "Resumen del día", managerOnDuty: "Gerente de turno", noManager: "Ningún gerente programado hoy",
+      aiForecast: "Pronóstico IA", noAiForecast: "Genéralo en Administración › Horario", actualSales: "Ventas reales", noActual: "Aún sin ingresar", vsForecast: "vs tu proyección", actualShort: "real",
       forecastSales: "Ventas proyectadas", noForecast: "Ingresa la proyección de hoy en Administración › Horario", lastYear: "Mismo día el año pasado", lastYearAvg: "día promedio, misma semana del año pasado", noLastYear: "Agrégalo en Administración › Horario",
       vsLastYear: "vs año pasado", laborScheduled: "Mano de obra programada", laborPct: "% de mano de obra proyectado", needForecast: "Requiere proyección de ventas",
       lunchShort: "Almuerzo", dinnerShort: "Cena", whoScheduled: "Quién trabaja", weatherEvents: "Clima y eventos", eventsNearby: "Eventos cercanos que podrían afectar la asistencia de clientes",
@@ -1622,6 +1629,7 @@ function fmtClock(hhmm) {
 }
 
 // Today's scheduled people grouped by service (lunch/brunch, dinner) and position — shared by the Scheduling tab and the Overview snapshot.
+const snapOpenSvc = new Set();
 function todayBreakdown() {
   const byStaff = new Map(); // one row per person: they may have more than one shift today
   todayShifts.forEach(sh => {
@@ -1644,14 +1652,17 @@ function todayBreakdown() {
   entries.forEach(e => { const k = e.role || ""; if (!allGroups.has(k)) allGroups.set(k, new Set()); allGroups.get(k).add(e.person.id); });
   const chips = sortKeys([...allGroups.keys()]).map(k => `<span class="pos-chip"><b>${allGroups.get(k).size}</b> ${escapeHtml(k ? roleLabel(k) : t("scheduling.todayUnknownPosition"))}</span>`).join("");
 
-  const serviceBlock = (svc, label, color) => {
+  const serviceBlock = (svc, label, color, collapse) => {
     const list = entries.filter(e => e.svc === svc);
     const people = new Set(list.map(e => e.person.id)).size;
     const head = `<div class="svc-head" style="--svc:${color}"><span>${escapeHtml(label)}</span><span class="n">${escapeHtml(t("scheduling.todayTotal", people))}</span></div>`;
     if (!list.length) return head + `<div class="svc-empty">—</div>`;
+    const wrap = inner => collapse
+      ? `<details class="svc-det" ${snapOpenSvc.has(svc) ? "open" : ""} ontoggle="this.open ? snapOpenSvc.add('${svc}') : snapOpenSvc.delete('${svc}')"><summary>${head}</summary>${inner}</details>`
+      : head + inner;
     const groups = new Map();
     list.forEach(e => { const k = e.role || ""; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); });
-    return head + sortKeys([...groups.keys()]).map(k => {
+    return wrap(sortKeys([...groups.keys()]).map(k => {
       const rows = groups.get(k).sort((a, b) => (a.times[0].start || "").localeCompare(b.times[0].start || ""));
       return `
       <div class="today-group">
@@ -1662,10 +1673,11 @@ function todayBreakdown() {
             <span class="num" style="opacity:0.75;font-size:12px">${e.times.map(x => `${fmtClock(x.start)}–${fmtClock(x.end)}`).join(", ")}</span>
           </div>`).join("")}
       </div>`;
-    }).join("");
+    }).join(""));
   };
   const body = serviceBlock("lunch", t("scheduling.svcLunch"), "#E2A33B") + serviceBlock("dinner", t("scheduling.svcDinner"), "#B5456B");
-  return { entries, uniquePeople, chips, body };
+  const bodyCollapsed = serviceBlock("lunch", t("scheduling.svcLunch"), "#E2A33B", true) + serviceBlock("dinner", t("scheduling.svcDinner"), "#B5456B", true);
+  return { entries, uniquePeople, chips, body, bodyCollapsed };
 }
 
 // Staff on today's schedule, grouped by position, with a headcount per position.
@@ -1917,18 +1929,25 @@ function renderOverview() {
   const m0 = v => "$" + Math.round(v).toLocaleString(localeForLang());
   const tile = (label, value, sub, cls) => `<div class="snap-tile ${cls || ""}"><div class="lbl">${label}</div><div class="val">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
   const lyVs = (forecast && ly.amount) ? (() => { const d = Math.round((forecast / ly.amount - 1) * 100); return `${d >= 0 ? "+" : ""}${d}% ${S("vsLastYear")}`; })() : "";
+  const has = v => v !== null && v !== undefined;
+  const split = (l, d) => (has(l) || has(d)) ? `${S("lunchShort")} ${has(l) ? m0(l) : "—"} · ${S("dinnerShort")} ${has(d) ? m0(d) : "—"}` : "";
+  const actual = sales.actual;
+  const actualPct = has(actual) && actual > 0 && todayShifts.length ? (laborCost / actual) * 100 : null;
+  const aiVs = (has(sales.ai) && forecast) ? (() => { const d = Math.round((sales.ai / forecast - 1) * 100); return `${d >= 0 ? "+" : ""}${d}% ${S("vsForecast")}`; })() : "";
   const tiles = [
-    tile(S("forecastSales"), forecast !== null && forecast !== undefined ? m0(forecast) : "—", forecast ? (sales.projectedLunch ? `${S("lunchShort")} ${m0(sales.projectedLunch)} · ${S("dinnerShort")} ${m0(forecast - sales.projectedLunch)}` : lyVs) : S("noForecast")),
-    tile(S("lastYear"), ly.amount !== null && ly.amount !== undefined ? (ly.basis === "weekAvg" ? "~" : "") + m0(ly.amount) : "—", ly.basis === "weekAvg" ? S("lastYearAvg") : (ly.amount ? lyVs : S("noLastYear"))),
+    tile(S("forecastSales"), has(forecast) ? m0(forecast) : "—", has(forecast) ? (split(sales.projectedLunch, sales.projectedDinner) || lyVs) : S("noForecast")),
+    tile(S("aiForecast"), has(sales.ai) ? m0(sales.ai) : "—", has(sales.ai) ? aiVs : S("noAiForecast")),
+    tile(S("actualSales"), has(actual) ? m0(actual) : "—", has(actual) ? split(sales.actualLunch, sales.actualDinner) : S("noActual")),
+    tile(S("lastYear"), has(ly.amount) ? (ly.basis === "weekAvg" ? "~" : "") + m0(ly.amount) : "—", ly.basis === "weekAvg" ? S("lastYearAvg") : (ly.amount ? lyVs : S("noLastYear"))),
     tile(S("laborScheduled"), todayShifts.length ? m0(laborCost) : "—", ""),
-    tile(S("laborPct"), laborPct !== null ? laborPct.toFixed(1) + "%" : "—", laborPct === null ? S("needForecast") : "", pctCls),
+    tile(S("laborPct"), laborPct !== null ? laborPct.toFixed(1) + "%" : "—", laborPct === null ? S("needForecast") : (actualPct !== null ? `${S("actualShort")} ${actualPct.toFixed(1)}%` : ""), pctCls),
   ].join("");
 
   // staff by role + who's scheduled
   const tb = todayBreakdown();
   const emptyHtml = `<div class="snap-empty">${t("scheduling.todayEmpty")} <a href="/backoffice.html">${t("scheduling.openBackOffice")}</a></div>`;
   const chipsHtml = tb.entries.length ? `<div class="pos-chips">${tb.chips}</div>` : emptyHtml;
-  const scheduled = tb.entries.length ? tb.body : emptyHtml;
+  const scheduled = tb.entries.length ? tb.bodyCollapsed : emptyHtml;
 
   // weather + events
   let weatherHtml = "", eventsHtml = "";
