@@ -520,6 +520,16 @@
   details.svc-det > summary::-webkit-details-marker { display: none; }
   details.svc-det > summary .svc-head::after { content: "▸"; margin-left: 8px; transition: transform .15s; display: inline-block; }
   details.svc-det[open] > summary .svc-head::after { transform: rotate(90deg); }
+  .avail-req { background: var(--panel, #fff); border: 1px solid var(--staffcolor, #c8892b); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; }
+  .avail-req h3 { margin: 0 0 4px; font-size: 15px; }
+  .avail-req .who { font-weight: 600; margin-top: 12px; }
+  .avail-req table { width: 100%; border-collapse: collapse; margin: 6px 0 8px; font-size: 13px; }
+  .avail-req th, .avail-req td { text-align: left; padding: 4px 6px; border-bottom: 1px solid rgba(128,128,128,.25); }
+  .avail-req tr.chg td { background: rgba(232,168,56,.18); font-weight: 600; }
+  .avail-req .btns { display: flex; gap: 8px; }
+  .avail-req .btns button { padding: 7px 18px; border-radius: 6px; border: 1px solid var(--staffcolor, #c8892b); background: var(--staffcolor, #c8892b); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .avail-req .btns button.ghost { background: none; color: inherit; border-color: rgba(128,128,128,.5); }
+  .nav-badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 6px; border-radius: 9px; background: var(--staffcolor, #c8892b); color: #fff; font-size: 11px; line-height: 18px; text-align: center; font-weight: 700; }
   .ov-greet { font-family: 'Oswald', sans-serif; font-size: 22px; letter-spacing: .01em; margin-bottom: 10px; }
   .ov-addname { border: none; background: none; color: inherit; opacity: .6; font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; margin-left: 6px; font-family: inherit; }
   .ov-picker { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -723,7 +733,7 @@
       <span class="dot"></span><span data-i18n="nav.shifts">Scheduling</span>
     </button>
     <button class="nav-stub" id="tabBtnStaff" style="--dot-color:var(--staffcolor)" onclick="switchTab('staff')">
-      <span class="dot"></span><span data-i18n="nav.staff">Staff</span>
+      <span class="dot"></span><span data-i18n="nav.staff">Staff</span><span class="nav-badge" id="staffBadge" style="display:none"></span>
     </button>
     <button class="nav-stub" id="tabBtnPayroll" style="--dot-color:var(--payroll)" onclick="switchTab('payroll')">
       <span class="dot"></span><span data-i18n="nav.payroll">Payroll & Sales</span>
@@ -809,6 +819,7 @@
       <h2 data-i18n="staff.h2">Your team</h2>
       <p data-i18n="staff.desc">Your roster, their roles, and who's actually stepping up — add, edit, and see who responds most.</p>
     </div>
+    <div id="availRequests"></div>
     <div class="stub plain">
       <h3 data-i18n="staff.addCard">Add new staff</h3>
       <label data-i18n="staff.name">Name</label>
@@ -995,7 +1006,7 @@ const T = {
     },
     snap: {
       noOneDay: "No one is scheduled this day.", noManagerDay: "No manager scheduled this day",
-      forecastShort: "Forecast", greetMorning: "Good morning", greetAfternoon: "Good afternoon", greetEvening: "Good evening", addName: "Add your name", askName: "What should we call you?", titleYesterday: "Yesterday's snapshot", titleTomorrow: "Tomorrow's snapshot", titleDay: "Day snapshot", todayBtn: "Today", prevDay: "Previous day", nextDay: "Next day",
+      availWait: n => `${n} availability request${n === 1 ? "" : "s"} waiting for approval`, availWaitLink: "Review in Staff", forecastShort: "Forecast", greetMorning: "Good morning", greetAfternoon: "Good afternoon", greetEvening: "Good evening", addName: "Add your name", askName: "What should we call you?", titleYesterday: "Yesterday's snapshot", titleTomorrow: "Tomorrow's snapshot", titleDay: "Day snapshot", todayBtn: "Today", prevDay: "Previous day", nextDay: "Next day",
       weatherPast: "Weather wasn't saved for this day.", eventsNotRecorded: "Nearby events weren't saved for this day.",
       staffByRole: "How many staff, by role", title: "Today's snapshot", managerOnDuty: "Manager on duty", noManager: "No manager scheduled today",
       aiForecast: "AI forecast", noAiForecast: "Generate it in Back Office › Schedule", actualSales: "Actual sales", noActual: "Not entered yet", vsForecast: "vs your forecast", actualShort: "actual",
@@ -1033,6 +1044,7 @@ const T = {
     },
     staff: {
       eyebrow: "Staff", h2: "Your team", desc: "Your roster, their roles, and who's actually stepping up — add, edit, and see who responds most.",
+      avTitle: "Availability requests", avDesc: "Staff changes only count in the schedule once you approve them.", avFree: "Free", avBusy: "Busy", avDay: "Day", avCur: "Current", avReq: "Requested", avApprove: "Approve", avDecline: "Decline", avApproved: "Availability approved", avDeclined: "Request declined",
       addCard: "Add new staff", name: "Name", namePh: "Full name", phone: "Phone",
       rate: "Hourly rate (optional)", ratePh: "e.g. 19.50", hireDate: "Hire date (optional)",
       roles: "Role(s) — tap all that apply", addBtn: "Add staff",
@@ -1149,7 +1161,7 @@ const T = {
     },
     snap: {
       noOneDay: "Personne n'est à l'horaire ce jour-là.", noManagerDay: "Aucun gérant à l'horaire ce jour-là",
-      forecastShort: "Prévision", greetMorning: "Bonjour", greetAfternoon: "Bon après-midi", greetEvening: "Bonsoir", addName: "Ajoutez votre nom", askName: "Comment doit-on vous appeler ?", titleYesterday: "L'aperçu d'hier", titleTomorrow: "L'aperçu de demain", titleDay: "Aperçu du jour", todayBtn: "Aujourd'hui", prevDay: "Jour précédent", nextDay: "Jour suivant",
+      availWait: n => `${n} demande${n === 1 ? "" : "s"} de disponibilités en attente d'approbation`, availWaitLink: "Voir dans Personnel", forecastShort: "Prévision", greetMorning: "Bonjour", greetAfternoon: "Bon après-midi", greetEvening: "Bonsoir", addName: "Ajoutez votre nom", askName: "Comment doit-on vous appeler ?", titleYesterday: "L'aperçu d'hier", titleTomorrow: "L'aperçu de demain", titleDay: "Aperçu du jour", todayBtn: "Aujourd'hui", prevDay: "Jour précédent", nextDay: "Jour suivant",
       weatherPast: "La météo n'a pas été enregistrée pour ce jour.", eventsNotRecorded: "Les événements à proximité n'ont pas été enregistrés pour ce jour.",
       staffByRole: "Combien de personnes, par poste", title: "Aperçu du jour", managerOnDuty: "Gérant en service", noManager: "Aucun gérant à l'horaire aujourd'hui",
       aiForecast: "Prévision IA", noAiForecast: "À générer dans l'arrière-boutique › Horaire", actualSales: "Ventes réelles", noActual: "Pas encore saisies", vsForecast: "vs votre prévision", actualShort: "réel",
@@ -1187,6 +1199,7 @@ const T = {
     },
     staff: {
       eyebrow: "Personnel", h2: "Votre équipe", desc: "Votre équipe, leurs postes, et qui répond vraiment présent — ajoutez, modifiez, et voyez qui répond le plus.",
+      avTitle: "Demandes de disponibilités", avDesc: "Les changements du personnel ne comptent dans l'horaire qu'une fois approuvés.", avFree: "Libre", avBusy: "Occupé", avDay: "Jour", avCur: "Actuel", avReq: "Demandé", avApprove: "Approuver", avDecline: "Refuser", avApproved: "Disponibilités approuvées", avDeclined: "Demande refusée",
       addCard: "Ajouter un employé", name: "Nom", namePh: "Nom complet", phone: "Téléphone",
       rate: "Taux horaire (optionnel)", ratePh: "ex. 19,50", hireDate: "Date d'embauche (optionnel)",
       roles: "Poste(s) — touchez tous ceux qui s'appliquent", addBtn: "Ajouter l'employé",
@@ -1303,7 +1316,7 @@ const T = {
     },
     snap: {
       noOneDay: "Nadie está programado este día.", noManagerDay: "Ningún gerente programado este día",
-      forecastShort: "Pronóstico", greetMorning: "Buenos días", greetAfternoon: "Buenas tardes", greetEvening: "Buenas noches", addName: "Añade tu nombre", askName: "¿Cómo debemos llamarte?", titleYesterday: "Resumen de ayer", titleTomorrow: "Resumen de mañana", titleDay: "Resumen del día", todayBtn: "Hoy", prevDay: "Día anterior", nextDay: "Día siguiente",
+      availWait: n => `${n} solicitud${n === 1 ? "" : "es"} de disponibilidad pendiente${n === 1 ? "" : "s"} de aprobación`, availWaitLink: "Revisar en Personal", forecastShort: "Pronóstico", greetMorning: "Buenos días", greetAfternoon: "Buenas tardes", greetEvening: "Buenas noches", addName: "Añade tu nombre", askName: "¿Cómo debemos llamarte?", titleYesterday: "Resumen de ayer", titleTomorrow: "Resumen de mañana", titleDay: "Resumen del día", todayBtn: "Hoy", prevDay: "Día anterior", nextDay: "Día siguiente",
       weatherPast: "El clima no se guardó para este día.", eventsNotRecorded: "Los eventos cercanos no se guardaron para este día.",
       staffByRole: "Cuántas personas, por puesto", title: "Resumen del día", managerOnDuty: "Gerente de turno", noManager: "Ningún gerente programado hoy",
       aiForecast: "Pronóstico IA", noAiForecast: "Genéralo en Administración › Horario", actualSales: "Ventas reales", noActual: "Aún sin ingresar", vsForecast: "vs tu proyección", actualShort: "real",
@@ -1341,6 +1354,7 @@ const T = {
     },
     staff: {
       eyebrow: "Personal", h2: "Tu equipo", desc: "Tu equipo, sus puestos, y quién realmente responde — agrega, edita y ve quién responde más.",
+      avTitle: "Solicitudes de disponibilidad", avDesc: "Los cambios del personal solo cuentan en el horario una vez aprobados.", avFree: "Libre", avBusy: "Ocupado", avDay: "Día", avCur: "Actual", avReq: "Solicitado", avApprove: "Aprobar", avDecline: "Rechazar", avApproved: "Disponibilidad aprobada", avDeclined: "Solicitud rechazada",
       addCard: "Agregar personal", name: "Nombre", namePh: "Nombre completo", phone: "Teléfono",
       rate: "Tarifa por hora (opcional)", ratePh: "ej. 19.50", hireDate: "Fecha de contratación (opcional)",
       roles: "Puesto(s) — toca todos los que apliquen", addBtn: "Agregar personal",
@@ -1652,6 +1666,32 @@ let applications = [];
 let applicantFilterPostingId = null;
 
 let swapRequests = [];
+const AV_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+function avText(e) {
+  if (!e || ((e.available === null || e.available === undefined) && !e.note)) return "—";
+  return ((e.available === true ? t("staff.avFree") : e.available === false ? t("staff.avBusy") : "") + (e.note ? ` (${e.note})` : "")).trim();
+}
+function renderAvailRequests() {
+  const badge = document.getElementById("staffBadge");
+  if (badge) { badge.style.display = availRequests.length ? "inline-block" : "none"; badge.textContent = availRequests.length; }
+  const el = document.getElementById("availRequests");
+  if (!el) return;
+  if (!availRequests.length) { el.innerHTML = ""; return; }
+  el.innerHTML = `<div class="avail-req"><h3>${escapeHtml(t("staff.avTitle"))} (${availRequests.length})</h3><div style="font-size:12px;opacity:.7">${escapeHtml(t("staff.avDesc"))}</div>` +
+    availRequests.map(q => `
+      <div class="who">${escapeHtml(q.name)}${q.roles && q.roles.length ? ` <span style="font-weight:400;opacity:.65">· ${escapeHtml(q.roles.map(roleLabel).join(", "))}</span>` : ""}</div>
+      <table><thead><tr><th>${escapeHtml(t("staff.avDay"))}</th><th>${escapeHtml(t("staff.avCur"))}</th><th>${escapeHtml(t("staff.avReq"))}</th></tr></thead><tbody>
+      ${AV_KEYS.map((k, i) => { const c = avText(q.current[k]), n = avText(q.requested[k]); return `<tr class="${c !== n ? "chg" : ""}"><td>${escapeHtml(T[LANG].days[i])}</td><td>${escapeHtml(c)}</td><td>${escapeHtml(n)}</td></tr>`; }).join("")}
+      </tbody></table>
+      <div class="btns"><button onclick="decideAvail('${q.staffId}','approve')">${escapeHtml(t("staff.avApprove"))}</button><button class="ghost" onclick="decideAvail('${q.staffId}','decline')">${escapeHtml(t("staff.avDecline"))}</button></div>`).join("") + `</div>`;
+}
+async function decideAvail(staffId, action) {
+  const r = await api(`/api/availability-requests/${staffId}/${action}`, { method: "POST" });
+  if (r.ok) availRequests = availRequests.filter(q => q.staffId !== staffId);
+  renderAvailRequests(); renderOverview();
+  if (!r.ok) alert(r.error);
+}
+
 async function loadAll() {
   const [s, sh, po, ap, sv] = await Promise.all([api("/api/staff"), api("/api/shifts"), api("/api/hiring/postings"), api("/api/hiring/applications"), api("/api/services")]);
   if (sv.ok && Array.isArray(sv.data.services) && sv.data.services.length) SERVICE_LIST = sv.data.services;
@@ -1659,6 +1699,8 @@ async function loadAll() {
   if (sh.ok) shifts = sh.data;
   if (po.ok) postings = po.data;
   if (ap.ok) applications = ap.data;
+  const ar = await api("/api/availability-requests");
+  if (ar.ok) { availRequests = ar.data; availPending = ar.data.length; }
   const tr = await api("/api/training");
   if (tr.ok) trainingItems = tr.data;
   const bd = await api("/api/board");
@@ -1673,6 +1715,7 @@ async function loadAll() {
     if (od.ok && ovDate === asked) ovShiftsList = od.data;
   }
   render();
+  renderAvailRequests();
   daySnapTries = 0;
   loadDaySnapshot();
   if (!payroll || currentTab === "payroll") loadPayroll();
@@ -2168,6 +2211,7 @@ function renderOverview() {
   el.innerHTML = `
     <div class="stub snapshot" style="--accent:var(--scheduling)">
       ${greetingHtml}
+      ${availPending ? `<div class="snap-warn" style="margin-bottom:10px">${escapeHtml(t("snap.availWait", availPending))} · <a href="#" onclick="switchTab('staff');return false;">${escapeHtml(S("availWaitLink"))}</a></div>` : ""}
       ${dayPicker}
       <div class="snap-head"><div class="eyebrow-s">${dayTitle}</div><div class="date">${escapeHtml(dateLabel)}</div></div>
 
@@ -3110,6 +3154,8 @@ function copyApplyLink(url) {
 
 let authMode = "login";
 let restaurantName = "";
+let availPending = 0;
+let availRequests = [];
 let userName = null; // null = not loaded yet, "" = no name saved
 let restaurantAddress = "";
 

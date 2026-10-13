@@ -298,6 +298,12 @@ async function initDb() {
     );
   `);
 
+  // What staff submit waits in `pending` until a manager approves it; only `availability` (approved) is used for scheduling.
+  await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS pending JSONB;`);
+  await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS pending_at BIGINT;`);
+  await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS decision TEXT;`);
+  await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS decision_at BIGINT;`);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS shift_swaps (
       id TEXT PRIMARY KEY,
@@ -1240,23 +1246,74 @@ app.get("/api/staff-auth/schedule", requireStaffAuth, async (req, res) => {
   res.json(rows.map(scheduleShiftRowToJson));
 });
 
-app.get("/api/staff-auth/availability", requireStaffAuth, async (req, res) => {
-  const { rows } = await pool.query("SELECT * FROM staff_availability WHERE staff_id = $1", [req.staffId]);
-  res.json({ availability: rows[0] ? rows[0].availability : {} });
+const AVAIL_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+// keep only known weekdays, a true/false/null flag and a short note
+function cleanAvailability(raw) {
+  const out = {};
+  for (const [k, v] of Object.entries(raw || {})) {
+    if (!AVAIL_DAYS.includes(k) || !v || typeof v !== "object") continue;
+    const available = v.available === true ? true : v.available === false ? false : null;
+    const note = String(v.note || "").slice(0, 120);
+    if (available === null && !note) continue;
+    out[k] = { available, note };
+  }
+  return out;
+}
+const availJson = (r) => ({
+  availability: r ? r.availability : {},
+  pending: r && r.pending ? r.pending : null,
+  pendingAt: r && r.pending_at ? Number(r.pending_at) : null,
+  decision: r && r.decision ? r.decision : null,
+  decisionAt: r && r.decision_at ? Number(r.decision_at) : null,
 });
 
+app.get("/api/staff-auth/availability", requireStaffAuth, async (req, res) => {
+  const { rows } = await pool.query("SELECT * FROM staff_availability WHERE staff_id = $1", [req.staffId]);
+  res.json(availJson(rows[0]));
+});
+
+// A submission is a request: it does not change what the schedule uses until a manager approves it.
 app.put("/api/staff-auth/availability", requireStaffAuth, async (req, res) => {
   const { availability } = req.body || {};
   if (!availability || typeof availability !== "object") return res.status(400).json({ error: "availability object is required" });
-  const newId = id();
+  const now = Date.now();
   const { rows } = await pool.query(
-    `INSERT INTO staff_availability (id, restaurant_id, staff_id, availability, updated_at)
-     VALUES ($1,$2,$3,$4,$5)
-     ON CONFLICT (staff_id) DO UPDATE SET availability = EXCLUDED.availability, updated_at = EXCLUDED.updated_at
+    `INSERT INTO staff_availability (id, restaurant_id, staff_id, availability, pending, pending_at, decision, decision_at, updated_at)
+     VALUES ($1,$2,$3,'{}'::jsonb,$4,$5,NULL,NULL,$5)
+     ON CONFLICT (staff_id) DO UPDATE SET pending = EXCLUDED.pending, pending_at = EXCLUDED.pending_at, decision = NULL, decision_at = NULL, updated_at = EXCLUDED.updated_at
      RETURNING *`,
-    [newId, req.restaurantId, req.staffId, JSON.stringify(availability), Date.now()]
+    [id(), req.restaurantId, req.staffId, JSON.stringify(cleanAvailability(availability)), now]
   );
-  res.json({ availability: rows[0].availability });
+  logActivity({ restaurantId: req.restaurantId, eventType: "availability_requested", detail: "availability change submitted" });
+  res.json(availJson(rows[0]));
+});
+
+// ---------- manager: review availability requests ----------
+
+app.get("/api/availability-requests", requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT a.*, s.name, s.roles FROM staff_availability a JOIN staff s ON s.id = a.staff_id
+     WHERE a.restaurant_id = $1 AND a.pending IS NOT NULL ORDER BY a.pending_at`,
+    [req.restaurantId]
+  );
+  res.json(rows.map((r) => ({ staffId: r.staff_id, name: r.name, roles: r.roles || [], current: r.availability || {}, requested: r.pending, requestedAt: Number(r.pending_at) })));
+});
+
+app.post("/api/availability-requests/:staffId/:action", requireAuth, async (req, res) => {
+  const { staffId, action } = req.params;
+  if (action !== "approve" && action !== "decline") return res.status(404).json({ error: "unknown action" });
+  const now = Date.now();
+  const { rows } = await pool.query(
+    action === "approve"
+      ? `UPDATE staff_availability SET availability = pending, pending = NULL, pending_at = NULL, decision = 'approved', decision_at = $3, updated_at = $3
+         WHERE staff_id = $1 AND restaurant_id = $2 AND pending IS NOT NULL RETURNING *`
+      : `UPDATE staff_availability SET pending = NULL, pending_at = NULL, decision = 'declined', decision_at = $3, updated_at = $3
+         WHERE staff_id = $1 AND restaurant_id = $2 AND pending IS NOT NULL RETURNING *`,
+    [staffId, req.restaurantId, now]
+  );
+  if (!rows[0]) return res.status(404).json({ error: "no pending request for this person" });
+  logActivity({ restaurantId: req.restaurantId, eventType: "availability_" + action + "d", detail: `availability ${action}d` });
+  res.json(availJson(rows[0]));
 });
 
 app.get("/api/staff-auth/open-shifts", requireStaffAuth, async (req, res) => {

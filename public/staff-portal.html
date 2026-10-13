@@ -150,6 +150,7 @@
       <div class="card">
         <h2 data-i18n="avail.h2">Your weekly availability</h2>
         <div data-i18n="avail.help" style="color:var(--text-dim);font-size:12px;margin-bottom:10px;line-height:1.4">Let your manager know which days you're generally free to work.</div>
+        <div id="availStatus"></div>
         <div id="availabilityList"></div>
         <button class="claim-btn" style="background:var(--amber);color:var(--ink);margin-top:14px" onclick="saveAvailability()" data-i18n="avail.save">Save availability</button>
       </div>
@@ -202,7 +203,7 @@ I18N.add({
     "schedule.count": n => `${n} upcoming shift${n === 1 ? "" : "s"}`,
     "schedule.empty": "No shifts scheduled yet — check back soon.", "schedule.shift": "Shift",
     "avail.h2": "Your weekly availability", "avail.help": "Let your manager know which days you're generally free to work.",
-    "avail.free": "Free", "avail.busy": "Busy", "avail.notePh": "e.g. after 5pm", "avail.save": "Save availability", "avail.saved": "Availability saved",
+    "avail.free": "Free", "avail.busy": "Busy", "avail.notePh": "e.g. after 5pm", "avail.save": "Save availability", "avail.saved": "Sent to your manager for approval", "avail.pending": "Waiting for your manager's approval. Your current availability stays in effect until then.", "avail.approved": "Your manager approved your availability.", "avail.declined": "Your last request was declined, so your previous availability still applies.",
     "open.h2": "Open shifts you can take", "open.empty": "No open shifts matching your roles right now.",
     "open.stamp": "Open", "open.asap": "ASAP", "open.claim": "Claim this shift", "open.waiting": "You're in — waiting on manager",
     "open.claimed": "You're in — your manager will confirm shortly",
@@ -238,7 +239,7 @@ I18N.add({
     "schedule.count": n => `${n} quart${n === 1 ? "" : "s"} à venir`,
     "schedule.empty": "Aucun quart prévu pour l'instant — repassez bientôt.", "schedule.shift": "Quart",
     "avail.h2": "Vos disponibilités de la semaine", "avail.help": "Indiquez à votre gestionnaire les jours où vous êtes généralement libre de travailler.",
-    "avail.free": "Libre", "avail.busy": "Occupé", "avail.notePh": "p. ex. après 17 h", "avail.save": "Enregistrer mes disponibilités", "avail.saved": "Disponibilités enregistrées",
+    "avail.free": "Libre", "avail.busy": "Occupé", "avail.notePh": "p. ex. après 17 h", "avail.save": "Enregistrer mes disponibilités", "avail.saved": "Envoyé à votre gestionnaire pour approbation", "avail.pending": "En attente de l'approbation de votre gestionnaire. Vos disponibilités actuelles restent en vigueur d'ici là.", "avail.approved": "Votre gestionnaire a approuvé vos disponibilités.", "avail.declined": "Votre dernière demande a été refusée; vos disponibilités précédentes s'appliquent toujours.",
     "open.h2": "Quarts ouverts que vous pouvez prendre", "open.empty": "Aucun quart ouvert ne correspond à vos postes pour le moment.",
     "open.stamp": "Ouvert", "open.asap": "Dès que possible", "open.claim": "Prendre ce quart", "open.waiting": "C'est noté — en attente du gestionnaire",
     "open.claimed": "C'est noté — votre gestionnaire confirmera sous peu",
@@ -274,7 +275,7 @@ I18N.add({
     "schedule.count": n => `${n} turno${n === 1 ? "" : "s"} próximo${n === 1 ? "" : "s"}`,
     "schedule.empty": "Aún no hay turnos programados — vuelve pronto.", "schedule.shift": "Turno",
     "avail.h2": "Tu disponibilidad semanal", "avail.help": "Dile a tu gerente qué días sueles estar libre para trabajar.",
-    "avail.free": "Libre", "avail.busy": "Ocupado", "avail.notePh": "ej. después de las 5 pm", "avail.save": "Guardar disponibilidad", "avail.saved": "Disponibilidad guardada",
+    "avail.free": "Libre", "avail.busy": "Ocupado", "avail.notePh": "ej. después de las 5 pm", "avail.save": "Guardar disponibilidad", "avail.saved": "Enviado a tu gerente para aprobación", "avail.pending": "Esperando la aprobación de tu gerente. Tu disponibilidad actual sigue vigente hasta entonces.", "avail.approved": "Tu gerente aprobó tu disponibilidad.", "avail.declined": "Tu última solicitud fue rechazada; sigue vigente tu disponibilidad anterior.",
     "open.h2": "Turnos abiertos que puedes tomar", "open.empty": "No hay turnos abiertos para tus puestos por ahora.",
     "open.stamp": "Abierto", "open.asap": "Lo antes posible", "open.claim": "Tomar este turno", "open.waiting": "Anotado — esperando al gerente",
     "open.claimed": "Anotado — tu gerente lo confirmará pronto",
@@ -299,6 +300,7 @@ const roleLabel = r => { const k = "role." + r; const v = I18N.t(k); return v ==
 const dayLabel = k => I18N.t("days." + k);
 
 let myAvailability = {};
+let availInfo = null;
 let currentStaffTab = "schedule";
 const DAYS = DAY_KEYS.map(k => ({ key: k }));
 
@@ -514,12 +516,22 @@ async function withdrawSwap(swapId) {
 
 async function loadAvailability() {
   const result = await api("/api/staff-auth/availability");
-  if (result.ok) myAvailability = result.data.availability || {};
+  if (result.ok) {
+    availInfo = result.data;
+    // show the request still waiting, otherwise the approved availability
+    myAvailability = JSON.parse(JSON.stringify(result.data.pending || result.data.availability || {}));
+  }
   renderAvailability();
 }
 
 function renderAvailability() {
   const list = document.getElementById("availabilityList");
+  const st = document.getElementById("availStatus");
+  if (st) {
+    const msg = !availInfo ? "" : availInfo.pending ? tr("avail.pending") : availInfo.decision === "declined" ? tr("avail.declined") : availInfo.decision === "approved" ? tr("avail.approved") : "";
+    const bg = availInfo && availInfo.pending ? "rgba(232,168,56,.15)" : availInfo && availInfo.decision === "declined" ? "rgba(224,113,95,.15)" : "rgba(111,191,134,.15)";
+    st.innerHTML = msg ? `<div style="background:${bg};border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.4;margin-bottom:10px">${escapeHtml(msg)}</div>` : "";
+  }
   list.innerHTML = DAYS.map(d => {
     const entry = myAvailability[d.key] || { available: null, note: "" };
     return `
@@ -548,7 +560,7 @@ function setAvailNote(key, value) {
 
 async function saveAvailability() {
   const result = await api("/api/staff-auth/availability", { method: "PUT", body: JSON.stringify({ availability: myAvailability }) });
-  if (result.ok) showBanner(tr("avail.saved"), "success");
+  if (result.ok) { availInfo = result.data; showBanner(tr("avail.saved"), "success"); renderAvailability(); }
   else showBanner(result.error, "warn");
 }
 
