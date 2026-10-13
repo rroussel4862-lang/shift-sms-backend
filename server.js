@@ -182,6 +182,9 @@ async function initDb() {
   // Food / beverage split of each day's sales. `amount` stays the day's total (food + beverage, or a POS total with no split).
   await pool.query(`ALTER TABLE actual_sales ADD COLUMN IF NOT EXISTS food_amount NUMERIC;`);
   await pool.query(`ALTER TABLE actual_sales ADD COLUMN IF NOT EXISTS bev_amount NUMERIC;`);
+  // Lunch/brunch share of the day's sales (dinner = day total minus lunch/brunch). Same idea for the projection.
+  await pool.query(`ALTER TABLE actual_sales ADD COLUMN IF NOT EXISTS lunch_amount NUMERIC;`);
+  await pool.query(`ALTER TABLE sales_projections ADD COLUMN IF NOT EXISTS lunch_amount NUMERIC;`);
 
   // Food / beverage cost as a percent of sales (entered by the manager until a POS/inventory integration exists)
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS food_cost_pct NUMERIC;`);
@@ -1808,29 +1811,40 @@ app.get("/api/sales-projections", requireAuth, async (req, res) => {
     rows.map((r) => ({
       date: r.proj_date instanceof Date ? r.proj_date.toISOString().slice(0, 10) : r.proj_date,
       projectedAmount: r.projected_amount !== null ? Number(r.projected_amount) : null,
+      lunchAmount: r.lunch_amount !== null && r.lunch_amount !== undefined ? Number(r.lunch_amount) : null,
     }))
   );
 });
 
 app.put("/api/sales-projections", requireAuth, async (req, res) => {
-  const { date, projectedAmount } = req.body || {};
+  const { date, projectedAmount, lunchAmount } = req.body || {};
   if (!date) return res.status(400).json({ error: "date is required" });
-  let amount = null;
-  if (projectedAmount !== undefined && projectedAmount !== "" && projectedAmount !== null) {
-    amount = Number(projectedAmount);
-    if (isNaN(amount) || amount < 0) return res.status(400).json({ error: "projected amount must be a positive number" });
-  }
-  const newId = id();
+  const parse = (raw, label) => {
+    if (raw === undefined) return { provided: false };
+    if (raw === null || raw === "") return { provided: true, value: null };
+    const n = Number(raw);
+    if (isNaN(n) || n < 0) return { error: `${label} must be a positive number` };
+    return { provided: true, value: n };
+  };
+  const total = parse(projectedAmount, "projected amount");
+  const lunch = parse(lunchAmount, "lunch amount");
+  for (const p of [total, lunch]) if (p.error) return res.status(400).json({ error: p.error });
+  if (!total.provided && !lunch.provided) return res.status(400).json({ error: "projectedAmount or lunchAmount is required" });
+
+  // Only the fields the request mentions are changed; the other one is left alone.
   const { rows } = await pool.query(
-    `INSERT INTO sales_projections (id, restaurant_id, proj_date, projected_amount, created_at)
-     VALUES ($1,$2,$3,$4,$5)
-     ON CONFLICT (restaurant_id, proj_date) DO UPDATE SET projected_amount = EXCLUDED.projected_amount
+    `INSERT INTO sales_projections (id, restaurant_id, proj_date, projected_amount, lunch_amount, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (restaurant_id, proj_date) DO UPDATE SET
+       projected_amount = CASE WHEN $7 THEN EXCLUDED.projected_amount ELSE sales_projections.projected_amount END,
+       lunch_amount = CASE WHEN $8 THEN EXCLUDED.lunch_amount ELSE sales_projections.lunch_amount END
      RETURNING *`,
-    [newId, req.restaurantId, date, amount, Date.now()]
+    [id(), req.restaurantId, date, total.provided ? total.value : null, lunch.provided ? lunch.value : null, Date.now(), total.provided, lunch.provided]
   );
   res.json({
     date: rows[0].proj_date instanceof Date ? rows[0].proj_date.toISOString().slice(0, 10) : rows[0].proj_date,
     projectedAmount: rows[0].projected_amount !== null ? Number(rows[0].projected_amount) : null,
+    lunchAmount: rows[0].lunch_amount !== null ? Number(rows[0].lunch_amount) : null,
   });
 });
 
@@ -1843,6 +1857,7 @@ function actualSalesRowToJson(r) {
     amount: num(r.amount),
     foodAmount: num(r.food_amount),
     bevAmount: num(r.bev_amount),
+    lunchAmount: num(r.lunch_amount),
     source: r.source,
   };
 }
@@ -1862,7 +1877,7 @@ app.get("/api/actual-sales", requireAuth, async (req, res) => {
 //  - amount only: a POS total with no split. The food/beverage split is cleared so the total stays authoritative.
 // Empty string or null clears a value.
 app.put("/api/actual-sales", requireAuth, async (req, res) => {
-  const { date, amount, foodAmount, bevAmount, source } = req.body || {};
+  const { date, amount, foodAmount, bevAmount, lunchAmount, source } = req.body || {};
   if (!date) return res.status(400).json({ error: "date is required" });
 
   const parseMoney = (raw, label) => {
@@ -1875,7 +1890,20 @@ app.put("/api/actual-sales", requireAuth, async (req, res) => {
   const total = parseMoney(amount, "amount");
   const food = parseMoney(foodAmount, "foodAmount");
   const bev = parseMoney(bevAmount, "bevAmount");
-  for (const p of [total, food, bev]) if (p.error) return res.status(400).json({ error: p.error });
+  const lunch = parseMoney(lunchAmount, "lunchAmount");
+  for (const p of [total, food, bev, lunch]) if (p.error) return res.status(400).json({ error: p.error });
+
+  // Lunch/brunch only: leave the day's total and food/beverage split exactly as they are.
+  if (lunch.provided && !total.provided && !food.provided && !bev.provided) {
+    const { rows } = await pool.query(
+      `INSERT INTO actual_sales (id, restaurant_id, sale_date, amount, lunch_amount, source, created_at)
+       VALUES ($1,$2,$3,NULL,$4,$5,$6)
+       ON CONFLICT (restaurant_id, sale_date) DO UPDATE SET lunch_amount = EXCLUDED.lunch_amount
+       RETURNING *`,
+      [id(), req.restaurantId, date, lunch.value, (source || "manual").trim(), Date.now()]
+    );
+    return res.json(actualSalesRowToJson(rows[0]));
+  }
 
   let foodVal = null, bevVal = null, amt = null;
   if (food.provided || bev.provided) {
@@ -1901,6 +1929,10 @@ app.put("/api/actual-sales", requireAuth, async (req, res) => {
      RETURNING *`,
     [newId, req.restaurantId, date, amt, foodVal, bevVal, (source || "manual").trim(), Date.now()]
   );
+  if (lunch.provided) {
+    const upd = await pool.query("UPDATE actual_sales SET lunch_amount = $1 WHERE restaurant_id = $2 AND sale_date = $3 RETURNING *", [lunch.value, req.restaurantId, date]);
+    return res.json(actualSalesRowToJson(upd.rows[0]));
+  }
   res.json(actualSalesRowToJson(rows[0]));
 });
 

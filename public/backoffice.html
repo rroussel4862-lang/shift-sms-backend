@@ -6,7 +6,7 @@
 <title>Back Office — Open Shift Rail</title>
 <script src="/i18n-lite.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
 <style>
   :root {
     --bg: #1C201D;
@@ -323,6 +323,17 @@
   tr.rl td.day-cell.drag-over { background: color-mix(in srgb, var(--role-color) 32%, #fff); }
   tr.rl td.day-total { background: color-mix(in srgb, var(--role-color) 18%, #fff); }
   tr.rl td { border-bottom-color: color-mix(in srgb, var(--role-color) 35%, #fff); border-right-color: color-mix(in srgb, var(--role-color) 35%, #fff); }
+  tr.sub-row td { background: var(--grid-alt); }
+  tr.sub-row td.sub { font-size: 12px; padding-left: 22px; }
+  tr.sub-row input { background: #fff; }
+  tr.sub-row input[readonly] { background: var(--grid-alt); border-style: dashed; }
+  .shift-chip .times { font-family: 'Nunito', 'Segoe UI', system-ui, sans-serif !important; font-weight: 800; font-size: 15px; letter-spacing: 0; }
+  .shift-form.edit-form { background: #fff; border: 2px solid var(--role-color); border-radius: 6px; padding: 8px; margin-bottom: 7px; }
+  .shift-chip .chip-top { flex-direction: column; align-items: stretch; gap: 2px; }
+  .shift-chip .times { white-space: nowrap; word-break: normal; }
+  .shift-chip .chip-actions { justify-content: flex-end; gap: 6px; }
+  .day-cell { min-width: 185px; }
+  table.schedule-grid { min-width: 1480px; }
 </style>
 </head>
 <body>
@@ -445,7 +456,11 @@
             </tr>
             <tr class="ai-row" id="scheduleAiRow"></tr>
             <tr class="proj-row" id="scheduleActualRow"></tr>
+            <tr class="proj-row sub-row" id="scheduleActualLunchRow"></tr>
+            <tr class="proj-row sub-row" id="scheduleActualDinnerRow"></tr>
             <tr class="proj-row" id="scheduleProjRow"></tr>
+            <tr class="proj-row sub-row" id="scheduleProjLunchRow"></tr>
+            <tr class="proj-row sub-row" id="scheduleProjDinnerRow"></tr>
             <tr class="index-row" id="scheduleIndexRow"></tr>
           </thead>
           <tbody id="scheduleBody"></tbody>
@@ -519,7 +534,7 @@ I18N.add({
     "err.network": "Network error — is the server running?",
     "sched.h2": "Weekly schedule", "sched.desc": "Assign staff to shifts for the week. Drag a shift to move it, or copy/paste it to another day. Hours and labor cost are calculated live from each person's rate.",
     "sched.foh": "Front of House", "sched.boh": "Back of House", "sched.prev": "← Prev week", "sched.next": "Next week →", "sched.today": "This week",
-    "sched.copied": "Shift copied — click \"Paste here\" on any cell to duplicate it.", "sched.discard": "Discard", "sched.saveDrafts": "Save shifts", "sched.unsaved1": "1 pasted shift not saved yet", "sched.unsavedN": "{n} pasted shifts not saved yet", "sched.svcBoth": "Both services", "sched.svcLunch": "Lunch / Brunch", "sched.svcDinner": "Dinner", "sched.saveFail": "{n} shift(s) could not be saved and were kept for review.",
+    "sched.copied": "Shift copied — click \"Paste here\" on any cell to duplicate it.", "sched.discard": "Discard", "sched.saveDrafts": "Save shifts", "sched.unsaved1": "1 pasted shift not saved yet", "sched.unsavedN": "{n} pasted shifts not saved yet", "sched.laborShort": "labor", "sched.svcBoth": "Both services", "sched.svcLunch": "Lunch / Brunch", "sched.svcDinner": "Dinner", "sched.saveFail": "{n} shift(s) could not be saved and were kept for review.",
     "sched.staffCol": "Staff", "sched.total": "Total", "sched.aiForecast": "AI forecast", "sched.notYet": "not yet available", "sched.actual": "Actual sales", "sched.projected": "Projected sales",
     "sched.dailyTotals": "Daily totals", "sched.laborIndex": "Labor cost index",
     "sched.aiTitle": "✨ AI scheduler", "sched.aiHint": "Describe the week in plain words. The AI fills the grid for the staff shown below, respecting their availability. You'll preview it before anything is saved.",
@@ -531,7 +546,7 @@ I18N.add({
     "sched.skip.unavailable": "marked unavailable", "sched.skip.overlap": "already has a shift then", "sched.skip.bad_time": "invalid times", "sched.skip.bad_date": "date outside this week", "sched.skip.unknown_staff": "unknown staff member",
     "sched.noStaff": h => `No staff tagged with ${h} roles yet. Add roles in the Staff tab.`,
     "sched.hoursWeek": h => `${h} hours this week`, "sched.costWeek": h => `${h} labor cost this week`,
-    "sched.rolePh": "Role (optional)", "sched.addShift": "+ Add", "sched.paste": "Paste here", "common.cancel": "Cancel", "common.save": "Save", "common.copy": "Copy", "common.delete": "Delete",
+    "sched.rolePh": "Role (optional)", "sched.addShift": "+ Add", "sched.paste": "Paste here", "common.edit": "Edit", "common.cancel": "Cancel", "common.save": "Save", "common.copy": "Copy", "common.delete": "Delete",
     "house.foh": "FOH", "house.boh": "BOH",
     "days.0": "Mon", "days.1": "Tue", "days.2": "Wed", "days.3": "Thu", "days.4": "Fri", "days.5": "Sat", "days.6": "Sun",
     "role.Line Cook": "Line Cook", "role.Server": "Server", "role.Host": "Host", "role.Bartender": "Bartender", "role.Busser": "Busser", "role.Dishwasher": "Dishwasher", "role.Prep Cook": "Prep Cook", "role.Expo": "Expo",
@@ -562,7 +577,7 @@ I18N.add({
     "err.network": "Erreur réseau — le serveur est-il en marche?",
     "sched.h2": "Horaire de la semaine", "sched.desc": "Assignez le personnel aux quarts de la semaine. Glissez un quart pour le déplacer, ou copiez-collez-le à un autre jour. Les heures et le coût de la main-d'œuvre sont calculés en direct selon le taux de chaque personne.",
     "sched.foh": "Salle", "sched.boh": "Cuisine", "sched.prev": "← Semaine préc.", "sched.next": "Semaine suiv. →", "sched.today": "Cette semaine",
-    "sched.copied": "Quart copié — cliquez sur « Coller ici » dans n'importe quelle case pour le dupliquer.", "sched.discard": "Annuler", "sched.saveDrafts": "Enregistrer les quarts", "sched.unsaved1": "1 quart collé non enregistré", "sched.unsavedN": "{n} quarts collés non enregistrés", "sched.svcBoth": "Les deux services", "sched.svcLunch": "Dîner / Brunch", "sched.svcDinner": "Souper", "sched.saveFail": "{n} quart(s) n'ont pas pu être enregistrés et ont été conservés.",
+    "sched.copied": "Quart copié — cliquez sur « Coller ici » dans n'importe quelle case pour le dupliquer.", "sched.discard": "Annuler", "sched.saveDrafts": "Enregistrer les quarts", "sched.unsaved1": "1 quart collé non enregistré", "sched.unsavedN": "{n} quarts collés non enregistrés", "sched.laborShort": "main-d'œuvre", "sched.svcBoth": "Les deux services", "sched.svcLunch": "Dîner / Brunch", "sched.svcDinner": "Souper", "sched.saveFail": "{n} quart(s) n'ont pas pu être enregistrés et ont été conservés.",
     "sched.staffCol": "Personnel", "sched.total": "Total", "sched.aiForecast": "Prévision IA", "sched.notYet": "pas encore disponible", "sched.actual": "Ventes réelles", "sched.projected": "Ventes prévues",
     "sched.dailyTotals": "Totaux quotidiens", "sched.laborIndex": "Indice du coût de main-d'œuvre",
     "sched.aiTitle": "✨ Planificateur IA", "sched.aiHint": "Décrivez la semaine en mots simples. L'IA remplit la grille pour le personnel affiché ci-dessous, selon leurs disponibilités. Vous verrez un aperçu avant l'enregistrement.",
@@ -574,7 +589,7 @@ I18N.add({
     "sched.skip.unavailable": "marqué indisponible", "sched.skip.overlap": "a déjà un quart à ce moment", "sched.skip.bad_time": "heures invalides", "sched.skip.bad_date": "date hors de cette semaine", "sched.skip.unknown_staff": "employé inconnu",
     "sched.noStaff": h => `Aucun employé n'a de poste en ${h} pour l'instant. Ajoutez des postes dans l'onglet Personnel.`,
     "sched.hoursWeek": h => `Heures ${h} cette semaine`, "sched.costWeek": h => `Coût de main-d'œuvre ${h} cette semaine`,
-    "sched.rolePh": "Poste (facultatif)", "sched.addShift": "+ Ajouter", "sched.paste": "Coller ici", "common.cancel": "Annuler", "common.save": "Enregistrer", "common.copy": "Copier", "common.delete": "Supprimer",
+    "sched.rolePh": "Poste (facultatif)", "sched.addShift": "+ Ajouter", "sched.paste": "Coller ici", "common.edit": "Modifier", "common.cancel": "Annuler", "common.save": "Enregistrer", "common.copy": "Copier", "common.delete": "Supprimer",
     "house.foh": "Salle", "house.boh": "Cuisine",
     "days.0": "Lun", "days.1": "Mar", "days.2": "Mer", "days.3": "Jeu", "days.4": "Ven", "days.5": "Sam", "days.6": "Dim",
     "role.Line Cook": "Cuisinier de ligne", "role.Server": "Serveur/Serveuse", "role.Host": "Hôte/Hôtesse", "role.Bartender": "Barman/Barmaid", "role.Busser": "Aide-serveur", "role.Dishwasher": "Plongeur/Plongeuse", "role.Prep Cook": "Cuisinier de préparation", "role.Expo": "Expéditeur",
@@ -605,7 +620,7 @@ I18N.add({
     "err.network": "Error de red — ¿está el servidor en marcha?",
     "sched.h2": "Horario semanal", "sched.desc": "Asigna personal a los turnos de la semana. Arrastra un turno para moverlo, o cópialo y pégalo en otro día. Las horas y el costo laboral se calculan en vivo según la tarifa de cada persona.",
     "sched.foh": "Salón", "sched.boh": "Cocina", "sched.prev": "← Semana ant.", "sched.next": "Semana sig. →", "sched.today": "Esta semana",
-    "sched.copied": "Turno copiado — haz clic en «Pegar aquí» en cualquier celda para duplicarlo.", "sched.discard": "Descartar", "sched.saveDrafts": "Guardar turnos", "sched.unsaved1": "1 turno pegado sin guardar", "sched.unsavedN": "{n} turnos pegados sin guardar", "sched.svcBoth": "Ambos servicios", "sched.svcLunch": "Almuerzo / Brunch", "sched.svcDinner": "Cena", "sched.saveFail": "{n} turno(s) no se pudieron guardar y se conservaron.",
+    "sched.copied": "Turno copiado — haz clic en «Pegar aquí» en cualquier celda para duplicarlo.", "sched.discard": "Descartar", "sched.saveDrafts": "Guardar turnos", "sched.unsaved1": "1 turno pegado sin guardar", "sched.unsavedN": "{n} turnos pegados sin guardar", "sched.laborShort": "mano de obra", "sched.svcBoth": "Ambos servicios", "sched.svcLunch": "Almuerzo / Brunch", "sched.svcDinner": "Cena", "sched.saveFail": "{n} turno(s) no se pudieron guardar y se conservaron.",
     "sched.staffCol": "Personal", "sched.total": "Total", "sched.aiForecast": "Pronóstico IA", "sched.notYet": "aún no disponible", "sched.actual": "Ventas reales", "sched.projected": "Ventas proyectadas",
     "sched.dailyTotals": "Totales diarios", "sched.laborIndex": "Índice de costo laboral",
     "sched.aiTitle": "✨ Planificador IA", "sched.aiHint": "Describe la semana con tus palabras. La IA llena la cuadrícula del personal mostrado abajo, respetando su disponibilidad. Verás una vista previa antes de guardar nada.",
@@ -617,7 +632,7 @@ I18N.add({
     "sched.skip.unavailable": "marcado como no disponible", "sched.skip.overlap": "ya tiene un turno a esa hora", "sched.skip.bad_time": "horas no válidas", "sched.skip.bad_date": "fecha fuera de esta semana", "sched.skip.unknown_staff": "empleado desconocido",
     "sched.noStaff": h => `Aún no hay personal con puestos de ${h}. Agrega puestos en la pestaña Personal.`,
     "sched.hoursWeek": h => `Horas de ${h} esta semana`, "sched.costWeek": h => `Costo laboral de ${h} esta semana`,
-    "sched.rolePh": "Puesto (opcional)", "sched.addShift": "+ Agregar", "sched.paste": "Pegar aquí", "common.cancel": "Cancelar", "common.save": "Guardar", "common.copy": "Copiar", "common.delete": "Eliminar",
+    "sched.rolePh": "Puesto (opcional)", "sched.addShift": "+ Agregar", "sched.paste": "Pegar aquí", "common.edit": "Editar", "common.cancel": "Cancelar", "common.save": "Guardar", "common.copy": "Copiar", "common.delete": "Eliminar",
     "house.foh": "Salón", "house.boh": "Cocina",
     "days.0": "Lun", "days.1": "Mar", "days.2": "Mié", "days.3": "Jue", "days.4": "Vie", "days.5": "Sáb", "days.6": "Dom",
     "role.Line Cook": "Cocinero de línea", "role.Server": "Mesero/a", "role.Host": "Anfitrión/a", "role.Bartender": "Bartender", "role.Busser": "Ayudante de mesero", "role.Dishwasher": "Lavaplatos", "role.Prep Cook": "Cocinero de preparación", "role.Expo": "Expo",
@@ -649,7 +664,11 @@ let weekStart = getMonday(new Date());
 let scheduleShifts = [];
 let salesProjections = {};
 let actualSales = {};
+let projLunch = {};     // date -> projected lunch/brunch sales
+let actualLunch = {};   // date -> actual lunch/brunch sales
+let actualSource = {};  // date -> 'manual' | 'pos'
 let addingCell = null;
+let editingShiftId = null;
 let houseView = "foh";
 let draggedShiftId = null;
 let copiedShift = null;
@@ -1099,13 +1118,13 @@ async function loadSchedule() {
   ]);
   if (shiftsResult.ok) scheduleShifts = shiftsResult.data;
   else showBanner(shiftsResult.error, "warn");
-  salesProjections = {};
+  salesProjections = {}; projLunch = {}; actualLunch = {}; actualSource = {};
   if (projResult.ok) {
-    projResult.data.forEach(p => { salesProjections[p.date] = p.projectedAmount; });
+    projResult.data.forEach(p => { salesProjections[p.date] = p.projectedAmount; projLunch[p.date] = p.lunchAmount; });
   }
   actualSales = {};
   if (actualResult.ok) {
-    actualResult.data.forEach(a => { actualSales[a.date] = a.amount; });
+    actualResult.data.forEach(a => { actualSales[a.date] = a.amount; actualLunch[a.date] = a.lunchAmount; actualSource[a.date] = a.source; });
   }
   renderScheduleGrid();
 }
@@ -1131,6 +1150,40 @@ async function saveProjection(dateStr, value) {
   } else {
     showBanner(result.error, "warn");
   }
+}
+
+async function saveLunchSales(kind, dateStr, input) {
+  const raw = input.value.trim().replace(/[$,\s]/g, "");
+  const store = kind === "actual" ? actualLunch : projLunch;
+  const prev = store[dateStr];
+  if ((raw === "" && (prev === null || prev === undefined)) || (raw !== "" && Number(raw) === prev)) return;
+  const url = kind === "actual" ? "/api/actual-sales" : "/api/sales-projections";
+  const result = await api(url, { method: "PUT", body: JSON.stringify({ date: dateStr, lunchAmount: raw === "" ? null : raw }) });
+  if (!result.ok) { showBanner(result.error, "warn"); return loadSchedule(); }
+  store[dateStr] = result.data.lunchAmount;
+  if (kind === "actual" && actualSales[dateStr] === undefined) actualSales[dateStr] = result.data.amount;
+  renderScheduleGrid();
+}
+
+// Sales for one service on one day: the day's total (actual if there is one, else projected) split into lunch/brunch and dinner.
+function serviceSales(dateStr, svcId) {
+  const hasActual = actualSales[dateStr] !== undefined && actualSales[dateStr] !== null;
+  const total = hasActual ? actualSales[dateStr] : salesProjections[dateStr];
+  const lunch = hasActual ? actualLunch[dateStr] : projLunch[dateStr];
+  if (lunch === undefined || lunch === null) return null;
+  if (svcId === "lunch") return lunch;
+  if (total === undefined || total === null) return null;
+  return total - lunch;
+}
+
+function serviceDayCost(svcId, dateStr, groups) {
+  let cost = 0;
+  groups.forEach(g => g.people.forEach(p => {
+    scheduleShifts.filter(s => s.staffId === p.id && s.date === dateStr && shiftGroup(p, s) === g.role && serviceOf(s.startTime) === svcId).forEach(s => {
+      cost += computeHours(s.startTime, s.endTime) * (p.hourlyRate || 0);
+    });
+  }));
+  return cost;
 }
 
 function copyShiftFromChip(btn) {
@@ -1254,13 +1307,26 @@ function renderDayCell(staffMember, dateStr, groupRole, svc) {
   const shiftsForCell = scheduleShifts.filter(s => s.staffId === staffMember.id && s.date === dateStr && shiftGroup(staffMember, s) === groupRole && serviceOf(s.startTime) === svc);
   const isAdding = addingCell && addingCell.staffId === staffMember.id && addingCell.dateStr === dateStr && addingCell.role === groupRole && addingCell.svc === svc;
 
-  let html = shiftsForCell.map(s => `
+  let html = shiftsForCell.map(s => s.id === editingShiftId ? `
+    <div class="shift-form edit-form" style="--role-color:${roleColor(s.role)}">
+      <input type="time" id="editStart" value="${s.startTime}" />
+      <input type="time" id="editEnd" value="${s.endTime}" />
+      <select id="editRole">
+        <option value="">${tr("sched.rolePh")}</option>
+        ${ROLES.map(r => `<option value="${r}"${r === (s.role || "") ? " selected" : ""}>${escapeHtml(roleLabel(r))}</option>`).join("")}
+      </select>
+      <div class="form-actions">
+        <button style="background:var(--green);color:#fff" onclick="saveShiftEdit('${s.id}')">${tr("common.save")}</button>
+        <button style="background:var(--rail);color:var(--text-bright)" onclick="cancelShiftEdit()">${tr("common.cancel")}</button>
+      </div>
+    </div>` : `
     <div class="shift-chip" draggable="true" style="--role-color:${roleColor(s.role)}"
       ondragstart="onDragStart(event,'${s.id}')" ondragend="onDragEnd(event)"
       data-start="${s.startTime}" data-end="${s.endTime}" data-role="${escapeHtml(s.role || '')}">
       <div class="chip-top">
         <div class="times">${formatTime(s.startTime)}–${formatTime(s.endTime)}</div>
         <div class="chip-actions">
+          <button class="chip-btn" onclick="editShift('${s.id}')" title="${escapeHtml(tr("common.edit"))}">✎</button>
           <button class="chip-btn" onclick="copyShiftFromChip(this)" title="${escapeHtml(tr("common.copy"))}">⧉</button>
           <button class="chip-btn" onclick="deleteScheduleShift('${s.id}')" title="${escapeHtml(tr("common.delete"))}">✕</button>
         </div>
@@ -1302,8 +1368,21 @@ function renderDayCell(staffMember, dateStr, groupRole, svc) {
   return html;
 }
 
+function editShift(id) { editingShiftId = id; addingCell = null; renderScheduleGrid(); }
+function cancelShiftEdit() { editingShiftId = null; renderScheduleGrid(); }
+async function saveShiftEdit(id) {
+  const startTime = document.getElementById("editStart").value;
+  const endTime = document.getElementById("editEnd").value;
+  const role = document.getElementById("editRole").value;
+  if (!startTime || !endTime) return showBanner(tr("msg.needTimes"), "warn");
+  const result = await api(`/api/schedule/${id}`, { method: "PATCH", body: JSON.stringify({ startTime, endTime, role }) });
+  if (!result.ok) return showBanner(result.error, "warn");
+  editingShiftId = null;
+  loadSchedule();
+}
+
 function showAddShiftForm(staffId, dateStr, role, svc) {
-  addingCell = { staffId, dateStr, role, svc };
+  addingCell = { staffId, dateStr, role, svc }; editingShiftId = null;
   renderScheduleGrid();
 }
 
@@ -1379,6 +1458,38 @@ function renderScheduleGrid() {
   }).join("");
   projRow.innerHTML = `<td class="row-label">${tr("sched.projected")}</td>${projCells}<td class="day-total">${anyProj ? "$" + weekProjTotal.toFixed(2) : "—"}</td>`;
 
+  const money = v => "$" + v.toFixed(2);
+  const lunchInputs = (kind, store) => {
+    let tot = 0, any = false;
+    const cells = weekDates.map(d => {
+      const dateStr = toISODate(d);
+      const val = store[dateStr];
+      if (val !== undefined && val !== null) { tot += val; any = true; }
+      const locked = kind === "actual" && actualSource[dateStr] && actualSource[dateStr] !== "manual";
+      return `<td><input type="text" inputmode="decimal" value="${val !== undefined && val !== null ? val : ''}" placeholder="$"${locked ? " readonly" : ""} onblur="saveLunchSales('${kind}','${dateStr}',this)" /></td>`;
+    }).join("");
+    return { cells, total: any ? money(tot) : "—" };
+  };
+  const dinnerCells = kind => {
+    let tot = 0, any = false;
+    const cells = weekDates.map(d => {
+      const dateStr = toISODate(d);
+      const hasActual = actualSales[dateStr] !== undefined && actualSales[dateStr] !== null;
+      const totalDay = kind === "actual" ? actualSales[dateStr] : salesProjections[dateStr];
+      const lunch = kind === "actual" ? actualLunch[dateStr] : projLunch[dateStr];
+      if (totalDay === undefined || totalDay === null || lunch === undefined || lunch === null) return `<td style="text-align:center">—</td>`;
+      const v = totalDay - lunch; tot += v; any = true;
+      return `<td style="text-align:center" class="${v < 0 ? "index-bad" : ""}">${money(v)}</td>`;
+    }).join("");
+    return { cells, total: any ? money(tot) : "—" };
+  };
+  const lunchLabel = tr("sched.svcLunch"), dinnerLabel = tr("sched.svcDinner");
+  const aL = lunchInputs("actual", actualLunch), aD = dinnerCells("actual"), pL = lunchInputs("proj", projLunch), pD = dinnerCells("proj");
+  document.getElementById("scheduleActualLunchRow").innerHTML = `<td class="row-label sub">↳ ${lunchLabel}</td>${aL.cells}<td class="day-total">${aL.total}</td>`;
+  document.getElementById("scheduleActualDinnerRow").innerHTML = `<td class="row-label sub">↳ ${dinnerLabel}</td>${aD.cells}<td class="day-total">${aD.total}</td>`;
+  document.getElementById("scheduleProjLunchRow").innerHTML = `<td class="row-label sub">↳ ${lunchLabel}</td>${pL.cells}<td class="day-total">${pL.total}</td>`;
+  document.getElementById("scheduleProjDinnerRow").innerHTML = `<td class="row-label sub">↳ ${dinnerLabel}</td>${pD.cells}<td class="day-total">${pD.total}</td>`;
+
   const body = document.getElementById("scheduleBody");
   if (groups.length === 0) {
     const label = houseLabel();
@@ -1412,7 +1523,14 @@ function renderScheduleGrid() {
         }).join("");
         return head + rowsHtml;
       }).join("");
-      const svcHead = `<tr class="svc-row" style="--svc-color:${sv.color}"><td colspan="9">${escapeHtml(tr("sched.svc" + (sv.id === "lunch" ? "Lunch" : "Dinner")))}<span class="cnt">${svcHours.toFixed(1)}h · $${svcCost.toFixed(2)}</span></td></tr>`;
+      let basis = 0, basisCost = 0;
+      weekDates.forEach(d => {
+        const ds = toISODate(d);
+        const sales = serviceSales(ds, sv.id);
+        if (sales && sales > 0) { basis += sales; basisCost += serviceDayCost(sv.id, ds, groups); }
+      });
+      const pctTxt = basis > 0 ? ` · ${(basisCost / basis * 100).toFixed(1)}% ${tr("sched.laborShort")}` : "";
+      const svcHead = `<tr class="svc-row" style="--svc-color:${sv.color}"><td colspan="9">${escapeHtml(tr("sched.svc" + (sv.id === "lunch" ? "Lunch" : "Dinner")))}<span class="cnt">${svcHours.toFixed(1)}h · $${svcCost.toFixed(2)}${pctTxt}</span></td></tr>`;
       return svcHead + sectionHtml;
     }).join("");
   }
