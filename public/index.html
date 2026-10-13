@@ -469,7 +469,7 @@
   .overview-card .sub { font-size: 12px; opacity: 0.7; margin-top: 6px; }
 
   /* ---------- AI agent chat ---------- */
-  #chatThread { margin-bottom: 14px; max-height: 420px; overflow-y: auto; }
+  #chatThread { margin-bottom: 14px; }
   .chat-msg { display: flex; gap: 10px; margin-bottom: 14px; align-items: flex-start; }
   .chat-msg.user { flex-direction: row-reverse; }
   .chat-avatar {
@@ -486,8 +486,13 @@
   .chat-proposal .acts { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
   .chat-bubble {
     background: var(--panel-light); border: 1px solid var(--rail); border-radius: 8px;
-    padding: 10px 13px; font-size: 13.5px; line-height: 1.5; max-width: 480px; white-space: pre-wrap;
+    padding: 12px 15px; font-size: 14.5px; line-height: 1.6; max-width: calc(100% - 42px); min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere;
   }
+  .chat-msg.ai .chat-bubble { flex: 1; }
+  .chat-msg.user .chat-bubble { max-width: 85%; }
+  .chat-bubble b { font-weight: 700; }
+  .chat-input-row textarea { flex: 1; resize: none; font: inherit; font-size: 14px; line-height: 1.4; padding: 9px 11px; border: 1px solid var(--rail); border-radius: 5px; background: #fff; color: var(--ink); max-height: 140px; }
+  .chat-input-row { align-items: flex-end; }
   .chat-msg.user .chat-bubble { background: var(--comms); color: #fff; border-color: var(--comms); }
   .chat-input-row { display: flex; gap: 8px; }
   .chat-input-row input { flex: 1; }
@@ -504,7 +509,7 @@
   .svc-head .n { font-size: 12px; opacity: .7; letter-spacing: .03em; }
   .svc-empty { font-size: 12.5px; opacity: .6; padding: 6px 10px; }
   #overviewGrid { display: block; }
-  #contentWrap:has(#panelOverview.active) { max-width: 860px; }
+  #contentWrap:has(#panelOverview.active), #contentWrap:has(#panelComms.active) { max-width: 860px; }
   .snapshot { padding: 22px 26px 20px; }
   .snap-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px; border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 4px; }
   .snap-head .eyebrow-s { font-family: 'Oswald', sans-serif; font-size: 20px; letter-spacing: .06em; text-transform: uppercase; }
@@ -520,6 +525,33 @@
   .snap-mgr .num { font-size: 14px; opacity: .75; }
   .snap-warn { background: #f3d9cf; color: #8a2f17; padding: 8px 12px; border-radius: 4px; font-size: 14px; }
   .snap-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+  @media (max-width: 640px) {
+    #panelOverview .module-header { display: none; }
+    #contentWrap:has(#panelOverview.active) { padding: 8px 8px 40px; }
+    #contentWrap:has(#panelOverview.active) main { padding: 0; }
+    .snapshot { padding: 12px 12px 10px; }
+    .snap-head { padding-bottom: 5px; }
+    .snap-head .eyebrow-s { font-size: 16px; }
+    .snap-head .date { font-size: 12.5px; }
+    .snap-sec { margin-top: 10px; }
+    .snap-h { font-size: 11.5px; margin-bottom: 3px; }
+    .snap-mgr { font-size: 14.5px; padding: 3px 0; }
+    .snap-mgr .num { font-size: 12px; }
+    .snap-tiles { grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+    .snap-tile { padding: 6px 8px; }
+    .snap-tile .lbl { font-size: 9.5px; }
+    .snap-tile .val { font-size: 18px; margin-top: 1px; }
+    .snap-tile .sub { font-size: 10.5px; margin-top: 1px; line-height: 1.25; }
+    .pos-chips { gap: 4px; margin: 2px 0 4px; }
+    .pos-chip { font-size: 11px; padding: 2px 8px; }
+    .snap-weather .ic { font-size: 26px; }
+    .snap-weather .big { font-size: 15px; }
+    .snap-weather .sub, .snap-event .sub { font-size: 11.5px; }
+    .snap-event { font-size: 12.5px; padding: 5px 0; gap: 8px; }
+    .snap-event .pill { font-size: 9px; padding: 2px 6px; }
+    .snap-h.sm { margin-top: 8px; }
+    details.svc-det > summary .svc-head { margin: 6px 0 2px; font-size: 12.5px; padding: 4px 8px; }
+  }
   .snap-tile { background: rgba(35,38,31,.06); border-radius: 6px; padding: 10px 12px; }
   .snap-tile .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; opacity: .65; }
   .snap-tile .val { font-family: 'IBM Plex Mono', monospace; font-size: 26px; font-weight: 600; margin-top: 4px; }
@@ -843,7 +875,7 @@
       <h3 data-i18n="comms.askHeader">Ask about your restaurant</h3>
       <div id="chatThread" style="margin-top:14px"></div>
       <div class="chat-input-row">
-        <input type="text" id="chatInput" placeholder="e.g. Which shift is understaffed this week?" data-i18n-ph="comms.placeholder" onkeydown="if(event.key==='Enter') askAi()" />
+        <textarea id="chatInput" rows="1" placeholder="e.g. Which shift is understaffed this week?" data-i18n-ph="comms.placeholder" oninput="this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,140)+'px'" onkeydown="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); askAi(); }"></textarea>
         <button class="primary" style="width:auto;padding:0 18px" onclick="askAi()" data-i18n="comms.ask">Ask</button>
       </div>
     </div>
@@ -1503,11 +1535,15 @@ function renderChatThread() {
   el.innerHTML = chatHistory.map((m, i) => `
     <div class="chat-msg ${m.role}">
       <div class="chat-avatar">${m.role === "user" ? t("comms.you") : t("comms.ai")}</div>
-      <div class="chat-bubble">${escapeHtml(m.text)}</div>
+      <div class="chat-bubble">${escapeHtml(m.text).replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")}</div>
     </div>${chatProposalHtml(m, i)}
   `).join("") || `<p class="empty">${t("comms.emptyChat")}</p>`;
-  el.scrollTop = el.scrollHeight;
+  // Show a new answer from its first line (not its last), so long replies can be read top to bottom.
+  const msgs = el.querySelectorAll(".chat-msg");
+  const last = msgs[msgs.length - 1];
+  if (last && chatHistory.length && chatScrollPending) { chatScrollPending = false; last.scrollIntoView({ block: "start", behavior: "smooth" }); }
 }
+let chatScrollPending = false;
 
 async function applyChatProposal(idx) {
   const m = chatHistory[idx];
@@ -1542,7 +1578,8 @@ async function askAi() {
   const question = input.value.trim();
   if (!question) return;
   chatHistory.push({ role: "user", text: question });
-  input.value = "";
+  input.value = ""; input.style.height = "auto";
+  chatScrollPending = true;
   renderChatThread();
 
   const thinkingEl = document.createElement("div");
@@ -1554,6 +1591,7 @@ async function askAi() {
   const result = await api("/api/ai/ask", { method: "POST", body: JSON.stringify({ question, lang: LANG }) });
   const thinking = document.getElementById("chatThinking");
   if (thinking) thinking.remove();
+  chatScrollPending = true;
 
   if (result.ok && result.data.proposal) {
     chatHistory.push({ role: "ai", text: result.data.answer || t("comms.schedDefault"), proposal: result.data.proposal, status: null });
