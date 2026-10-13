@@ -79,6 +79,7 @@ async function initDb() {
       created_at BIGINT NOT NULL
     );
   `);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS staff (
       id TEXT PRIMARY KEY,
@@ -673,7 +674,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   if (req.ownerId) {
     // An owner opened one of their restaurants: same access as the manager login.
     const { rows } = await pool.query(
-      `SELECT o.email, r.id AS restaurant_id, r.name AS restaurant_name, r.address AS restaurant_address
+      `SELECT o.email, o.name AS user_name, r.id AS restaurant_id, r.name AS restaurant_name, r.address AS restaurant_address
        FROM owners o JOIN owner_restaurants x ON x.owner_id = o.id JOIN restaurants r ON r.id = x.restaurant_id
        WHERE o.id = $1 AND r.id = $2`,
       [req.ownerId, req.restaurantId]
@@ -682,12 +683,13 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
     return res.json({
       restaurant: { id: rows[0].restaurant_id, name: rows[0].restaurant_name, address: rows[0].restaurant_address || "" },
       email: rows[0].email,
+      name: rows[0].user_name || "",
       viaOwner: true,
       canSwitch: (await pool.query("SELECT COUNT(*) AS n FROM owner_restaurants WHERE owner_id = $1", [req.ownerId])).rows[0].n > 1,
     });
   }
   const { rows } = await pool.query(
-    `SELECT users.email, restaurants.id AS restaurant_id, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address
+    `SELECT users.email, users.name AS user_name, restaurants.id AS restaurant_id, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address
      FROM users JOIN restaurants ON restaurants.id = users.restaurant_id
      WHERE users.id = $1`,
     [req.userId]
@@ -696,7 +698,17 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   res.json({
     restaurant: { id: rows[0].restaurant_id, name: rows[0].restaurant_name, address: rows[0].restaurant_address || "" },
     email: rows[0].email,
+    name: rows[0].user_name || "",
   });
+});
+
+// The name shown in the Overview greeting.
+app.patch("/api/auth/me", requireAuth, async (req, res) => {
+  const name = String((req.body && req.body.name) || "").trim().replace(/\s+/g, " ");
+  if (!name || name.length > 60) return res.status(400).json({ error: "name must be 1-60 characters" });
+  if (req.ownerId) await pool.query("UPDATE owners SET name = $1 WHERE id = $2", [name, req.ownerId]);
+  else await pool.query("UPDATE users SET name = $1 WHERE id = $2 AND restaurant_id = $3", [name, req.userId, req.restaurantId]);
+  res.json({ name });
 });
 
 // ---------- restaurant settings ----------

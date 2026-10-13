@@ -520,6 +520,8 @@
   details.svc-det > summary::-webkit-details-marker { display: none; }
   details.svc-det > summary .svc-head::after { content: "▸"; margin-left: 8px; transition: transform .15s; display: inline-block; }
   details.svc-det[open] > summary .svc-head::after { transform: rotate(90deg); }
+  .ov-greet { font-family: 'Oswald', sans-serif; font-size: 22px; letter-spacing: .01em; margin-bottom: 10px; }
+  .ov-addname { border: none; background: none; color: inherit; opacity: .6; font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; margin-left: 6px; font-family: inherit; }
   .ov-picker { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
   .ov-days { display: flex; gap: 4px; flex: 1; min-width: 0; }
   .ov-day { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 0; border: 1px solid rgba(35,38,31,.25); border-radius: 6px; background: rgba(35,38,31,.04); color: inherit; font: inherit; cursor: pointer; position: relative; }
@@ -993,7 +995,7 @@ const T = {
     },
     snap: {
       noOneDay: "No one is scheduled this day.", noManagerDay: "No manager scheduled this day",
-      titleYesterday: "Yesterday's snapshot", titleTomorrow: "Tomorrow's snapshot", titleDay: "Day snapshot", todayBtn: "Today", prevDay: "Previous day", nextDay: "Next day",
+      greetMorning: "Good morning", greetAfternoon: "Good afternoon", greetEvening: "Good evening", addName: "Add your name", askName: "What should we call you?", titleYesterday: "Yesterday's snapshot", titleTomorrow: "Tomorrow's snapshot", titleDay: "Day snapshot", todayBtn: "Today", prevDay: "Previous day", nextDay: "Next day",
       weatherPast: "Weather wasn't saved for this day.", eventsNotRecorded: "Nearby events weren't saved for this day.",
       staffByRole: "How many staff, by role", title: "Today's snapshot", managerOnDuty: "Manager on duty", noManager: "No manager scheduled today",
       aiForecast: "AI forecast", noAiForecast: "Generate it in Back Office › Schedule", actualSales: "Actual sales", noActual: "Not entered yet", vsForecast: "vs your forecast", actualShort: "actual",
@@ -1147,7 +1149,7 @@ const T = {
     },
     snap: {
       noOneDay: "Personne n'est à l'horaire ce jour-là.", noManagerDay: "Aucun gérant à l'horaire ce jour-là",
-      titleYesterday: "L'aperçu d'hier", titleTomorrow: "L'aperçu de demain", titleDay: "Aperçu du jour", todayBtn: "Aujourd'hui", prevDay: "Jour précédent", nextDay: "Jour suivant",
+      greetMorning: "Bonjour", greetAfternoon: "Bon après-midi", greetEvening: "Bonsoir", addName: "Ajoutez votre nom", askName: "Comment doit-on vous appeler ?", titleYesterday: "L'aperçu d'hier", titleTomorrow: "L'aperçu de demain", titleDay: "Aperçu du jour", todayBtn: "Aujourd'hui", prevDay: "Jour précédent", nextDay: "Jour suivant",
       weatherPast: "La météo n'a pas été enregistrée pour ce jour.", eventsNotRecorded: "Les événements à proximité n'ont pas été enregistrés pour ce jour.",
       staffByRole: "Combien de personnes, par poste", title: "Aperçu du jour", managerOnDuty: "Gérant en service", noManager: "Aucun gérant à l'horaire aujourd'hui",
       aiForecast: "Prévision IA", noAiForecast: "À générer dans l'arrière-boutique › Horaire", actualSales: "Ventes réelles", noActual: "Pas encore saisies", vsForecast: "vs votre prévision", actualShort: "réel",
@@ -1301,7 +1303,7 @@ const T = {
     },
     snap: {
       noOneDay: "Nadie está programado este día.", noManagerDay: "Ningún gerente programado este día",
-      titleYesterday: "Resumen de ayer", titleTomorrow: "Resumen de mañana", titleDay: "Resumen del día", todayBtn: "Hoy", prevDay: "Día anterior", nextDay: "Día siguiente",
+      greetMorning: "Buenos días", greetAfternoon: "Buenas tardes", greetEvening: "Buenas noches", addName: "Añade tu nombre", askName: "¿Cómo debemos llamarte?", titleYesterday: "Resumen de ayer", titleTomorrow: "Resumen de mañana", titleDay: "Resumen del día", todayBtn: "Hoy", prevDay: "Día anterior", nextDay: "Día siguiente",
       weatherPast: "El clima no se guardó para este día.", eventsNotRecorded: "Los eventos cercanos no se guardaron para este día.",
       staffByRole: "Cuántas personas, por puesto", title: "Resumen del día", managerOnDuty: "Gerente de turno", noManager: "Ningún gerente programado hoy",
       aiForecast: "Pronóstico IA", noAiForecast: "Genéralo en Administración › Horario", actualSales: "Ventas reales", noActual: "Aún sin ingresar", vsForecast: "vs tu proyección", actualShort: "real",
@@ -2037,6 +2039,10 @@ function renderOverview() {
   const dateLabel = new Date(selIso + "T12:00:00").toLocaleDateString(localeForLang(), { weekday: "long", month: "long", day: "numeric" });
   const isPastDay = selIso < ovToday();
   const dayTitle = !ovDate ? S("title") : selIso === ovShiftIso(ovToday(), -1) ? S("titleYesterday") : selIso === ovShiftIso(ovToday(), 1) ? S("titleTomorrow") : S("titleDay");
+  const hr = new Date().getHours();
+  const greetWord = S(hr < 12 ? "greetMorning" : hr < 18 ? "greetAfternoon" : "greetEvening");
+  const firstName = (userName || "").split(" ")[0];
+  const greetingHtml = `<div class="ov-greet">${escapeHtml(greetWord)}${firstName ? ", " + escapeHtml(firstName) : ""}${userName === "" ? ` <button class="ov-addname" onclick="askUserName()">${escapeHtml(S("addName"))}</button>` : ""}</div>`;
   // day picker: just previous/next arrows, plus a "Today" button when away from today
   const dayPicker = `<div class="ov-picker">
       <button class="ov-arrow" aria-label="${escapeHtml(S("prevDay"))}" onclick="selectOverviewDay('${ovShiftIso(selIso, -1)}')">‹</button>
@@ -2140,6 +2146,7 @@ function renderOverview() {
 
   el.innerHTML = `
     <div class="stub snapshot" style="--accent:var(--scheduling)">
+      ${greetingHtml}
       ${dayPicker}
       <div class="snap-head"><div class="eyebrow-s">${dayTitle}</div><div class="date">${escapeHtml(dateLabel)}</div></div>
 
@@ -3082,6 +3089,7 @@ function copyApplyLink(url) {
 
 let authMode = "login";
 let restaurantName = "";
+let userName = null; // null = not loaded yet, "" = no name saved
 let restaurantAddress = "";
 
 function setAuthMode(mode) {
@@ -3141,7 +3149,20 @@ async function saveRestaurantAddress() {
 }
 
 let started = false;
+async function loadUserName() {
+  const r = await api("/api/auth/me");
+  userName = r.ok ? (r.data.name || "") : null;
+  if (typeof renderOverview === "function") renderOverview();
+}
+async function askUserName() {
+  const n = (prompt(t("snap.askName"), "") || "").trim();
+  if (!n) return;
+  const r = await api("/api/auth/me", { method: "PATCH", body: JSON.stringify({ name: n }) });
+  if (r.ok) { userName = r.data.name; renderOverview(); }
+}
+
 function enterApp() {
+  loadUserName();
   document.getElementById("landing").style.display = "none";
   document.getElementById("appShell").style.display = "block";
   document.getElementById("sidebarRestaurantName").textContent = restaurantName || "Open Shift Rail";
