@@ -2762,7 +2762,7 @@ app.post("/api/ai/ask", requireAuth, aiLimiter, async (req, res) => {
     );
 
     const thisMonday = mondayOfIso(toDate(today));
-    const systemPrompt = `You are a helpful operations assistant for a restaurant manager, built into their staff/scheduling/hiring app. Answer the manager's question using ONLY the restaurant data provided below — don't invent numbers or people that aren't in it. If the data doesn't cover what they're asking, say so plainly rather than guessing. Keep answers short and concrete (a few sentences), like a sharp assistant who already knows the business, not a generic chatbot. Dates are in YYYY-MM-DD format; "today" tells you the current date for relative reasoning. Reply in the language the manager writes in.
+    const systemPrompt = `You are a helpful operations assistant for a restaurant manager, built into their staff/scheduling/hiring app. Answer the manager's question using ONLY the restaurant data provided below — don't invent numbers or people that aren't in it. If the data doesn't cover what they're asking, say so plainly rather than guessing. Keep answers short and concrete (a few sentences, or a tight list when listing people or shifts — always finish your answer), like a sharp assistant who already knows the business, not a generic chatbot. Dates are in YYYY-MM-DD format; "today" tells you the current date for relative reasoning. Reply in the language the manager writes in.
 
 SCHEDULING: if (and only if) the manager is asking you to CREATE, FILL, BUILD or ADD TO a work schedule (for example "fill next week", "schedule 3 servers on Friday night"), do not answer in prose. Reply with ONLY this JSON object: {"action":"schedule","weekStart":"YYYY-MM-DD","house":"foh"|"boh"|"all","request":"<the manager's scheduling instructions, restated clearly and completely>"}. weekStart must be a Monday: this week's Monday is ${thisMonday} and next week's is ${addDaysIso(thisMonday, 7)}. Use "foh" for front of house (servers, hosts, bartenders, bussers), "boh" for kitchen, otherwise "all". Questions ABOUT the schedule ("who works Friday?") are normal questions — answer them in prose.
 
@@ -2779,7 +2779,7 @@ ${contextBlock}`;
       },
       body: JSON.stringify({
         model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
-        max_tokens: 500,
+        max_tokens: 1500,
         system: systemPrompt,
         messages: [{ role: "user", content: question.trim() }],
       }),
@@ -2795,7 +2795,8 @@ ${contextBlock}`;
 
     const aiData = await aiRes.json();
     const textBlock = (aiData.content || []).find((b) => b.type === "text");
-    const answer = textBlock ? textBlock.text : "I couldn't generate a response for that.";
+    let answer = textBlock ? textBlock.text : "I couldn't generate a response for that.";
+    if (aiData.stop_reason === "max_tokens") answer = answer.trimEnd() + "\n\n[…answer cut short — ask me to continue or narrow the question.]";
 
     logActivity({ restaurantId: req.restaurantId, eventType: "ai_answered", detail: question.trim().slice(0, 200), durationMs: aiDurationMs });
 
