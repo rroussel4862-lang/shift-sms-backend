@@ -2065,7 +2065,15 @@ function renderOverview() {
   const forecast = sales.projected;
   const ly = sales.lastYear || {};
   let laborCost = 0;
-  dayShifts.forEach(sh => { const p = staff.find(x => x.id === sh.staffId); laborCost += shiftHours(sh.startTime, sh.endTime) * ((p && p.hourlyRate) || 0); });
+  const BOH = ["Line Cook", "Dishwasher", "Prep Cook", "Expo"]; // everything else (incl. Manager) is front of house, as in the schedule grid
+  let laborFoh = 0, laborBoh = 0;
+  dayShifts.forEach(sh => {
+    const p = staff.find(x => x.id === sh.staffId);
+    const cost = shiftHours(sh.startTime, sh.endTime) * ((p && p.hourlyRate) || 0);
+    laborCost += cost;
+    const role = sh.role || (p && p.roles && p.roles[0]) || "";
+    if (BOH.includes(role)) laborBoh += cost; else laborFoh += cost;
+  });
   const laborPct = forecast && forecast > 0 ? (laborCost / forecast) * 100 : null;
   const pctCls = laborPct === null ? "" : laborPct < 25 ? "ok" : laborPct < 35 ? "warn" : "bad";
   const m0 = v => "$" + Math.round(v).toLocaleString(localeForLang());
@@ -2081,13 +2089,19 @@ function renderOverview() {
   const actual = sales.actual;
   const actualPct = has(actual) && actual > 0 && dayShifts.length ? (laborCost / actual) * 100 : null;
   const aiVs = (has(sales.ai) && forecast) ? (() => { const d = Math.round((sales.ai / forecast - 1) * 100); return `${d >= 0 ? "+" : ""}${d}% ${S("vsForecast")}`; })() : "";
+  const pc = (cost, base) => (base && base > 0 ? (cost / base * 100).toFixed(1) + "%" : "—");
+  const laborSub = [
+    `FOH ${pc(laborFoh, forecast)} · BOH ${pc(laborBoh, forecast)}`,
+    actualPct !== null ? `${S("actualShort")} ${actualPct.toFixed(1)}%` : "",
+    actualPct !== null ? `${S("actualShort")} FOH ${pc(laborFoh, actual)} · BOH ${pc(laborBoh, actual)}` : "",
+  ].filter(Boolean).join("<br>");
   const tiles = [
     tile(S("forecastSales"), has(forecast) ? m0(forecast) : "—", has(forecast) ? (split(sales.projectedByService) || lyVs) : S("noForecast")),
     tile(S("aiForecast"), has(sales.ai) ? m0(sales.ai) : "—", has(sales.ai) ? aiVs : S("noAiForecast")),
     tile(S("actualSales"), has(actual) ? m0(actual) : "—", has(actual) ? split(sales.actualByService) : S("noActual")),
     tile(S("lastYear"), has(ly.amount) ? (ly.basis === "weekAvg" ? "~" : "") + m0(ly.amount) : "—", ly.basis === "weekAvg" ? S("lastYearAvg") : (ly.amount ? lyVs : S("noLastYear"))),
     tile(S("laborScheduled"), dayShifts.length ? m0(laborCost) : "—", ""),
-    tile(S("laborPct"), laborPct !== null ? laborPct.toFixed(1) + "%" : "—", laborPct === null ? S("needForecast") : (actualPct !== null ? `${S("actualShort")} ${actualPct.toFixed(1)}%` : ""), pctCls),
+    tile(S("laborPct"), laborPct !== null ? laborPct.toFixed(1) + "%" : "—", laborPct === null ? S("needForecast") : laborSub, pctCls),
   ].join("");
 
   // staff by role + who's scheduled
