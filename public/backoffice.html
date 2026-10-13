@@ -147,6 +147,10 @@
   table.sales-grid td.today, table.sales-grid th.today { box-shadow: inset 0 0 0 2px var(--amber); }
   .src-pill { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 9px; background: var(--grid-alt); color: var(--grid-dim); border: 1px solid var(--grid-border); text-transform: uppercase; letter-spacing: .04em; }
   .src-pill.pos { background: #DDEBDD; color: #2F5B3A; border-color: #B5D1B8; }
+  .rev-daily-h { margin: 28px 0 6px; font-size: 16px; font-family: 'Oswald', sans-serif; letter-spacing: .03em; text-transform: uppercase; color: var(--amber); }
+  .rev-ly-date { display: block; font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  tr.rev-today td { background: rgba(232,168,56,.10); }
+  tr.rev-total td { font-weight: 700; border-top: 2px solid var(--rail); }
   .rev-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 18px; }
   .rev-card { background: var(--panel); border: 1px solid var(--rail); border-radius: 8px; padding: 14px 16px; }
   .rev-card h3 { margin: 0 0 8px; font-size: 14px; font-family: 'Oswald', sans-serif; letter-spacing: .03em; text-transform: uppercase; color: var(--amber); }
@@ -300,6 +304,14 @@
     tbody tr { border: 1px solid var(--rail); border-radius: 6px; margin-bottom: 10px; padding: 8px; }
     td { border: none; padding: 6px 4px; }
     td::before { content: attr(data-label); display: block; font-size: 10px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 3px; }
+    /* the sales / revenue grids stay real tables on a phone (they scroll sideways inside .sales-wrap) */
+    table.sales-grid { display: table; }
+    table.sales-grid thead { display: table-header-group; }
+    table.sales-grid tbody { display: table-row-group; }
+    table.sales-grid tr { display: table-row; }
+    table.sales-grid th, table.sales-grid td { display: table-cell; }
+    table.sales-grid tbody tr { border: none; border-radius: 0; margin: 0; padding: 0; }
+    table.sales-grid td::before { content: none; }
   }
 
   /* ---------- Schedule: bigger, easier to read, colour-coded by role ---------- */
@@ -508,6 +520,15 @@
       <div class="sales-wrap"><table class="sales-grid" style="min-width:560px"><thead><tr id="revMonthHead"></tr></thead><tbody id="revMonthBody"></tbody></table></div>
       <div class="rev-note" style="margin-top:18px" data-i18n="rev.weeklyHint">Weekly detail — type last year's total for each week in the "Last year" column.</div>
       <div class="sales-wrap"><table class="sales-grid" style="min-width:560px"><thead><tr id="revWeekHead"></tr></thead><tbody id="revWeekBody"></tbody></table></div>
+
+      <h3 class="rev-daily-h" data-i18n="rev.dayH">Daily comparison</h3>
+      <div class="rev-note" data-i18n="rev.dayHint">Type last year's revenue for each day. It lines up with the same weekday last year (364 days earlier) and feeds the schedule grid and the Overview. This year's number comes from your actual sales.</div>
+      <div class="week-nav">
+        <button class="ghost" onclick="shiftRevDayMonth(-1)">←</button>
+        <span class="week-label" id="revDayLabel"></span>
+        <button class="ghost" onclick="shiftRevDayMonth(1)">→</button>
+      </div>
+      <div class="sales-wrap"><table class="sales-grid" style="min-width:420px"><thead><tr id="revDayHead"></tr></thead><tbody id="revDayBody"></tbody></table></div>
     </div>
   </main>
 </div>
@@ -526,7 +547,7 @@ I18N.add({
     "rev.weeklyHint": "Weekly detail — type last year's total for each week in the \"Last year\" column.",
     "rev.yoyTitle": "Year over year", "rev.ytdTitle": "Year to date", "rev.lastWeek": "Last finished week", "rev.lastMonth": "Last finished month", "rev.ytdWeeks": "By weeks", "rev.ytdMonths": "By months",
     "rev.vs": "vs", "rev.thisYear": "This year", "rev.lastYear": "Last year", "rev.change": "Change", "rev.month": "Month", "rev.week": "Week", "rev.noData": "Not enough data yet — enter last year's weeks below.",
-    "rev.weeksCompared": n => `${n} week${n === 1 ? "" : "s"} compared`, "rev.monthsCompared": n => `${n} month${n === 1 ? "" : "s"} compared`, "rev.daysEntered": n => `${n}/7 days`, "rev.saved": "Saved",
+    "rev.weeksCompared": n => `${n} week${n === 1 ? "" : "s"} compared`, "rev.monthsCompared": n => `${n} month${n === 1 ? "" : "s"} compared`, "rev.daysEntered": n => `${n}/7 days`, "rev.saved": "Saved", "rev.dayH": "Daily comparison", "rev.dayHint": "Type last year's revenue for each day. It lines up with the same weekday last year (364 days earlier) and feeds the schedule grid and the Overview. This year's number comes from your actual sales.", "rev.dayDate": "Day", "rev.dayLY": "Last year", "rev.dayTY": "This year", "rev.dayTotal": "Total", "rev.dayCmp": "compared days only",
     "rev.months": ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
     "staff.h2": "Staff pay & tenure", "staff.desc": "Rates and hire dates feed real labor-cost math elsewhere in the app. Roles and phone numbers are also editable here for full setup in one place.",
     "staff.refresh": "Refresh", "staff.add": "Add", "staff.namePh": "Full name", "staff.addressPh": "123 Main St, City",
@@ -574,7 +595,7 @@ I18N.add({
     "rev.weeklyHint": "Détail hebdomadaire — saisissez le total de l'an dernier pour chaque semaine dans la colonne « An dernier ».",
     "rev.yoyTitle": "D'une année à l'autre", "rev.ytdTitle": "Depuis le début de l'année", "rev.lastWeek": "Dernière semaine terminée", "rev.lastMonth": "Dernier mois terminé", "rev.ytdWeeks": "Par semaines", "rev.ytdMonths": "Par mois",
     "rev.vs": "contre", "rev.thisYear": "Cette année", "rev.lastYear": "An dernier", "rev.change": "Variation", "rev.month": "Mois", "rev.week": "Semaine", "rev.noData": "Pas assez de données — saisissez les semaines de l'an dernier ci-dessous.",
-    "rev.weeksCompared": n => `${n} semaine${n === 1 ? "" : "s"} comparée${n === 1 ? "" : "s"}`, "rev.monthsCompared": n => `${n} mois comparé${n === 1 ? "" : "s"}`, "rev.daysEntered": n => `${n}/7 jours`, "rev.saved": "Enregistré",
+    "rev.weeksCompared": n => `${n} semaine${n === 1 ? "" : "s"} comparée${n === 1 ? "" : "s"}`, "rev.monthsCompared": n => `${n} mois comparé${n === 1 ? "" : "s"}`, "rev.daysEntered": n => `${n}/7 jours`, "rev.saved": "Enregistré", "rev.dayH": "Comparaison quotidienne", "rev.dayHint": "Entrez les revenus de l'an dernier pour chaque jour. Ils correspondent au même jour de la semaine l'an dernier (364 jours plus tôt) et alimentent la grille d'horaire et l'aperçu. Le chiffre de cette année vient de vos ventes réelles.", "rev.dayDate": "Jour", "rev.dayLY": "An dernier", "rev.dayTY": "Cette année", "rev.dayTotal": "Total", "rev.dayCmp": "jours comparés seulement",
     "rev.months": ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."],
     "staff.h2": "Salaires et ancienneté du personnel", "staff.desc": "Les taux horaires et les dates d'embauche alimentent le calcul réel des coûts de main-d'œuvre ailleurs dans l'application. Les postes et les numéros de téléphone sont aussi modifiables ici pour tout configurer au même endroit.",
     "staff.refresh": "Actualiser", "staff.add": "Ajouter", "staff.namePh": "Nom complet", "staff.addressPh": "123 rue Principale, Ville",
@@ -622,7 +643,7 @@ I18N.add({
     "rev.weeklyHint": "Detalle semanal — escribe el total del año pasado de cada semana en la columna «Año pasado».",
     "rev.yoyTitle": "Año contra año", "rev.ytdTitle": "En lo que va del año", "rev.lastWeek": "Última semana terminada", "rev.lastMonth": "Último mes terminado", "rev.ytdWeeks": "Por semanas", "rev.ytdMonths": "Por meses",
     "rev.vs": "vs", "rev.thisYear": "Este año", "rev.lastYear": "Año pasado", "rev.change": "Cambio", "rev.month": "Mes", "rev.week": "Semana", "rev.noData": "Aún no hay datos suficientes — escribe las semanas del año pasado abajo.",
-    "rev.weeksCompared": n => `${n} semana${n === 1 ? "" : "s"} comparada${n === 1 ? "" : "s"}`, "rev.monthsCompared": n => `${n} mes${n === 1 ? "" : "es"} comparado${n === 1 ? "" : "s"}`, "rev.daysEntered": n => `${n}/7 días`, "rev.saved": "Guardado",
+    "rev.weeksCompared": n => `${n} semana${n === 1 ? "" : "s"} comparada${n === 1 ? "" : "s"}`, "rev.monthsCompared": n => `${n} mes${n === 1 ? "" : "es"} comparado${n === 1 ? "" : "s"}`, "rev.daysEntered": n => `${n}/7 días`, "rev.saved": "Guardado", "rev.dayH": "Comparación diaria", "rev.dayHint": "Escribe los ingresos del año pasado para cada día. Se alinean con el mismo día de la semana del año pasado (364 días antes) y alimentan la cuadrícula de horarios y el resumen. La cifra de este año viene de tus ventas reales.", "rev.dayDate": "Día", "rev.dayLY": "Año pasado", "rev.dayTY": "Este año", "rev.dayTotal": "Total", "rev.dayCmp": "solo días comparados",
     "rev.months": ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"],
     "staff.h2": "Pago y antigüedad del personal", "staff.desc": "Las tarifas y las fechas de contratación alimentan el cálculo real del costo laboral en el resto de la aplicación. Los puestos y teléfonos también se pueden editar aquí para configurar todo en un solo lugar.",
     "staff.refresh": "Actualizar", "staff.add": "Agregar", "staff.namePh": "Nombre completo", "staff.addressPh": "Calle Principal 123, Ciudad",
@@ -1179,6 +1200,7 @@ async function loadRevenue() {
   if (!result.ok) return showBanner(result.error, "warn");
   revData = result.data;
   renderRevenue();
+  loadRevDaily();
 }
 
 function pctHtml(p) {
@@ -1217,6 +1239,62 @@ function renderRevenue() {
       <td class="num">${money0(w.thisYear)}${w.thisYear !== null && w.daysEntered < 7 ? `<span class="week-partial">${tr("rev.daysEntered", w.daysEntered)}</span>` : ""}</td>
       <td class="${pct === null ? "" : pct >= 0 ? "up" : "down"}">${pct === null ? "—" : (pct >= 0 ? "+" : "") + pct + "%"}</td></tr>`;
   }).join("");
+}
+
+// ---- daily last-year box: one row per day of a month ----
+let revDayMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let revDayLY = {}, revDayTY = {};
+const revIsoAdd = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+function shiftRevDayMonth(n) { revDayMonth = new Date(revDayMonth.getFullYear(), revDayMonth.getMonth() + n, 1); loadRevDaily(); }
+
+async function loadRevDaily() {
+  const y = revDayMonth.getFullYear(), m = revDayMonth.getMonth();
+  const s = toISODate(new Date(y, m, 1)), e = toISODate(new Date(y, m + 1, 0));
+  document.getElementById("revDayLabel").textContent = `${tr("rev.months")[m]} ${y}`;
+  const [p, a] = await Promise.all([api(`/api/sales-projections?start=${s}&end=${e}`), api(`/api/actual-sales?start=${s}&end=${e}`)]);
+  if (!p.ok) return showBanner(p.error, "warn");
+  revDayLY = {}; revDayTY = {};
+  p.data.forEach(r => { if (r.lastYearAmount !== null && r.lastYearAmount !== undefined) revDayLY[r.date] = r.lastYearAmount; });
+  if (a.ok) a.data.forEach(r => { if (r.amount !== null && r.amount !== undefined) revDayTY[r.date] = r.amount; });
+  renderRevDaily();
+}
+
+function renderRevDaily() {
+  const y = revDayMonth.getFullYear(), m = revDayMonth.getMonth(), n = new Date(y, m + 1, 0).getDate();
+  const today = toISODate(new Date());
+  document.getElementById("revDayHead").innerHTML = `<th style="text-align:left">${tr("rev.dayDate")}</th><th>${tr("rev.dayLY")}</th><th>${tr("rev.dayTY")}</th><th>${tr("rev.change")}</th>`;
+  let lyTot = 0, tyTot = 0, lyCmp = 0, tyCmp = 0;
+  const rows = [];
+  for (let d = 1; d <= n; d++) {
+    const iso = toISODate(new Date(y, m, d));
+    const dt = new Date(iso + "T12:00:00");
+    const ly = revDayLY[iso], ty = revDayTY[iso];
+    const lyIso = revIsoAdd(iso, -364), lyDt = new Date(lyIso + "T12:00:00");
+    const hasLy = ly !== undefined, hasTy = ty !== undefined;
+    if (hasLy) lyTot += ly;
+    if (hasTy) tyTot += ty;
+    let pct = null;
+    if (hasLy && hasTy && ly > 0) { lyCmp += ly; tyCmp += ty; pct = Math.round(((ty - ly) / ly) * 1000) / 10; }
+    rows.push(`<tr class="${iso === today ? "rev-today" : ""}"><td class="lbl">${tr("days." + ((dt.getDay() + 6) % 7))} ${formatShort(dt)}
+        <span class="rev-ly-date">← ${tr("days." + ((lyDt.getDay() + 6) % 7))} ${formatShort(lyDt)}, ${lyDt.getFullYear()}</span></td>
+      <td><input type="text" inputmode="decimal" placeholder="$" data-date="${iso}" value="${hasLy ? ly : ""}" onblur="saveRevDay(this)" onkeydown="if(event.key==='Enter')this.blur()" /></td>
+      <td class="num">${hasTy ? money0(ty) : "—"}</td>
+      <td class="${pct === null ? "" : pct >= 0 ? "up" : "down"}">${pct === null ? "—" : (pct >= 0 ? "+" : "") + pct + "%"}</td></tr>`);
+  }
+  const totPct = lyCmp > 0 ? Math.round(((tyCmp - lyCmp) / lyCmp) * 1000) / 10 : null;
+  rows.push(`<tr class="rev-total"><td class="lbl">${tr("rev.dayTotal")}<span class="rev-ly-date">${tr("rev.dayCmp")}</span></td><td class="num">${money0(lyTot)}</td><td class="num">${money0(tyTot)}</td>
+    <td class="${totPct === null ? "" : totPct >= 0 ? "up" : "down"}">${totPct === null ? "—" : (totPct >= 0 ? "+" : "") + totPct + "%"}</td></tr>`);
+  document.getElementById("revDayBody").innerHTML = rows.join("");
+}
+
+async function saveRevDay(input) {
+  const raw = input.value.trim().replace(/[$,\s]/g, "");
+  const prev = revDayLY[input.dataset.date];
+  if ((raw === "" && prev === undefined) || (raw !== "" && Number(raw) === prev)) return;
+  const r = await api("/api/sales-projections", { method: "PUT", body: JSON.stringify({ date: input.dataset.date, lastYearAmount: raw === "" ? null : raw }) });
+  if (!r.ok) { showBanner(r.error, "warn"); return loadRevDaily(); }
+  await loadRevDaily();
+  loadRevenue(); // weekly figures can be built from the days
 }
 
 async function saveRevCell(input) {

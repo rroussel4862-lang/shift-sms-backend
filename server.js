@@ -2215,6 +2215,17 @@ app.get("/api/revenue-history", requireAuth, async (req, res) => {
   );
   const lastYearByWeek = {};
   hist.forEach((r) => { lastYearByWeek[r.w] = Number(r.amount); });
+  // A week with last year's figure typed for all seven days (daily box) counts as that week's total unless a weekly total was typed.
+  const { rows: dly } = await pool.query(
+    "SELECT proj_date::text AS d, last_year_amount FROM sales_projections WHERE restaurant_id = $1 AND proj_date >= $2 AND proj_date <= $3 AND last_year_amount IS NOT NULL",
+    [req.restaurantId, first, last]
+  );
+  const dailyByWeek = {};
+  dly.forEach((r) => { const wk = mondayOfIso(r.d); const e = (dailyByWeek[wk] = dailyByWeek[wk] || { amount: 0, days: 0 }); e.amount += Number(r.last_year_amount); e.days += 1; });
+  Object.keys(dailyByWeek).forEach((wk) => {
+    const key = addDaysIso(wk, -364);
+    if (dailyByWeek[wk].days === 7 && lastYearByWeek[key] === undefined) lastYearByWeek[key] = dailyByWeek[wk].amount;
+  });
   const today = ownerToday();
   res.json({ today, ...buildRevenueSummary({ year, today, weeks, thisYearByWeek, lastYearByWeek }) });
 });

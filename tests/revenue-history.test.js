@@ -71,4 +71,18 @@ describe("revenue history", () => {
     expect(get.body.weeks.find((w) => w.lastYearWeekStart === "2024-03-11").lastYear).toBeNull();
     expect(get.body.weeks.find((w) => w.weekStart === "2025-03-03").thisYear).toBeNull();
   });
+
+  test("a week with last year's figure typed for all 7 days counts as its total, unless a weekly total was typed", async () => {
+    // this-year week Mon 2024-12-30 .. Sun 2025-01-05 lines up with last year's week starting 2024-01-01
+    const days = [0, 1, 2, 3, 4, 5, 6].map((i) => new Date(Date.UTC(2024, 11, 30 + i)).toISOString().slice(0, 10));
+    for (const d of days.slice(0, 6)) await B.agent.put("/api/sales-projections").send({ date: d, lastYearAmount: 1000 });
+    let get = await B.agent.get("/api/revenue-history?year=2025");
+    expect(get.body.weeks.find((w) => w.lastYearWeekStart === "2024-01-01").lastYear).toBeNull(); // only 6 days: not a week yet
+    await B.agent.put("/api/sales-projections").send({ date: days[6], lastYearAmount: 1500 });
+    get = await B.agent.get("/api/revenue-history?year=2025");
+    expect(get.body.weeks.find((w) => w.lastYearWeekStart === "2024-01-01").lastYear).toBe(7500);
+    await B.agent.put("/api/revenue-history").send({ weekStart: "2024-01-01", amount: 9000 });
+    get = await B.agent.get("/api/revenue-history?year=2025");
+    expect(get.body.weeks.find((w) => w.lastYearWeekStart === "2024-01-01").lastYear).toBe(9000);
+  });
 });
