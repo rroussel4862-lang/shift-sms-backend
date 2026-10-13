@@ -1430,10 +1430,19 @@ function shiftGroup(p, s) {
   return activeRoles.includes(mine[0]) ? mine[0] : null;
 }
 
+// alphabetical by last name (the last word of the name), then first name
+function byLastName(a, b) {
+  const parts = n => String(n.name || "").trim().split(/\s+/);
+  const pa = parts(a), pb = parts(b);
+  const la = pa.length > 1 ? pa[pa.length - 1] : pa[0], lb = pb.length > 1 ? pb[pb.length - 1] : pb[0];
+  const opt = { sensitivity: "base" };
+  return la.localeCompare(lb, undefined, opt) || pa[0].localeCompare(pb[0], undefined, opt);
+}
+
 function viewGroups() {
   const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
   return activeRoles
-    .map(role => ({ role, people: staff.filter(p => (p.roles || []).includes(role)) }))
+    .map(role => ({ role, people: staff.filter(p => (p.roles || []).includes(role)).sort(byLastName) }))
     .filter(g => g.people.length);
 }
 
