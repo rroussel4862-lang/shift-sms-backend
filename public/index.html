@@ -2100,7 +2100,7 @@ function renderOverview() {
   ].filter(Boolean).join("<br>");
   const tiles = [
     tile(S("forecastSales"), has(forecast) ? m0(forecast) : "—", has(forecast) ? (split(sales.projectedByService) || lyVs) : S("noForecast")),
-    tile(S("aiForecast"), has(sales.ai) ? m0(sales.ai) : "—", has(sales.ai) ? aiVs : S("noAiForecast")),
+    // AI forecast tile hidden for now (re-add: tile(S("aiForecast"), ...))
     tile(S("actualSales"), has(actual) ? m0(actual) : "—", has(actual) ? split(sales.actualByService) : S("noActual")),
     tile(S("lastYear"), has(ly.amount) ? (ly.basis === "weekAvg" ? "~" : "") + m0(ly.amount) : "—", ly.basis === "weekAvg" ? S("lastYearAvg") : (ly.amount ? (lyVs ? `${S("forecastShort")} ${lyVs}` : "") : S("noLastYear"))),
     tile(S("laborScheduled"), dayShifts.length ? m0(laborCost) : "—", ""),
