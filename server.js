@@ -657,6 +657,22 @@ app.post("/api/auth/login", loginLimiter, async (req, res) => {
   );
   const user = rows[0];
   if (!user) {
+    // Logins made from the dashboard (managers and owners) live in the owners table. Accept them here too, so the
+    // main page works as well as /owner.html: one restaurant opens straight away, several go to the owner page.
+    const { rows: orows } = await pool.query("SELECT * FROM owners WHERE email = $1", [String(email).trim().toLowerCase()]);
+    const owner = orows[0];
+    if (owner && (await bcrypt.compare(password, owner.password_hash))) {
+      await pool.query("UPDATE owners SET last_login_at = $1 WHERE id = $2", [Date.now(), owner.id]);
+      res.cookie("owner_token", signToken({ ownerId: owner.id }), COOKIE_OPTS);
+      const { rows: rs } = await pool.query(
+        "SELECT r.id, r.name, r.address FROM owner_restaurants x JOIN restaurants r ON r.id = x.restaurant_id WHERE x.owner_id = $1 ORDER BY r.name",
+        [owner.id]
+      );
+      logActivity({ restaurantId: rs.length === 1 ? rs[0].id : null, eventType: "login_success", detail: `${owner.role === "manager" ? "manager" : "owner"} login via main page: ${owner.email}` });
+      if (rs.length !== 1) return res.json({ redirect: "/owner.html" });
+      res.cookie("token", signToken({ restaurantId: rs[0].id, ownerId: owner.id }), COOKIE_OPTS);
+      return res.json({ restaurant: { id: rs[0].id, name: rs[0].name, address: rs[0].address || "" }, email: owner.email, viaOwner: true });
+    }
     logActivity({ eventType: "login_failed", level: "warn", detail: `manager login failed: ${email.toLowerCase()} (no such account)` });
     return res.status(401).json({ error: "incorrect email or password" });
   }

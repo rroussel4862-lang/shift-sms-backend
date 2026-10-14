@@ -68,4 +68,22 @@ describe("manager logins created from the dashboard", () => {
     expect((await agent.get("/api/staff")).status).toBe(401);
     expect((await agent.get("/api/owner-auth/me")).status).toBe(401);
   });
+
+  test("a dashboard-made login also works on the main page: one restaurant opens straight away, several go to the owner page", async () => {
+    const email = uniqueEmail("main");
+    const created = await admin.post("/api/platform/owners").send({ name: "Main Page", email, restaurantIds: [A.restaurantId], role: "manager" });
+    const agent = request.agent(app);
+    const bad = await agent.post("/api/auth/login").send({ email, password: "wrong-password-1" });
+    expect(bad.status).toBe(401);
+    const login = await agent.post("/api/auth/login").send({ email, password: created.body.tempPassword });
+    expect(login.status).toBe(200);
+    expect(login.body).toMatchObject({ restaurant: { id: A.restaurantId }, viaOwner: true });
+    expect((await agent.get("/api/auth/me")).body.restaurant.id).toBe(A.restaurantId);
+
+    const email2 = uniqueEmail("multi");
+    const two = await admin.post("/api/platform/owners").send({ name: "Two Places", email: email2, restaurantIds: [A.restaurantId, B.restaurantId] });
+    const login2 = await request.agent(app).post("/api/auth/login").send({ email: email2, password: two.body.tempPassword });
+    expect(login2.status).toBe(200);
+    expect(login2.body).toEqual({ redirect: "/owner.html" });
+  });
 });
