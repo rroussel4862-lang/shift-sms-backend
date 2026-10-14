@@ -1318,13 +1318,18 @@ async function loadSchedule() {
   endDate.setDate(endDate.getDate() + 6);
   document.getElementById("weekLabel").textContent = `${formatShort(weekStart)} – ${formatShort(endDate)}, ${endDate.getFullYear()}`;
   const startStr = toISODate(weekStart), endStr = toISODate(endDate);
-  const [shiftsResult, projResult, actualResult, availResult] = await Promise.all([
+  const [shiftsResult, projResult, actualResult, availResult, timeOffResult] = await Promise.all([
     api(`/api/schedule?start=${startStr}&end=${endStr}`),
     api(`/api/sales-projections?start=${startStr}&end=${endStr}`),
     api(`/api/actual-sales?start=${startStr}&end=${endStr}`),
     api("/api/availability"),
+    api(`/api/time-off?start=${startStr}&end=${endStr}`),
   ]);
   if (availResult.ok) availByStaff = availResult.data;
+  if (timeOffResult.ok) {
+    timeOffByStaff = {};
+    timeOffResult.data.forEach(o => { ((timeOffByStaff[o.staffId] = timeOffByStaff[o.staffId] || {})[o.date] = timeOffByStaff[o.staffId][o.date] || []).push(o); });
+  }
   if (shiftsResult.ok) scheduleShifts = shiftsResult.data;
   else showBanner(shiftsResult.error, "warn");
   salesProjections = {}; projSvc = {}; actualSvc = {}; aiForecast = {}; actualSource = {}; lastYearSales = {};
@@ -1530,9 +1535,15 @@ function viewGroups() {
 // ---- approved unavailability, drawn as a thin red box in the grid ----
 let availByStaff = {}; // staffId -> { mon: {available, note, from, to}, ... }  (approved only)
 const AV_WD = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+let timeOffByStaff = {}; // staffId -> date -> [{from, to, note}]  (approved one-time time off)
 function unavailBox(staffId, dateStr, svc) {
-  const e = (availByStaff[staffId] || {})[AV_WD[new Date(dateStr + "T12:00:00").getDay()]];
-  if (!e || e.available !== false) return "";
+  const weekly = (availByStaff[staffId] || {})[AV_WD[new Date(dateStr + "T12:00:00").getDay()]];
+  const entries = [];
+  if (weekly && weekly.available === false) entries.push(weekly);
+  ((timeOffByStaff[staffId] || {})[dateStr] || []).forEach(o => entries.push(o));
+  return entries.map(e => unavailBoxFor(e, svc)).join("");
+}
+function unavailBoxFor(e, svc) {
   const mins = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
   if (!e.from && !e.to) return `<div class="unavail-box" title="${escapeHtml(e.note || "")}">${tr("sched.unavailAll")}</div>`;
   const f = e.from ? mins(e.from) : 0;

@@ -299,6 +299,22 @@ async function initDb() {
   `);
 
   // What staff submit waits in `pending` until a manager approves it; only `availability` (approved) is used for scheduling.
+  // One-time unavailability (a specific date, all day or between two times). Each one is a request a manager approves.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS staff_time_off (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      staff_id TEXT NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+      off_date TEXT NOT NULL,
+      from_time TEXT,
+      to_time TEXT,
+      note TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at BIGINT NOT NULL,
+      decided_at BIGINT
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS staff_time_off_restaurant_date ON staff_time_off (restaurant_id, off_date);`);
   await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS pending JSONB;`);
   await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS pending_at BIGINT;`);
   await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS decision TEXT;`);
@@ -439,6 +455,15 @@ async function sendSms(to, body, restaurantId = null) {
     const durationMs = Date.now() - startedAt;
     logActivity({ restaurantId, eventType: "sms_failed", level: "error", detail: `${to}: ${e.message}`, durationMs });
     return { to, ok: false, error: e.message };
+  }
+}
+// Texts one staff member about a manager's decision. Never blocks or fails the request: a failed text is only logged.
+async function notifyStaff(restaurantId, staffId, fr, en) {
+  try {
+    const { rows } = await pool.query("SELECT phone FROM staff WHERE id = $1 AND restaurant_id = $2", [staffId, restaurantId]);
+    if (rows[0] && rows[0].phone) await sendSms(rows[0].phone, bilingual(fr, en), restaurantId);
+  } catch (e) {
+    console.error("Couldn't notify staff:", e.message);
   }
 }
 function staffRowToJson(row) {
@@ -1353,7 +1378,94 @@ app.post("/api/availability-requests/:staffId/:action", requireAuth, async (req,
   );
   if (!rows[0]) return res.status(404).json({ error: "no pending request for this person" });
   logActivity({ restaurantId: req.restaurantId, eventType: "availability_" + action + "d", detail: `availability ${action}d` });
+  const okNow = action === "approve";
+  notifyStaff(req.restaurantId, staffId,
+    okNow ? "Vos disponibilités ont été approuvées." : "Votre demande de disponibilités a été refusée; vos disponibilités précédentes s'appliquent toujours.",
+    okNow ? "Your availability was approved." : "Your availability request was declined; your previous availability still applies.");
   res.json(availJson(rows[0]));
+});
+
+// ---------- one-time unavailability (time off) ----------
+
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const timeOffJson = (r) => ({
+  id: r.id, staffId: r.staff_id, date: r.off_date, from: r.from_time || "", to: r.to_time || "",
+  note: r.note || "", status: r.status, createdAt: Number(r.created_at), decidedAt: r.decided_at ? Number(r.decided_at) : null,
+});
+
+app.get("/api/staff-auth/time-off", requireStaffAuth, async (req, res) => {
+  const today = ownerToday();
+  const { rows } = await pool.query(
+    "SELECT * FROM staff_time_off WHERE staff_id = $1 AND off_date >= $2 ORDER BY off_date, from_time NULLS FIRST",
+    [req.staffId, today]
+  );
+  res.json(rows.map(timeOffJson));
+});
+
+app.post("/api/staff-auth/time-off", requireStaffAuth, async (req, res) => {
+  const { date, from, to, note } = req.body || {};
+  if (!isIsoDate(date)) return res.status(400).json({ error: "a valid date is required" });
+  const today = ownerToday();
+  if (date < today) return res.status(400).json({ error: "that date has already passed" });
+  if (date > addDaysIso(today, 366)) return res.status(400).json({ error: "that date is too far ahead" });
+  const f = from ? String(from) : "", t = to ? String(to) : "";
+  if ((f && !TIME_RE.test(f)) || (t && !TIME_RE.test(t))) return res.status(400).json({ error: "times must look like 17:00" });
+  const { rows: dup } = await pool.query(
+    "SELECT id FROM staff_time_off WHERE staff_id = $1 AND off_date = $2 AND COALESCE(from_time,'') = $3 AND COALESCE(to_time,'') = $4",
+    [req.staffId, date, f, t]
+  );
+  if (dup.length) return res.status(409).json({ error: "you already have that one" });
+  const { rows } = await pool.query(
+    "INSERT INTO staff_time_off (id, restaurant_id, staff_id, off_date, from_time, to_time, note, status, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8) RETURNING *",
+    [id(), req.restaurantId, req.staffId, date, f || null, t || null, String(note || "").trim().slice(0, 200), Date.now()]
+  );
+  logActivity({ restaurantId: req.restaurantId, eventType: "time_off_requested", detail: `time off requested for ${date}` });
+  res.status(201).json(timeOffJson(rows[0]));
+});
+
+// Staff can take back any of their own entries (waiting or approved); it simply disappears from the schedule.
+app.delete("/api/staff-auth/time-off/:id", requireStaffAuth, async (req, res) => {
+  const { rowCount } = await pool.query("DELETE FROM staff_time_off WHERE id = $1 AND staff_id = $2", [req.params.id, req.staffId]);
+  if (rowCount === 0) return res.status(404).json({ error: "not found" });
+  res.status(204).end();
+});
+
+// Manager: approved time off in a date range (the schedule grid draws it).
+app.get("/api/time-off", requireAuth, async (req, res) => {
+  const { start, end } = req.query;
+  if (!isIsoDate(start) || !isIsoDate(end)) return res.status(400).json({ error: "start and end dates are required" });
+  const { rows } = await pool.query(
+    "SELECT * FROM staff_time_off WHERE restaurant_id = $1 AND status = 'approved' AND off_date >= $2 AND off_date <= $3 ORDER BY off_date",
+    [req.restaurantId, start, end]
+  );
+  res.json(rows.map(timeOffJson));
+});
+
+app.get("/api/time-off-requests", requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT t.*, s.name, s.roles FROM staff_time_off t JOIN staff s ON s.id = t.staff_id
+     WHERE t.restaurant_id = $1 AND t.status = 'pending' AND t.off_date >= $2 ORDER BY t.off_date, t.created_at`,
+    [req.restaurantId, ownerToday()]
+  );
+  res.json(rows.map((r) => ({ ...timeOffJson(r), name: r.name, roles: r.roles || [] })));
+});
+
+app.post("/api/time-off-requests/:id/:action", requireAuth, async (req, res) => {
+  const { id: reqId, action } = req.params;
+  if (action !== "approve" && action !== "decline") return res.status(404).json({ error: "unknown action" });
+  const { rows } = await pool.query(
+    "UPDATE staff_time_off SET status = $3, decided_at = $4 WHERE id = $1 AND restaurant_id = $2 AND status = 'pending' RETURNING *",
+    [reqId, req.restaurantId, action === "approve" ? "approved" : "declined", Date.now()]
+  );
+  if (!rows[0]) return res.status(404).json({ error: "no pending request found" });
+  logActivity({ restaurantId: req.restaurantId, eventType: "time_off_" + action + "d", detail: `time off ${action}d for ${rows[0].off_date}` });
+  const when = (loc) => new Date(rows[0].off_date + "T12:00:00").toLocaleDateString(loc, { weekday: "short", month: "short", day: "numeric" })
+    + (rows[0].from_time || rows[0].to_time ? ` (${rows[0].from_time || "00:00"}–${rows[0].to_time || "24:00"})` : "");
+  const okNow = action === "approve";
+  notifyStaff(req.restaurantId, rows[0].staff_id,
+    okNow ? `Votre absence du ${when("fr-CA")} a été approuvée.` : `Votre demande d'absence du ${when("fr-CA")} a été refusée.`,
+    okNow ? `Your time off on ${when("en-CA")} was approved.` : `Your time off request for ${when("en-CA")} was declined.`);
+  res.json(timeOffJson(rows[0]));
 });
 
 app.get("/api/staff-auth/open-shifts", requireStaffAuth, async (req, res) => {
@@ -1850,7 +1962,7 @@ function unavailableOverlaps(entry, shiftRangeMin) {
   return rangesOverlap([f, t], shiftRangeMin);
 }
 
-function checkScheduleCandidates(candidates, { staffById, existing, availabilityByStaff, windowStart, windowEnd }) {
+function checkScheduleCandidates(candidates, { staffById, existing, availabilityByStaff, timeOffByStaff, windowStart, windowEnd }) {
   const ok = [];
   const skipped = [];
   const taken = {}; // `${staffId}|${date}` -> ranges already on the grid or accepted so far
@@ -1869,6 +1981,8 @@ function checkScheduleCandidates(candidates, { staffById, existing, availability
     const avail = availabilityByStaff && availabilityByStaff[c.staffId];
     const dayEntry = avail && avail[weekdayKey(c.date)];
     if (dayEntry && dayEntry.available === false && unavailableOverlaps(dayEntry, range)) { skipped.push({ ...base, code: "unavailable" }); continue; }
+    const offToday = (timeOffByStaff && timeOffByStaff[c.staffId] && timeOffByStaff[c.staffId][c.date]) || [];
+    if (offToday.some((o) => unavailableOverlaps(o, range))) { skipped.push({ ...base, code: "unavailable" }); continue; }
     const k = `${c.staffId}|${c.date}`;
     if ((taken[k] || []).some((r) => rangesOverlap(r, range))) { skipped.push({ ...base, code: "overlap" }); continue; }
     (taken[k] = taken[k] || []).push(range);
@@ -1884,6 +1998,20 @@ async function loadAvailabilityMap(restaurantId, staffIds) {
   const { rows } = await pool.query("SELECT staff_id, availability FROM staff_availability WHERE restaurant_id = $1 AND staff_id = ANY($2)", [restaurantId, staffIds]);
   const map = {};
   rows.forEach((r) => { map[r.staff_id] = r.availability || {}; });
+  return map;
+}
+
+// Approved one-time time off: staffId -> date -> [{from, to, note}] (empty from/to = all day).
+async function loadTimeOffMap(restaurantId, staffIds, start, end) {
+  if (staffIds.length === 0) return {};
+  const { rows } = await pool.query(
+    "SELECT * FROM staff_time_off WHERE restaurant_id = $1 AND status = 'approved' AND staff_id = ANY($2) AND off_date >= $3 AND off_date <= $4",
+    [restaurantId, staffIds, start, end]
+  );
+  const map = {};
+  rows.forEach((r) => {
+    ((map[r.staff_id] = map[r.staff_id] || {})[r.off_date] = map[r.staff_id][r.off_date] || []).push({ from: r.from_time || "", to: r.to_time || "", note: r.note || "" });
+  });
   return map;
 }
 
@@ -3286,6 +3414,7 @@ async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds
   const staffById = {};
   pool_.forEach((p) => { staffById[p.id] = { name: p.name, roles: p.roles || [], rate: p.hourly_rate !== null ? Number(p.hourly_rate) : 0 }; });
   const availabilityByStaff = await loadAvailabilityMap(restaurantId, pool_.map((p) => p.id));
+  const timeOffByStaff = await loadTimeOffMap(restaurantId, pool_.map((p) => p.id), weekStart, weekEnd);
   const historyStart = addDaysIso(weekStart, -56); // 8 weeks of history
   const [existingRes, projRes, salesRes, pastShiftRes] = await Promise.all([
     pool.query("SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3", [restaurantId, weekStart, weekEnd]),
@@ -3307,6 +3436,7 @@ async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds
     staff: pool_.map((p) => ({
       id: p.id, name: p.name, roles: p.roles || [],
       hourlyRate: p.hourly_rate !== null ? Number(p.hourly_rate) : null,
+      timeOff: Object.entries(timeOffByStaff[p.id] || {}).flatMap(([date, list]) => list.map((o) => ({ date, ...(o.from || o.to ? { unavailableFrom: o.from || "00:00", unavailableTo: o.to || "24:00" } : {}) }))),
       availability: Object.fromEntries(Object.entries(availabilityByStaff[p.id] || {}).map(([k, v]) => [k, { free: v.available, note: v.note || "", ...(v.available === false && (v.from || v.to) ? { unavailableFrom: v.from || "00:00", unavailableTo: v.to || "24:00" } : {}) }])),
     })),
     alreadyScheduledThisWeek: existing.filter((e) => staffById[e.staffId]).map((e) => ({ staffId: e.staffId, date: e.date, start: e.startTime, end: e.endTime, role: e.role })),
@@ -3318,6 +3448,7 @@ async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds
 Rules:
 - Use each person's id exactly as given. Never invent staff.
 - A staff member's "role" must be one of their listed roles.
+- Never schedule someone on a date listed in their "timeOff" (one-time unavailability); if unavailableFrom/unavailableTo are given, only that part of the day is blocked.
 - Never schedule someone on a weekday where their availability free is false; if unavailableFrom/unavailableTo are given, only avoid shifts overlapping those hours. Respect availability notes (e.g. "after 5pm") as best you can.
 - Do not duplicate or overlap shifts in "alreadyScheduledThisWeek"; fill around them.
 - One shift per person per day unless asked otherwise. Keep shifts between 3 and 12 hours. Avoid more than 40 hours a week per person unless asked.
@@ -3338,7 +3469,7 @@ ${JSON.stringify(context)}`;
   const candidates = parsed.shifts.slice(0, SCHEDULE_BULK_MAX).map((c) => ({
     staffId: c && c.staffId, date: c && c.date, startTime: c && c.startTime, endTime: c && c.endTime, role: c && c.role,
   }));
-  const { ok, skipped } = checkScheduleCandidates(candidates, { staffById, existing, availabilityByStaff, windowStart: weekStart, windowEnd: weekEnd });
+  const { ok, skipped } = checkScheduleCandidates(candidates, { staffById, existing, availabilityByStaff, timeOffByStaff, windowStart: weekStart, windowEnd: weekEnd });
   logActivity({ restaurantId, eventType: "ai_answered", detail: `schedule: ${prompt.slice(0, 120)} (${ok.length} shifts)`, durationMs });
   let totalHours = 0, estCost = 0;
   ok.forEach((sh) => {
@@ -3985,4 +4116,4 @@ app.get("/api/owner/overview", requireOwnerAuth, async (req, res) => {
   });
 });
 
-module.exports = { app, pool, initDb, archiveOldActivity, parseMetNoForecast, cleanEvents };
+module.exports = { app, pool, initDb, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates };

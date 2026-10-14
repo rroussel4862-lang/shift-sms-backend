@@ -95,6 +95,15 @@
   .avail-hours { order: 5; width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; margin: 6px 0; }
   .avail-hours input { width: auto; padding: 4px 6px; }
   .avail-hours em { flex-basis: 100%; font-size: 11px; opacity: .65; font-style: normal; }
+  .to-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .to-form input[type=date], .to-form input[type=time] { width: auto; padding: 6px 8px; }
+  .to-form input[type=text] { flex: 1; min-width: 140px; }
+  .to-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--rail); font-size: 13px; }
+  .to-row:last-child { border-bottom: none; }
+  .to-pill { font-size: 10.5px; border-radius: 10px; padding: 2px 8px; margin-left: 6px; white-space: nowrap; }
+  .to-pill.pending { background: rgba(232,168,56,.18); color: var(--amber); }
+  .to-pill.approved { background: rgba(67,160,71,.18); color: var(--green); }
+  .to-pill.declined { background: rgba(224,113,95,.18); color: #e0715f; }
   .avail-note { flex: 1; background: var(--bg); border: 1px solid var(--rail); color: var(--text-bright); border-radius: 4px; padding: 6px 8px; font-size: 11.5px; font-family: inherit; min-width: 0; }
 
   #banner { font-size: 12.5px; text-align: center; padding: 9px; font-weight: 600; }
@@ -157,6 +166,18 @@
         <div id="availabilityList"></div>
         <button class="claim-btn" id="availSaveBtn" style="background:var(--amber);color:var(--ink);margin-top:14px;display:none" onclick="saveAvailability()" data-i18n="avail.save">Save availability</button>
       </div>
+      <div class="card" style="margin-top:14px">
+        <h2 data-i18n="to.h2">One-time unavailability</h2>
+        <div data-i18n="to.help" style="color:var(--text-dim);font-size:12px;margin-bottom:10px;line-height:1.4">Can't work a specific day? Add it here. Your manager approves it before it counts in the schedule.</div>
+        <div class="to-form">
+          <input type="date" id="toDate" />
+          <label style="font-size:12px;display:flex;align-items:center;gap:5px"><input type="checkbox" id="toAllDay" checked onchange="toggleToHours()" /><span data-i18n="to.allDay">All day</span></label>
+          <span id="toHours" style="display:none;font-size:12px"><span data-i18n="avail.from">Busy from</span> <input type="time" id="toFrom" /> <span data-i18n="avail.to">until</span> <input type="time" id="toTo" /></span>
+          <input type="text" id="toNote" maxlength="200" data-i18n-ph="to.notePh" placeholder="Reason (optional)" />
+          <button class="claim-btn" style="width:auto;padding:8px 16px;margin:0" onclick="addTimeOff()" data-i18n="to.add">Add</button>
+        </div>
+        <div id="timeOffList" style="margin-top:10px"></div>
+      </div>
     </div>
 
     <div class="tab-panel" id="panelBoard">
@@ -205,7 +226,7 @@ I18N.add({
     "schedule.h2": "Upcoming shifts", "schedule.loading": "Loading…",
     "schedule.count": n => `${n} upcoming shift${n === 1 ? "" : "s"}`,
     "schedule.empty": "No shifts scheduled yet — check back soon.", "schedule.shift": "Shift",
-    "avail.h2": "Your weekly availability", "avail.help": "Let your manager know which days you're generally free to work.",
+    "to.h2": "One-time unavailability", "to.help": "Can't work a specific day? Add it here. Your manager approves it before it counts in the schedule.", "to.allDay": "All day", "to.notePh": "Reason (optional)", "to.add": "Add", "to.empty": "Nothing coming up.", "to.pending": "Waiting for approval", "to.approved": "Approved", "to.declined": "Declined", "to.remove": "Remove", "to.sent": "Sent to your manager for approval", "to.pickDate": "Pick a date first.", "to.hours": "from", "to.until": "until", "avail.h2": "Your weekly availability", "avail.help": "Let your manager know which days you're generally free to work.",
     "avail.free": "Free", "avail.busy": "Busy", "avail.from": "Busy from", "avail.to": "until", "avail.allDayHint": "Leave both empty if you are busy all day.", "avail.notePh": "e.g. after 5pm", "avail.save": "Save availability", "avail.saved": "Sent to your manager for approval", "avail.pending": "Waiting for your manager's approval. Your current availability stays in effect until then.", "avail.approved": "Your manager approved your availability.", "avail.declined": "Your last request was declined, so your previous availability still applies.",
     "open.h2": "Open shifts you can take", "open.empty": "No open shifts matching your roles right now.",
     "open.stamp": "Open", "open.asap": "ASAP", "open.claim": "Claim this shift", "open.waiting": "You're in — waiting on manager",
@@ -241,7 +262,7 @@ I18N.add({
     "schedule.h2": "Prochains quarts", "schedule.loading": "Chargement…",
     "schedule.count": n => `${n} quart${n === 1 ? "" : "s"} à venir`,
     "schedule.empty": "Aucun quart prévu pour l'instant — repassez bientôt.", "schedule.shift": "Quart",
-    "avail.h2": "Vos disponibilités de la semaine", "avail.help": "Indiquez à votre gestionnaire les jours où vous êtes généralement libre de travailler.",
+    "to.h2": "Indisponibilité ponctuelle", "to.help": "Vous ne pouvez pas travailler un jour précis ? Ajoutez-le ici. Votre gestionnaire l'approuve avant qu'il ne compte dans l'horaire.", "to.allDay": "Toute la journée", "to.notePh": "Raison (facultatif)", "to.add": "Ajouter", "to.empty": "Rien à venir.", "to.pending": "En attente d'approbation", "to.approved": "Approuvé", "to.declined": "Refusé", "to.remove": "Retirer", "to.sent": "Envoyé à votre gestionnaire pour approbation", "to.pickDate": "Choisissez d'abord une date.", "to.hours": "de", "to.until": "jusqu'à", "avail.h2": "Vos disponibilités de la semaine", "avail.help": "Indiquez à votre gestionnaire les jours où vous êtes généralement libre de travailler.",
     "avail.free": "Libre", "avail.busy": "Occupé", "avail.from": "Occupé de", "avail.to": "jusqu'à", "avail.allDayHint": "Laissez vide si vous êtes occupé toute la journée.", "avail.notePh": "p. ex. après 17 h", "avail.save": "Enregistrer mes disponibilités", "avail.saved": "Envoyé à votre gestionnaire pour approbation", "avail.pending": "En attente de l'approbation de votre gestionnaire. Vos disponibilités actuelles restent en vigueur d'ici là.", "avail.approved": "Votre gestionnaire a approuvé vos disponibilités.", "avail.declined": "Votre dernière demande a été refusée; vos disponibilités précédentes s'appliquent toujours.",
     "open.h2": "Quarts ouverts que vous pouvez prendre", "open.empty": "Aucun quart ouvert ne correspond à vos postes pour le moment.",
     "open.stamp": "Ouvert", "open.asap": "Dès que possible", "open.claim": "Prendre ce quart", "open.waiting": "C'est noté — en attente du gestionnaire",
@@ -277,7 +298,7 @@ I18N.add({
     "schedule.h2": "Próximos turnos", "schedule.loading": "Cargando…",
     "schedule.count": n => `${n} turno${n === 1 ? "" : "s"} próximo${n === 1 ? "" : "s"}`,
     "schedule.empty": "Aún no hay turnos programados — vuelve pronto.", "schedule.shift": "Turno",
-    "avail.h2": "Tu disponibilidad semanal", "avail.help": "Dile a tu gerente qué días sueles estar libre para trabajar.",
+    "to.h2": "No disponibilidad puntual", "to.help": "¿No puedes trabajar un día concreto? Agrégalo aquí. Tu gerente lo aprueba antes de que cuente en el horario.", "to.allDay": "Todo el día", "to.notePh": "Motivo (opcional)", "to.add": "Agregar", "to.empty": "Nada próximo.", "to.pending": "Esperando aprobación", "to.approved": "Aprobado", "to.declined": "Rechazado", "to.remove": "Quitar", "to.sent": "Enviado a tu gerente para aprobación", "to.pickDate": "Elige primero una fecha.", "to.hours": "desde", "to.until": "hasta", "avail.h2": "Tu disponibilidad semanal", "avail.help": "Dile a tu gerente qué días sueles estar libre para trabajar.",
     "avail.free": "Libre", "avail.busy": "Ocupado", "avail.from": "Ocupado desde", "avail.to": "hasta", "avail.allDayHint": "Déjalo vacío si estás ocupado todo el día.", "avail.notePh": "ej. después de las 5 pm", "avail.save": "Guardar disponibilidad", "avail.saved": "Enviado a tu gerente para aprobación", "avail.pending": "Esperando la aprobación de tu gerente. Tu disponibilidad actual sigue vigente hasta entonces.", "avail.approved": "Tu gerente aprobó tu disponibilidad.", "avail.declined": "Tu última solicitud fue rechazada; sigue vigente tu disponibilidad anterior.",
     "open.h2": "Turnos abiertos que puedes tomar", "open.empty": "No hay turnos abiertos para tus puestos por ahora.",
     "open.stamp": "Abierto", "open.asap": "Lo antes posible", "open.claim": "Tomar este turno", "open.waiting": "Anotado — esperando al gerente",
@@ -523,6 +544,42 @@ async function withdrawSwap(swapId) {
   await loadSwaps();
 }
 
+// ---- one-time unavailability ----
+let myTimeOff = [];
+function toggleToHours() { document.getElementById("toHours").style.display = document.getElementById("toAllDay").checked ? "none" : "inline"; }
+function toLabel(e) {
+  const hrs = e.from || e.to ? ` · ${e.from ? tr("to.hours") + " " + I18N.formatTime(e.from) : ""}${e.to ? " " + tr("to.until") + " " + I18N.formatTime(e.to) : ""}` : ` · ${tr("to.allDay")}`;
+  return I18N.formatDate(e.date) + hrs;
+}
+function renderTimeOff() {
+  const el = document.getElementById("timeOffList");
+  if (!el) return;
+  el.innerHTML = myTimeOff.length === 0
+    ? `<div style="color:var(--text-dim);font-size:12px">${escapeHtml(tr("to.empty"))}</div>`
+    : myTimeOff.map(e => `<div class="to-row"><div>${escapeHtml(toLabel(e))}${e.note ? ` <span style="opacity:.6">— ${escapeHtml(e.note)}</span>` : ""}<span class="to-pill ${e.status}">${escapeHtml(tr("to." + e.status))}</span></div><button class="ghost" style="padding:4px 10px;font-size:11px" onclick="removeTimeOff('${e.id}')">${escapeHtml(tr("to.remove"))}</button></div>`).join("");
+}
+async function loadTimeOff() {
+  const r = await api("/api/staff-auth/time-off");
+  if (r.ok) myTimeOff = r.data;
+  renderTimeOff();
+}
+async function addTimeOff() {
+  const date = document.getElementById("toDate").value;
+  if (!date) return showBanner(tr("to.pickDate"), "warn");
+  const allDay = document.getElementById("toAllDay").checked;
+  const body = { date, note: document.getElementById("toNote").value.trim() };
+  if (!allDay) { body.from = document.getElementById("toFrom").value; body.to = document.getElementById("toTo").value; }
+  const r = await api("/api/staff-auth/time-off", { method: "POST", body: JSON.stringify(body) });
+  if (!r.ok) return showBanner(r.error, "warn");
+  showBanner(tr("to.sent"), "success");
+  document.getElementById("toDate").value = ""; document.getElementById("toNote").value = "";
+  await loadTimeOff();
+}
+async function removeTimeOff(id) {
+  await api(`/api/staff-auth/time-off/${id}`, { method: "DELETE" });
+  await loadTimeOff();
+}
+
 async function loadAvailability() {
   const result = await api("/api/staff-auth/availability");
   if (result.ok) {
@@ -532,6 +589,7 @@ async function loadAvailability() {
     availBaseline = availKey(myAvailability);
   }
   renderAvailability();
+  loadTimeOff();
 }
 
 function renderAvailability() {
@@ -735,7 +793,7 @@ I18N.onChange(() => {
   if (document.getElementById("appShell").style.display === "block") {
     const h = document.getElementById("staffHeading");
     h.textContent = window.__myName ? tr("app.hi", window.__myName.split(" ")[0]) : tr("app.myShifts");
-    renderSchedule(); renderSwaps(); renderAvailability(); loadOpenShifts(); renderBoard(); renderTraining();
+    renderSchedule(); renderSwaps(); renderAvailability(); renderTimeOff(); loadOpenShifts(); renderBoard(); renderTraining();
   }
 });
 I18N.apply();
