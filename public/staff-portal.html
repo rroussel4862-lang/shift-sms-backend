@@ -152,7 +152,7 @@
         <div data-i18n="avail.help" style="color:var(--text-dim);font-size:12px;margin-bottom:10px;line-height:1.4">Let your manager know which days you're generally free to work.</div>
         <div id="availStatus"></div>
         <div id="availabilityList"></div>
-        <button class="claim-btn" style="background:var(--amber);color:var(--ink);margin-top:14px" onclick="saveAvailability()" data-i18n="avail.save">Save availability</button>
+        <button class="claim-btn" id="availSaveBtn" style="background:var(--amber);color:var(--ink);margin-top:14px;display:none" onclick="saveAvailability()" data-i18n="avail.save">Save availability</button>
       </div>
     </div>
 
@@ -301,6 +301,12 @@ const dayLabel = k => I18N.t("days." + k);
 
 let myAvailability = {};
 let availInfo = null;
+let availBaseline = "{}"; // what is already saved (the waiting request, else the approved availability)
+const availKey = o => JSON.stringify(DAY_KEYS.map(k => { const e = (o || {})[k] || {}; return [e.available === true ? true : e.available === false ? false : null, String(e.note || "").trim()]; }));
+function updateAvailSaveBtn() {
+  const btn = document.getElementById("availSaveBtn");
+  if (btn) btn.style.display = availKey(myAvailability) !== availBaseline ? "" : "none";
+}
 let currentStaffTab = "schedule";
 const DAYS = DAY_KEYS.map(k => ({ key: k }));
 
@@ -371,7 +377,7 @@ async function enterApp(name) {
   loadOpenShifts();
   loadBoard();
   loadTraining();
-  if (!window.__boardTimer) window.__boardTimer = setInterval(() => { loadBoard(); loadSwaps(); }, 30000);
+  if (!window.__boardTimer) window.__boardTimer = setInterval(() => { loadBoard(); loadSwaps(); if (availKey(myAvailability) === availBaseline) loadAvailability(); }, 30000);
 }
 
 let mySchedule = [];
@@ -520,6 +526,7 @@ async function loadAvailability() {
     availInfo = result.data;
     // show the request still waiting, otherwise the approved availability
     myAvailability = JSON.parse(JSON.stringify(result.data.pending || result.data.availability || {}));
+    availBaseline = availKey(myAvailability);
   }
   renderAvailability();
 }
@@ -528,8 +535,8 @@ function renderAvailability() {
   const list = document.getElementById("availabilityList");
   const st = document.getElementById("availStatus");
   if (st) {
-    const msg = !availInfo ? "" : availInfo.pending ? tr("avail.pending") : availInfo.decision === "declined" ? tr("avail.declined") : availInfo.decision === "approved" ? tr("avail.approved") : "";
-    const bg = availInfo && availInfo.pending ? "rgba(232,168,56,.15)" : availInfo && availInfo.decision === "declined" ? "rgba(224,113,95,.15)" : "rgba(111,191,134,.15)";
+    const msg = !availInfo ? "" : availInfo.pending ? tr("avail.pending") : availInfo.decision === "declined" ? tr("avail.declined") : "";
+    const bg = availInfo && availInfo.pending ? "rgba(232,168,56,.15)" : "rgba(224,113,95,.15)";
     st.innerHTML = msg ? `<div style="background:${bg};border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.4;margin-bottom:10px">${escapeHtml(msg)}</div>` : "";
   }
   list.innerHTML = DAYS.map(d => {
@@ -545,6 +552,7 @@ function renderAvailability() {
       </div>
     `;
   }).join("");
+  updateAvailSaveBtn();
 }
 
 function setAvailDay(key, value) {
@@ -556,11 +564,12 @@ function setAvailDay(key, value) {
 function setAvailNote(key, value) {
   if (!myAvailability[key]) myAvailability[key] = { available: null, note: "" };
   myAvailability[key].note = value;
+  updateAvailSaveBtn();
 }
 
 async function saveAvailability() {
   const result = await api("/api/staff-auth/availability", { method: "PUT", body: JSON.stringify({ availability: myAvailability }) });
-  if (result.ok) { availInfo = result.data; showBanner(tr("avail.saved"), "success"); renderAvailability(); }
+  if (result.ok) { availInfo = result.data; availBaseline = availKey(result.data.pending || result.data.availability); showBanner(tr("avail.saved"), "success"); renderAvailability(); }
   else showBanner(result.error, "warn");
 }
 
