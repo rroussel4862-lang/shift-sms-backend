@@ -586,6 +586,15 @@ app.use(express.static(path.join(__dirname, "public")));
 // Login endpoints: a real person mistypes their password once or twice; a brute-force
 // attempt tries hundreds of times per minute. This gap is wide enough that a tight limit
 // never bothers a real user while making guessing attacks impractically slow.
+// "iPhone · Safari", "Mac · Chrome" ... from the User-Agent, so the activity log shows which device a login came from.
+function deviceLabel(req) {
+  const ua = String((req && req.headers && req.headers["user-agent"]) || "");
+  if (!ua) return "unknown device";
+  const device = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Macintosh|Mac OS X/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows PC" : /CrOS/.test(ua) ? "Chromebook" : /Linux/.test(ua) ? "Linux" : "other device";
+  const browser = /Edg\//.test(ua) ? "Edge" : /OPR\/|Opera/.test(ua) ? "Opera" : /Firefox|FxiOS/.test(ua) ? "Firefox" : /CriOS|Chrome/.test(ua) ? "Chrome" : /Safari/.test(ua) ? "Safari" : "other browser";
+  return `${device} · ${browser}`;
+}
+
 const loginLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   max: 10,
@@ -668,24 +677,24 @@ app.post("/api/auth/login", loginLimiter, async (req, res) => {
         "SELECT r.id, r.name, r.address FROM owner_restaurants x JOIN restaurants r ON r.id = x.restaurant_id WHERE x.owner_id = $1 ORDER BY r.name",
         [owner.id]
       );
-      logActivity({ restaurantId: rs.length === 1 ? rs[0].id : null, eventType: "login_success", detail: `${owner.role === "manager" ? "manager" : "owner"} login via main page: ${owner.email}` });
+      logActivity({ restaurantId: rs.length === 1 ? rs[0].id : null, eventType: "login_success", detail: `${owner.role === "manager" ? "manager" : "owner"} login via main page: ${owner.email} [${deviceLabel(req)}]` });
       if (rs.length !== 1) return res.json({ redirect: "/owner.html" });
       res.cookie("token", signToken({ restaurantId: rs[0].id, ownerId: owner.id }), COOKIE_OPTS);
       return res.json({ restaurant: { id: rs[0].id, name: rs[0].name, address: rs[0].address || "" }, email: owner.email, viaOwner: true });
     }
-    logActivity({ eventType: "login_failed", level: "warn", detail: `manager login failed: ${email.toLowerCase()} (no such account)` });
+    logActivity({ eventType: "login_failed", level: "warn", detail: `manager login failed: ${email.toLowerCase()} (${owner ? "wrong password" : "no such account"}) [main page, ${deviceLabel(req)}]` });
     return res.status(401).json({ error: "incorrect email or password" });
   }
 
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) {
-    logActivity({ restaurantId: user.restaurant_id, eventType: "login_failed", level: "warn", detail: `manager login failed: ${email.toLowerCase()} (wrong password)` });
+    logActivity({ restaurantId: user.restaurant_id, eventType: "login_failed", level: "warn", detail: `manager login failed: ${email.toLowerCase()} (wrong password) [main page, ${deviceLabel(req)}]` });
     return res.status(401).json({ error: "incorrect email or password" });
   }
 
   const token = signToken({ userId: user.id, restaurantId: user.restaurant_id });
   res.cookie("token", token, COOKIE_OPTS);
-  logActivity({ restaurantId: user.restaurant_id, eventType: "login_success", detail: `manager login: ${email.toLowerCase()}` });
+  logActivity({ restaurantId: user.restaurant_id, eventType: "login_success", detail: `manager login: ${email.toLowerCase()} [main page, ${deviceLabel(req)}]` });
   res.json({ restaurant: { id: user.restaurant_id, name: user.restaurant_name, address: user.restaurant_address || "" }, email: user.email });
 });
 
@@ -1220,19 +1229,19 @@ app.post("/api/staff-auth/login", loginLimiter, async (req, res) => {
   const { rows } = await pool.query("SELECT * FROM staff WHERE email = $1", [email.toLowerCase()]);
   const staffer = rows[0];
   if (!staffer || !staffer.password_hash) {
-    logActivity({ eventType: "login_failed", level: "warn", detail: `staff login failed: ${email.toLowerCase()} (no such account)` });
+    logActivity({ eventType: "login_failed", level: "warn", detail: `staff login failed: ${email.toLowerCase()} (no such account) [${deviceLabel(req)}]` });
     return res.status(401).json({ error: "incorrect email or password" });
   }
 
   const valid = await bcrypt.compare(password, staffer.password_hash);
   if (!valid) {
-    logActivity({ restaurantId: staffer.restaurant_id, eventType: "login_failed", level: "warn", detail: `staff login failed: ${email.toLowerCase()} (wrong password)` });
+    logActivity({ restaurantId: staffer.restaurant_id, eventType: "login_failed", level: "warn", detail: `staff login failed: ${email.toLowerCase()} (wrong password) [${deviceLabel(req)}]` });
     return res.status(401).json({ error: "incorrect email or password" });
   }
 
   const sessionToken = signToken({ staffId: staffer.id, restaurantId: staffer.restaurant_id });
   res.cookie("staff_token", sessionToken, COOKIE_OPTS);
-  logActivity({ restaurantId: staffer.restaurant_id, eventType: "login_success", detail: `staff login: ${email.toLowerCase()}` });
+  logActivity({ restaurantId: staffer.restaurant_id, eventType: "login_success", detail: `staff login: ${email.toLowerCase()} [${deviceLabel(req)}]` });
   res.json({ name: staffer.name, id: staffer.id });
 });
 
@@ -3831,9 +3840,13 @@ app.post("/api/owner-auth/login", loginLimiter, async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: "email and password are required" });
   const { rows } = await pool.query("SELECT * FROM owners WHERE email = $1", [String(email).trim().toLowerCase()]);
   const owner = rows[0];
-  if (!owner || !(await bcrypt.compare(password, owner.password_hash))) return res.status(401).json({ error: "incorrect email or password" });
+  if (!owner || !(await bcrypt.compare(password, owner.password_hash))) {
+    logActivity({ eventType: "login_failed", level: "warn", detail: `owner page login failed: ${String(email).trim().toLowerCase()} (${owner ? "wrong password" : "no such account"}) [${deviceLabel(req)}]` });
+    return res.status(401).json({ error: "incorrect email or password" });
+  }
   await pool.query("UPDATE owners SET last_login_at = $1 WHERE id = $2", [Date.now(), owner.id]);
   res.cookie("owner_token", signToken({ ownerId: owner.id }), COOKIE_OPTS);
+  logActivity({ eventType: "login_success", detail: `${owner.role === "manager" ? "manager" : "owner"} login via owner page: ${owner.email} [${deviceLabel(req)}]` });
   const full = await ownerWithRestaurants(owner.id);
   res.json({ name: owner.name, role: full.role, restaurantIds: full.restaurants.map((r) => r.id) });
 });
