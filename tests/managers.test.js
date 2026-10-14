@@ -87,3 +87,22 @@ describe("manager logins created from the dashboard", () => {
     expect(login2.body).toEqual({ redirect: "/owner.html" });
   });
 });
+
+describe("deleting a restaurant from the dashboard", () => {
+  test("needs the exact name, removes the restaurant and its logins, leaves others alone", async () => {
+    const factory = () => request.agent(app);
+    const stray = await createRestaurant(factory, { restaurantName: "Stray Shay" });
+    expect((await admin.delete(`/api/platform/restaurants/${stray.restaurantId}`).send({})).status).toBe(400);
+    expect((await admin.delete(`/api/platform/restaurants/${stray.restaurantId}`).send({ confirmName: "stray shay" })).status).toBe(400); // case matters
+    expect((await admin.delete(`/api/platform/restaurants/${stray.restaurantId}`).send({ confirmName: "Stray Shay" })).status).toBe(204);
+    expect((await admin.delete(`/api/platform/restaurants/${stray.restaurantId}`).send({ confirmName: "Stray Shay" })).status).toBe(404);
+    const { rows } = await pool.query("SELECT id FROM users WHERE restaurant_id = $1", [stray.restaurantId]);
+    expect(rows.length).toBe(0);
+    const { rows: still } = await pool.query("SELECT id FROM restaurants WHERE id = $1", [A.restaurantId]);
+    expect(still.length).toBe(1);
+  });
+
+  test("requires platform login", async () => {
+    expect((await request(app).delete(`/api/platform/restaurants/${A.restaurantId}`).send({ confirmName: "Manager Test A" })).status).toBe(401);
+  });
+});

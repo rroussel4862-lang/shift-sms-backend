@@ -3478,6 +3478,18 @@ app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
   })));
 });
 
+// Permanently deletes a restaurant and everything under it (staff, shifts, schedule, sales, logins). The exact
+// restaurant name must be sent back as confirmation, so a stray click or a look-alike name ("Shay" vs "SHAY") can't wipe real data.
+app.delete("/api/platform/restaurants/:id", requirePlatformAuth, async (req, res) => {
+  const { rows } = await pool.query("SELECT id, name FROM restaurants WHERE id = $1", [req.params.id]);
+  if (rows.length === 0) return res.status(404).json({ error: "restaurant not found" });
+  const confirmName = String((req.body && req.body.confirmName) || "");
+  if (confirmName !== rows[0].name) return res.status(400).json({ error: "the confirmation name doesn't match exactly" });
+  await pool.query("DELETE FROM restaurants WHERE id = $1", [rows[0].id]);
+  logActivity({ eventType: "restaurant_deleted", level: "warn", detail: `restaurant deleted from dashboard: ${rows[0].name}` });
+  res.status(204).end();
+});
+
 app.patch("/api/platform/restaurants/:id/twilio-number", requirePlatformAuth, async (req, res) => {
   const { twilioPhoneNumber } = req.body || {};
   const normalized = twilioPhoneNumber ? normalizePhone(twilioPhoneNumber) : null;
