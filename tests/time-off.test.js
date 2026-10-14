@@ -1,6 +1,6 @@
 const request = require("supertest");
 const bcrypt = require("bcryptjs");
-const { app, pool, checkScheduleCandidates } = require("../server.js");
+const { app, pool, checkScheduleCandidates, cleanAvailability } = require("../server.js");
 const { createRestaurant, uniquePhone, uniqueEmail } = require("./helpers");
 
 let A, B, ann;
@@ -104,5 +104,43 @@ describe("the scheduler respects approved time off", () => {
     const off = { s1: { "2026-11-02": [{ from: "17:00", to: "23:00" }] } };
     expect(run(cand("2026-11-02", "11:00", "16:00"), off).ok).toHaveLength(1);
     expect(run(cand("2026-11-02", "16:00", "20:00"), off).skipped[0].code).toBe("unavailable");
+  });
+});
+
+describe("free days with hours (\"only available from 4pm\")", () => {
+  const staffById = { s1: { name: "Ann", roles: ["Server"] } };
+  // 2026-11-02 is a Monday
+  const run = (start, end, entry) => checkScheduleCandidates(
+    [{ staffId: "s1", date: "2026-11-02", startTime: start, endTime: end, role: "Server" }],
+    { staffById, existing: [], availabilityByStaff: { s1: { mon: entry } } }
+  );
+
+  test("hours are kept on free days and on busy days, dropped when nothing is set", () => {
+    expect(cleanAvailability({ mon: { available: true, from: "16:00", note: "after class" } }).mon).toEqual({ available: true, note: "after class", from: "16:00" });
+    expect(cleanAvailability({ tue: { available: false, from: "17:00", to: "23:00" } }).tue).toMatchObject({ from: "17:00", to: "23:00" });
+    expect(cleanAvailability({ wed: { available: null, note: "ask me", from: "16:00" } }).wed).toEqual({ available: null, note: "ask me" });
+    expect(cleanAvailability({ thu: { available: true, from: "4pm" } }).thu).toEqual({ available: true, note: "" }); // bad time ignored
+  });
+
+  test("only from 16:00: a shift starting earlier is refused, one inside the window is fine", () => {
+    const e = { available: true, note: "", from: "16:00" };
+    expect(run("11:00", "17:00", e).skipped[0].code).toBe("unavailable");
+    expect(run("15:59", "22:00", e).skipped[0].code).toBe("unavailable");
+    expect(run("16:00", "23:00", e).ok).toHaveLength(1);
+    expect(run("17:00", "01:00", e).ok).toHaveLength(1); // closing past midnight is fine: no end limit
+  });
+
+  test("only until 15:00, and a window with both ends", () => {
+    expect(run("11:00", "15:00", { available: true, to: "15:00" }).ok).toHaveLength(1);
+    expect(run("11:00", "16:00", { available: true, to: "15:00" }).skipped[0].code).toBe("unavailable");
+    const win = { available: true, from: "10:00", to: "18:00" };
+    expect(run("10:00", "18:00", win).ok).toHaveLength(1);
+    expect(run("09:00", "17:00", win).skipped[0].code).toBe("unavailable");
+    expect(run("12:00", "19:00", win).skipped[0].code).toBe("unavailable");
+  });
+
+  test("a free day without hours, or only a note, never blocks", () => {
+    expect(run("08:00", "23:00", { available: true, note: "prefer closing" }).ok).toHaveLength(1);
+    expect(run("08:00", "23:00", { available: null, note: "ask me" }).ok).toHaveLength(1);
   });
 });

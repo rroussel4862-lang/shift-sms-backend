@@ -1670,7 +1670,9 @@ let swapRequests = [];
 const AV_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 function avText(e) {
   if (!e || ((e.available === null || e.available === undefined) && !e.note)) return "—";
-  return ((e.available === true ? t("staff.avFree") : e.available === false ? t("staff.avBusy") : "") + (e.note ? ` (${e.note})` : "")).trim();
+  const hrs = e.available === true && (e.from || e.to) ? ` ${e.from ? t("staff.toFrom") + " " + e.from : ""}${e.to ? " " + t("staff.toUntil") + " " + e.to : ""}`.trimEnd()
+    : e.available === false && (e.from || e.to) ? ` ${e.from ? t("staff.toFrom") + " " + e.from : ""}${e.to ? " " + t("staff.toUntil") + " " + e.to : ""}`.trimEnd() : "";
+  return ((e.available === true ? t("staff.avFree") : e.available === false ? t("staff.avBusy") : "") + hrs + (e.note ? ` (${e.note})` : "")).trim();
 }
 function toText(q) {
   const d = new Date(q.date + "T12:00:00").toLocaleDateString(LANG === "fr" ? "fr-CA" : LANG === "es" ? "es-US" : "en-CA", { weekday: "short", month: "short", day: "numeric" });

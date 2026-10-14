@@ -1316,8 +1316,9 @@ function cleanAvailability(raw) {
     const note = String(v.note || "").slice(0, 120);
     if (available === null && !note) continue;
     out[k] = { available, note };
-    // a busy day can be limited to certain hours; no hours means the whole day
-    if (available === false) {
+    // hours: on a busy day they are the hours the person can't work (none = all day);
+    // on a free day they are the only hours the person can work (none = any time)
+    if (available === false || available === true) {
       const hhmm = (x) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(x || "")) ? String(x) : "");
       const from = hhmm(v.from), to = hhmm(v.to);
       if (from) out[k].from = from;
@@ -1928,6 +1929,8 @@ app.post("/api/schedule", requireAuth, async (req, res) => {
 
 const SCHEDULE_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const SCHEDULE_BULK_MAX = 250;
+const todayLine = () => { const d = ownerToday(); return `${DAY_NAMES_EN[new Date(d + "T12:00:00Z").getUTCDay()]} ${d}`; };
+const DAY_NAMES_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]; // index = Date#getUTCDay()
 
 function isIsoDate(v) {
@@ -1972,6 +1975,21 @@ function unavailableOverlaps(entry, shiftRangeMin) {
   return rangesOverlap([f, t], shiftRangeMin);
 }
 
+// True when a shift breaks a day's availability. Busy days block their hours (or the whole day); free days with
+// hours ("only from 16:00") block everything outside the window.
+function dayConflict(entry, shiftRangeMin) {
+  if (!entry) return false;
+  if (entry.available === false) return unavailableOverlaps(entry, shiftRangeMin);
+  if (entry.available === true && (entry.from || entry.to)) {
+    const mins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+    const f = entry.from ? mins(entry.from) : 0;
+    let t = Infinity;
+    if (entry.to) { t = mins(entry.to); if (t <= f) t += 1440; }
+    return !(shiftRangeMin[0] >= f && shiftRangeMin[1] <= t);
+  }
+  return false;
+}
+
 function checkScheduleCandidates(candidates, { staffById, existing, availabilityByStaff, timeOffByStaff, windowStart, windowEnd }) {
   const ok = [];
   const skipped = [];
@@ -1990,7 +2008,7 @@ function checkScheduleCandidates(candidates, { staffById, existing, availability
     if (range[1] - range[0] > 16 * 60) { skipped.push({ ...base, code: "bad_time" }); continue; }
     const avail = availabilityByStaff && availabilityByStaff[c.staffId];
     const dayEntry = avail && avail[weekdayKey(c.date)];
-    if (dayEntry && dayEntry.available === false && unavailableOverlaps(dayEntry, range)) { skipped.push({ ...base, code: "unavailable" }); continue; }
+    if (dayEntry && dayConflict(dayEntry, range)) { skipped.push({ ...base, code: "unavailable" }); continue; }
     const offToday = (timeOffByStaff && timeOffByStaff[c.staffId] && timeOffByStaff[c.staffId][c.date]) || [];
     if (offToday.some((o) => unavailableOverlaps(o, range))) { skipped.push({ ...base, code: "unavailable" }); continue; }
     const k = `${c.staffId}|${c.date}`;
@@ -3339,7 +3357,7 @@ app.post("/api/ai/board-draft", requireAuth, aiLimiter, async (req, res) => {
   const langName = { en: "English", fr: "French", es: "Spanish" }[langCode];
   try {
     const { text, durationMs } = await callClaude({
-      system: `You help a restaurant manager write announcements for the team message board that every staff member reads on their phone. Turn the manager's rough note into a clear, friendly, direct announcement in ${langName}. Keep every fact the manager gave (dates, times, names, numbers) and do not invent any new ones. Short sentences, no emojis, no hashtags, at most ${Math.min(BOARD_BODY_MAX, 900)} characters in the body. Reply with ONLY a JSON object: {"title": "<short title, max 60 characters>", "body": "<the announcement>"}.`,
+      system: `Today is ${todayLine()} (restaurant time). Use it to turn words like "tomorrow" or "this Friday" into the actual day and date. You help a restaurant manager write announcements for the team message board that every staff member reads on their phone. Turn the manager's rough note into a clear, friendly, direct announcement in ${langName}. Keep every fact the manager gave (dates, times, names, numbers) and do not invent any new ones. Short sentences, no emojis, no hashtags, at most ${Math.min(BOARD_BODY_MAX, 900)} characters in the body. Reply with ONLY a JSON object: {"title": "<short title, max 60 characters>", "body": "<the announcement>"}.`,
       user: idea,
     });
     const parsed = extractJsonObject(text);
@@ -3494,12 +3512,14 @@ async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds
   });
 
   const context = {
-    week: Array.from({ length: 7 }, (_, i) => { const d = addDaysIso(weekStart, i); return { date: d, weekday: weekdayKey(d) }; }),
+    today: { date: ownerToday(), dayName: DAY_NAMES_EN[new Date(ownerToday() + "T12:00:00Z").getUTCDay()] },
+    tomorrow: { date: addDaysIso(ownerToday(), 1), dayName: DAY_NAMES_EN[new Date(addDaysIso(ownerToday(), 1) + "T12:00:00Z").getUTCDay()] },
+    week: Array.from({ length: 7 }, (_, i) => { const d = addDaysIso(weekStart, i); return { date: d, weekday: weekdayKey(d), dayName: DAY_NAMES_EN[new Date(d + "T12:00:00Z").getUTCDay()], isToday: d === ownerToday() }; }),
     staff: pool_.map((p) => ({
       id: p.id, name: p.name, roles: p.roles || [],
       hourlyRate: p.hourly_rate !== null ? Number(p.hourly_rate) : null,
       timeOff: Object.entries(timeOffByStaff[p.id] || {}).flatMap(([date, list]) => list.map((o) => ({ date, ...(o.from || o.to ? { unavailableFrom: o.from || "00:00", unavailableTo: o.to || "24:00" } : {}) }))),
-      availability: Object.fromEntries(Object.entries(availabilityByStaff[p.id] || {}).map(([k, v]) => [k, { free: v.available, note: v.note || "", ...(v.available === false && (v.from || v.to) ? { unavailableFrom: v.from || "00:00", unavailableTo: v.to || "24:00" } : {}) }])),
+      availability: Object.fromEntries(Object.entries(availabilityByStaff[p.id] || {}).map(([k, v]) => [k, { free: v.available, note: v.note || "", ...(v.available === false && (v.from || v.to) ? { unavailableFrom: v.from || "00:00", unavailableTo: v.to || "24:00" } : {}), ...(v.available === true && (v.from || v.to) ? { onlyAvailableFrom: v.from || "00:00", onlyAvailableUntil: v.to || "24:00" } : {}) }])),
     })),
     alreadyScheduledThisWeek: existing.filter((e) => staffById[e.staffId]).map((e) => ({ staffId: e.staffId, date: e.date, start: e.startTime, end: e.endTime, role: e.role })),
     salesPlan: plan.salesPlan,
@@ -3511,10 +3531,11 @@ Rules:
 - Use each person's id exactly as given. Never invent staff.
 - A staff member's "role" must be one of their listed roles.
 - Never schedule someone on a date listed in their "timeOff" (one-time unavailability); if unavailableFrom/unavailableTo are given, only that part of the day is blocked.
-- Never schedule someone on a weekday where their availability free is false; if unavailableFrom/unavailableTo are given, only avoid shifts overlapping those hours. Respect availability notes (e.g. "after 5pm") as best you can.
+- Never schedule someone on a weekday where their availability free is false; if unavailableFrom/unavailableTo are given, only avoid shifts overlapping those hours. If a free day has onlyAvailableFrom/onlyAvailableUntil, the whole shift must fall inside those hours (e.g. only from 16:00 means no shift may start before 16:00). Respect availability notes (e.g. "after 5pm") as best you can.
 - Do not duplicate or overlap shifts in "alreadyScheduledThisWeek"; fill around them.
 - One shift per person per day unless asked otherwise. Keep shifts between 3 and 12 hours. Avoid more than 40 hours a week per person unless asked.
 - Size crews to expected sales. "salesPlan" gives each day's expected sales (the manager's projection when set, otherwise that weekday's recent average) with the food / beverage split. Busier days get more people; food sales drive the kitchen and beverage sales drive bartenders and bussers. When "staffingBenchmarks.suggestedLaborHours" is present, aim for each day's total shift hours to land near that number (and mention it in the summary). Headcounts or hours the manager states explicitly always win over these suggestions. If there is no sales data, spread staff evenly and say that in the summary.
+- The data gives today's and tomorrow's real dates ("today", "tomorrow") and the dayName of every date in "week". Resolve words like today, tomorrow, tonight, this Friday or Saturday from them. If the manager asks for a day that is not inside "week", schedule nothing for it and say so in "summary" (they need to open that week in the grid).
 - Times are 24-hour "HH:MM". Dates are YYYY-MM-DD and must fall inside the week.
 - If the request can't be fully met (not enough staff, conflicts), schedule what you can and say so briefly in "summary".
 Reply with ONLY a JSON object: {"summary":"<one or two sentences, in ${LANG_NAMES[lang] || "English"}>","shifts":[{"staffId":"","date":"","startTime":"","endTime":"","role":""}]}.
@@ -4178,4 +4199,4 @@ app.get("/api/owner/overview", requireOwnerAuth, async (req, res) => {
   });
 });
 
-module.exports = { app, pool, initDb, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates };
+module.exports = { app, pool, initDb, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates, cleanAvailability };

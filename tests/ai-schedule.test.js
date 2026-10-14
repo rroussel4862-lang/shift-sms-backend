@@ -88,6 +88,16 @@ describe("POST /api/ai/schedule", () => {
     expect(lastBody.system).toContain("2026-03-06");         // existing shift is in the context
   });
 
+  test("the model is told what today and tomorrow are, and the weekday of every date in the week", async () => {
+    nextReply = { summary: "", shifts: [] };
+    await A.agent.post("/api/ai/schedule").send({ prompt: "Fill tomorrow", weekStart: WEEK });
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Toronto" });
+    const tomorrow = new Date(new Date(today + "T12:00:00Z").getTime() + 86400000).toISOString().slice(0, 10);
+    expect(lastBody.system).toContain(`"today":{"date":"${today}"`);
+    expect(lastBody.system).toContain(`"tomorrow":{"date":"${tomorrow}"`);
+    expect(lastBody.system).toContain('"dayName":"Monday"'); // 2026-03-02
+  });
+
   test("validates input and requires login", async () => {
     expect((await A.agent.post("/api/ai/schedule").send({ prompt: "", weekStart: WEEK })).status).toBe(400);
     expect((await A.agent.post("/api/ai/schedule").send({ prompt: "x", weekStart: "soon" })).status).toBe(400);
