@@ -237,6 +237,7 @@
   .staff-cell { min-width: 130px; background: var(--grid-alt); color: var(--grid-text); }
   .staff-cell .name { font-weight: 600; font-size: 13px; }
   .staff-cell .rate { font-size: 11px; color: var(--grid-dim); }
+  .unavail-box { border: 1px solid #C0392B; color: #C0392B; background: transparent; border-radius: 3px; font-size: 11px; line-height: 1.3; padding: 2px 5px; margin-bottom: 4px; font-weight: 600; }
   .day-cell { min-width: 105px; background: var(--grid-bg); }
   .day-cell.drag-over { background: #EFE6C9; }
   .shift-chip {
@@ -575,7 +576,7 @@ I18N.add({
     "sched.aiProposal": n => `${n} shift${n === 1 ? "" : "s"} proposed — not saved yet`, "sched.aiApply": "Apply to grid", "sched.aiDiscard": "Discard",
     "sched.aiApplied": n => `${n} shift${n === 1 ? "" : "s"} added to the grid.`, "sched.aiUndo": "Undo", "sched.aiUndone": "Undone — the shifts were removed.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~$${sales} expected sales` : `~$${sales} expected sales · ${pct}% labor`, "sched.aiWeekLabor": pct => `${pct}% labor vs expected sales`, "sched.aiSkipped": "Left out:", "sched.aiHours": (h, c) => `${h}h total · about $${c} labor`,
-    "sched.skip.unavailable": "marked unavailable", "sched.skip.overlap": "already has a shift then", "sched.skip.bad_time": "invalid times", "sched.skip.bad_date": "date outside this week", "sched.skip.unknown_staff": "unknown staff member",
+    "sched.skip.unavailable": "marked unavailable", "sched.unavailAll": "Unavailable · all day", "sched.unavailShort": "Unavailable", "sched.unavailStart": "start", "sched.unavailEnd": "close", "sched.skip.overlap": "already has a shift then", "sched.skip.bad_time": "invalid times", "sched.skip.bad_date": "date outside this week", "sched.skip.unknown_staff": "unknown staff member",
     "sched.noStaff": h => `No staff tagged with ${h} roles yet. Add roles in the Staff tab.`,
     "sched.hoursWeek": h => `${h} hours this week`, "sched.costWeek": h => `${h} labor cost this week`,
     "sched.rolePh": "Role (optional)", "sched.addShift": "+ Add", "sched.paste": "Paste here", "common.edit": "Edit", "common.cancel": "Cancel", "common.save": "Save", "common.copy": "Copy", "common.delete": "Delete",
@@ -623,7 +624,7 @@ I18N.add({
     "sched.aiProposal": n => `${n} quart${n === 1 ? "" : "s"} proposé${n === 1 ? "" : "s"} — pas encore enregistré${n === 1 ? "" : "s"}`, "sched.aiApply": "Appliquer à la grille", "sched.aiDiscard": "Annuler",
     "sched.aiApplied": n => `${n} quart${n === 1 ? "" : "s"} ajouté${n === 1 ? "" : "s"} à la grille.`, "sched.aiUndo": "Annuler l'ajout", "sched.aiUndone": "Annulé — les quarts ont été retirés.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~${sales} $ de ventes prévues` : `~${sales} $ de ventes prévues · ${pct}% main-d'œuvre`, "sched.aiWeekLabor": pct => `${pct}% de main-d'œuvre par rapport aux ventes prévues`, "sched.aiSkipped": "Exclus :", "sched.aiHours": (h, c) => `${h} h au total · environ ${c} $ de main-d'œuvre`,
-    "sched.skip.unavailable": "marqué indisponible", "sched.skip.overlap": "a déjà un quart à ce moment", "sched.skip.bad_time": "heures invalides", "sched.skip.bad_date": "date hors de cette semaine", "sched.skip.unknown_staff": "employé inconnu",
+    "sched.skip.unavailable": "marqué indisponible", "sched.unavailAll": "Indisponible · toute la journée", "sched.unavailShort": "Indisponible", "sched.unavailStart": "début", "sched.unavailEnd": "fermeture", "sched.skip.overlap": "a déjà un quart à ce moment", "sched.skip.bad_time": "heures invalides", "sched.skip.bad_date": "date hors de cette semaine", "sched.skip.unknown_staff": "employé inconnu",
     "sched.noStaff": h => `Aucun employé n'a de poste en ${h} pour l'instant. Ajoutez des postes dans l'onglet Personnel.`,
     "sched.hoursWeek": h => `Heures ${h} cette semaine`, "sched.costWeek": h => `Coût de main-d'œuvre ${h} cette semaine`,
     "sched.rolePh": "Poste (facultatif)", "sched.addShift": "+ Ajouter", "sched.paste": "Coller ici", "common.edit": "Modifier", "common.cancel": "Annuler", "common.save": "Enregistrer", "common.copy": "Copier", "common.delete": "Supprimer",
@@ -671,7 +672,7 @@ I18N.add({
     "sched.aiProposal": n => `${n} turno${n === 1 ? "" : "s"} propuesto${n === 1 ? "" : "s"} — aún sin guardar`, "sched.aiApply": "Aplicar a la cuadrícula", "sched.aiDiscard": "Descartar",
     "sched.aiApplied": n => `${n} turno${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} a la cuadrícula.`, "sched.aiUndo": "Deshacer", "sched.aiUndone": "Deshecho — se quitaron los turnos.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~$${sales} de ventas esperadas` : `~$${sales} de ventas esperadas · ${pct}% mano de obra`, "sched.aiWeekLabor": pct => `${pct}% de mano de obra vs. ventas esperadas`, "sched.aiSkipped": "Omitidos:", "sched.aiHours": (h, c) => `${h} h en total · unos $${c} de mano de obra`,
-    "sched.skip.unavailable": "marcado como no disponible", "sched.skip.overlap": "ya tiene un turno a esa hora", "sched.skip.bad_time": "horas no válidas", "sched.skip.bad_date": "fecha fuera de esta semana", "sched.skip.unknown_staff": "empleado desconocido",
+    "sched.skip.unavailable": "marcado como no disponible", "sched.unavailAll": "No disponible · todo el día", "sched.unavailShort": "No disponible", "sched.unavailStart": "inicio", "sched.unavailEnd": "cierre", "sched.skip.overlap": "ya tiene un turno a esa hora", "sched.skip.bad_time": "horas no válidas", "sched.skip.bad_date": "fecha fuera de esta semana", "sched.skip.unknown_staff": "empleado desconocido",
     "sched.noStaff": h => `Aún no hay personal con puestos de ${h}. Agrega puestos en la pestaña Personal.`,
     "sched.hoursWeek": h => `Horas de ${h} esta semana`, "sched.costWeek": h => `Costo laboral de ${h} esta semana`,
     "sched.rolePh": "Puesto (opcional)", "sched.addShift": "+ Agregar", "sched.paste": "Pegar aquí", "common.edit": "Editar", "common.cancel": "Cancelar", "common.save": "Guardar", "common.copy": "Copiar", "common.delete": "Eliminar",
@@ -1317,11 +1318,13 @@ async function loadSchedule() {
   endDate.setDate(endDate.getDate() + 6);
   document.getElementById("weekLabel").textContent = `${formatShort(weekStart)} – ${formatShort(endDate)}, ${endDate.getFullYear()}`;
   const startStr = toISODate(weekStart), endStr = toISODate(endDate);
-  const [shiftsResult, projResult, actualResult] = await Promise.all([
+  const [shiftsResult, projResult, actualResult, availResult] = await Promise.all([
     api(`/api/schedule?start=${startStr}&end=${endStr}`),
     api(`/api/sales-projections?start=${startStr}&end=${endStr}`),
     api(`/api/actual-sales?start=${startStr}&end=${endStr}`),
+    api("/api/availability"),
   ]);
+  if (availResult.ok) availByStaff = availResult.data;
   if (shiftsResult.ok) scheduleShifts = shiftsResult.data;
   else showBanner(shiftsResult.error, "warn");
   salesProjections = {}; projSvc = {}; actualSvc = {}; aiForecast = {}; actualSource = {}; lastYearSales = {};
@@ -1524,11 +1527,32 @@ function viewGroups() {
     .filter(g => g.people.length);
 }
 
+// ---- approved unavailability, drawn as a thin red box in the grid ----
+let availByStaff = {}; // staffId -> { mon: {available, note, from, to}, ... }  (approved only)
+const AV_WD = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+function unavailBox(staffId, dateStr, svc) {
+  const e = (availByStaff[staffId] || {})[AV_WD[new Date(dateStr + "T12:00:00").getDay()]];
+  if (!e || e.available !== false) return "";
+  const mins = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  if (!e.from && !e.to) return `<div class="unavail-box" title="${escapeHtml(e.note || "")}">${tr("sched.unavailAll")}</div>`;
+  const f = e.from ? mins(e.from) : 0;
+  let t = e.to ? mins(e.to) : 1440;
+  if (t <= f) t = 1440;
+  // show it in the service rows the unavailable hours touch
+  const i = SERVICES.findIndex(x => x.id === svc);
+  const sf = mins(SERVICES[i].from), ef = i + 1 < SERVICES.length ? mins(SERVICES[i + 1].from) : 1440;
+  const sStart = i === 0 ? 0 : sf;
+  if (!(f < ef && t > sStart)) return "";
+  const label = `${e.from ? formatTime(e.from) : tr("sched.unavailStart")}–${e.to ? formatTime(e.to) : tr("sched.unavailEnd")}`;
+  return `<div class="unavail-box" title="${escapeHtml(e.note || "")}">${tr("sched.unavailShort")} ${label}</div>`;
+}
+
 function renderDayCell(staffMember, dateStr, groupRole, svc) {
   const shiftsForCell = scheduleShifts.filter(s => s.staffId === staffMember.id && s.date === dateStr && shiftGroup(staffMember, s) === groupRole && serviceOf(s.startTime) === svc);
   const isAdding = addingCell && addingCell.staffId === staffMember.id && addingCell.dateStr === dateStr && addingCell.role === groupRole && addingCell.svc === svc;
 
-  let html = shiftsForCell.map(s => s.id === editingShiftId ? `
+  let html = unavailBox(staffMember.id, dateStr, svc);
+  html += shiftsForCell.map(s => s.id === editingShiftId ? `
     <div class="shift-form edit-form" style="--role-color:${roleColor(s.role)}">
       <input type="time" id="editStart" value="${s.startTime}" />
       <input type="time" id="editEnd" value="${s.endTime}" />

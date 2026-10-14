@@ -1256,6 +1256,13 @@ function cleanAvailability(raw) {
     const note = String(v.note || "").slice(0, 120);
     if (available === null && !note) continue;
     out[k] = { available, note };
+    // a busy day can be limited to certain hours; no hours means the whole day
+    if (available === false) {
+      const hhmm = (x) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(x || "")) ? String(x) : "");
+      const from = hhmm(v.from), to = hhmm(v.to);
+      if (from) out[k].from = from;
+      if (to) out[k].to = to;
+    }
   }
   return out;
 }
@@ -1289,6 +1296,14 @@ app.put("/api/staff-auth/availability", requireStaffAuth, async (req, res) => {
 });
 
 // ---------- manager: review availability requests ----------
+
+// Approved availability of everyone in the restaurant (the schedule grid draws it).
+app.get("/api/availability", requireAuth, async (req, res) => {
+  const { rows } = await pool.query("SELECT staff_id, availability FROM staff_availability WHERE restaurant_id = $1", [req.restaurantId]);
+  const out = {};
+  rows.forEach((r) => { out[r.staff_id] = r.availability || {}; });
+  res.json(out);
+});
 
 app.get("/api/availability-requests", requireAuth, async (req, res) => {
   const { rows } = await pool.query(
@@ -1800,6 +1815,16 @@ function rangesOverlap(r1, r2) {
 
 // Checks candidate shifts against the staff list, week window, availability and existing shifts.
 // Returns { ok: [...], skipped: [{code, staffName, date}] }. Pure — it writes nothing.
+// A busy day blocks the whole day unless it carries hours (from / to); then only shifts overlapping those hours are blocked.
+function unavailableOverlaps(entry, shiftRangeMin) {
+  if (!entry.from && !entry.to) return true;
+  const mins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const f = entry.from ? mins(entry.from) : 0;
+  let t = entry.to ? mins(entry.to) : 1440;
+  if (t <= f) t = 1440;
+  return rangesOverlap([f, t], shiftRangeMin);
+}
+
 function checkScheduleCandidates(candidates, { staffById, existing, availabilityByStaff, windowStart, windowEnd }) {
   const ok = [];
   const skipped = [];
@@ -1818,7 +1843,7 @@ function checkScheduleCandidates(candidates, { staffById, existing, availability
     if (range[1] - range[0] > 16 * 60) { skipped.push({ ...base, code: "bad_time" }); continue; }
     const avail = availabilityByStaff && availabilityByStaff[c.staffId];
     const dayEntry = avail && avail[weekdayKey(c.date)];
-    if (dayEntry && dayEntry.available === false) { skipped.push({ ...base, code: "unavailable" }); continue; }
+    if (dayEntry && dayEntry.available === false && unavailableOverlaps(dayEntry, range)) { skipped.push({ ...base, code: "unavailable" }); continue; }
     const k = `${c.staffId}|${c.date}`;
     if ((taken[k] || []).some((r) => rangesOverlap(r, range))) { skipped.push({ ...base, code: "overlap" }); continue; }
     (taken[k] = taken[k] || []).push(range);
@@ -3257,7 +3282,7 @@ async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds
     staff: pool_.map((p) => ({
       id: p.id, name: p.name, roles: p.roles || [],
       hourlyRate: p.hourly_rate !== null ? Number(p.hourly_rate) : null,
-      availability: Object.fromEntries(Object.entries(availabilityByStaff[p.id] || {}).map(([k, v]) => [k, { free: v.available, note: v.note || "" }])),
+      availability: Object.fromEntries(Object.entries(availabilityByStaff[p.id] || {}).map(([k, v]) => [k, { free: v.available, note: v.note || "", ...(v.available === false && (v.from || v.to) ? { unavailableFrom: v.from || "00:00", unavailableTo: v.to || "24:00" } : {}) }])),
     })),
     alreadyScheduledThisWeek: existing.filter((e) => staffById[e.staffId]).map((e) => ({ staffId: e.staffId, date: e.date, start: e.startTime, end: e.endTime, role: e.role })),
     salesPlan: plan.salesPlan,
@@ -3268,7 +3293,7 @@ async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds
 Rules:
 - Use each person's id exactly as given. Never invent staff.
 - A staff member's "role" must be one of their listed roles.
-- Never schedule someone on a weekday where their availability free is false. Respect availability notes (e.g. "after 5pm") as best you can.
+- Never schedule someone on a weekday where their availability free is false; if unavailableFrom/unavailableTo are given, only avoid shifts overlapping those hours. Respect availability notes (e.g. "after 5pm") as best you can.
 - Do not duplicate or overlap shifts in "alreadyScheduledThisWeek"; fill around them.
 - One shift per person per day unless asked otherwise. Keep shifts between 3 and 12 hours. Avoid more than 40 hours a week per person unless asked.
 - Size crews to expected sales. "salesPlan" gives each day's expected sales (the manager's projection when set, otherwise that weekday's recent average) with the food / beverage split. Busier days get more people; food sales drive the kitchen and beverage sales drive bartenders and bussers. When "staffingBenchmarks.suggestedLaborHours" is present, aim for each day's total shift hours to land near that number (and mention it in the summary). Headcounts or hours the manager states explicitly always win over these suggestions. If there is no sales data, spread staff evenly and say that in the summary.

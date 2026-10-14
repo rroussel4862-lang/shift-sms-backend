@@ -85,13 +85,16 @@
   .claim-btn { width: 100%; margin-top: 10px; padding: 10px; background: var(--green); color: #fff; border: none; border-radius: 5px; font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; font-size: 12.5px; cursor: pointer; }
   .claim-btn[disabled] { background: rgba(35,38,31,0.2); color: rgba(35,38,31,0.5); cursor: not-allowed; }
 
-  .avail-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--rail); }
+  .avail-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--rail); }
   .avail-row:last-child { border-bottom: none; }
   .avail-day { font-weight: 600; font-size: 13px; width: 70px; flex-shrink: 0; }
   .avail-toggle { display: flex; gap: 6px; }
   .avail-toggle button { background: var(--panel-light); border: 1px solid var(--rail); color: var(--text-dim); border-radius: 4px; padding: 6px 10px; font-size: 11px; font-family: inherit; cursor: pointer; }
   .avail-toggle button.active.yes { background: var(--green); color: #fff; border-color: var(--green); }
   .avail-toggle button.active.no { background: var(--amber); color: var(--ink); border-color: var(--amber); }
+  .avail-hours { order: 5; width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; margin: 6px 0; }
+  .avail-hours input { width: auto; padding: 4px 6px; }
+  .avail-hours em { flex-basis: 100%; font-size: 11px; opacity: .65; font-style: normal; }
   .avail-note { flex: 1; background: var(--bg); border: 1px solid var(--rail); color: var(--text-bright); border-radius: 4px; padding: 6px 8px; font-size: 11.5px; font-family: inherit; min-width: 0; }
 
   #banner { font-size: 12.5px; text-align: center; padding: 9px; font-weight: 600; }
@@ -203,7 +206,7 @@ I18N.add({
     "schedule.count": n => `${n} upcoming shift${n === 1 ? "" : "s"}`,
     "schedule.empty": "No shifts scheduled yet — check back soon.", "schedule.shift": "Shift",
     "avail.h2": "Your weekly availability", "avail.help": "Let your manager know which days you're generally free to work.",
-    "avail.free": "Free", "avail.busy": "Busy", "avail.notePh": "e.g. after 5pm", "avail.save": "Save availability", "avail.saved": "Sent to your manager for approval", "avail.pending": "Waiting for your manager's approval. Your current availability stays in effect until then.", "avail.approved": "Your manager approved your availability.", "avail.declined": "Your last request was declined, so your previous availability still applies.",
+    "avail.free": "Free", "avail.busy": "Busy", "avail.from": "Busy from", "avail.to": "until", "avail.allDayHint": "Leave both empty if you are busy all day.", "avail.notePh": "e.g. after 5pm", "avail.save": "Save availability", "avail.saved": "Sent to your manager for approval", "avail.pending": "Waiting for your manager's approval. Your current availability stays in effect until then.", "avail.approved": "Your manager approved your availability.", "avail.declined": "Your last request was declined, so your previous availability still applies.",
     "open.h2": "Open shifts you can take", "open.empty": "No open shifts matching your roles right now.",
     "open.stamp": "Open", "open.asap": "ASAP", "open.claim": "Claim this shift", "open.waiting": "You're in — waiting on manager",
     "open.claimed": "You're in — your manager will confirm shortly",
@@ -239,7 +242,7 @@ I18N.add({
     "schedule.count": n => `${n} quart${n === 1 ? "" : "s"} à venir`,
     "schedule.empty": "Aucun quart prévu pour l'instant — repassez bientôt.", "schedule.shift": "Quart",
     "avail.h2": "Vos disponibilités de la semaine", "avail.help": "Indiquez à votre gestionnaire les jours où vous êtes généralement libre de travailler.",
-    "avail.free": "Libre", "avail.busy": "Occupé", "avail.notePh": "p. ex. après 17 h", "avail.save": "Enregistrer mes disponibilités", "avail.saved": "Envoyé à votre gestionnaire pour approbation", "avail.pending": "En attente de l'approbation de votre gestionnaire. Vos disponibilités actuelles restent en vigueur d'ici là.", "avail.approved": "Votre gestionnaire a approuvé vos disponibilités.", "avail.declined": "Votre dernière demande a été refusée; vos disponibilités précédentes s'appliquent toujours.",
+    "avail.free": "Libre", "avail.busy": "Occupé", "avail.from": "Occupé de", "avail.to": "jusqu'à", "avail.allDayHint": "Laissez vide si vous êtes occupé toute la journée.", "avail.notePh": "p. ex. après 17 h", "avail.save": "Enregistrer mes disponibilités", "avail.saved": "Envoyé à votre gestionnaire pour approbation", "avail.pending": "En attente de l'approbation de votre gestionnaire. Vos disponibilités actuelles restent en vigueur d'ici là.", "avail.approved": "Votre gestionnaire a approuvé vos disponibilités.", "avail.declined": "Votre dernière demande a été refusée; vos disponibilités précédentes s'appliquent toujours.",
     "open.h2": "Quarts ouverts que vous pouvez prendre", "open.empty": "Aucun quart ouvert ne correspond à vos postes pour le moment.",
     "open.stamp": "Ouvert", "open.asap": "Dès que possible", "open.claim": "Prendre ce quart", "open.waiting": "C'est noté — en attente du gestionnaire",
     "open.claimed": "C'est noté — votre gestionnaire confirmera sous peu",
@@ -275,7 +278,7 @@ I18N.add({
     "schedule.count": n => `${n} turno${n === 1 ? "" : "s"} próximo${n === 1 ? "" : "s"}`,
     "schedule.empty": "Aún no hay turnos programados — vuelve pronto.", "schedule.shift": "Turno",
     "avail.h2": "Tu disponibilidad semanal", "avail.help": "Dile a tu gerente qué días sueles estar libre para trabajar.",
-    "avail.free": "Libre", "avail.busy": "Ocupado", "avail.notePh": "ej. después de las 5 pm", "avail.save": "Guardar disponibilidad", "avail.saved": "Enviado a tu gerente para aprobación", "avail.pending": "Esperando la aprobación de tu gerente. Tu disponibilidad actual sigue vigente hasta entonces.", "avail.approved": "Tu gerente aprobó tu disponibilidad.", "avail.declined": "Tu última solicitud fue rechazada; sigue vigente tu disponibilidad anterior.",
+    "avail.free": "Libre", "avail.busy": "Ocupado", "avail.from": "Ocupado desde", "avail.to": "hasta", "avail.allDayHint": "Déjalo vacío si estás ocupado todo el día.", "avail.notePh": "ej. después de las 5 pm", "avail.save": "Guardar disponibilidad", "avail.saved": "Enviado a tu gerente para aprobación", "avail.pending": "Esperando la aprobación de tu gerente. Tu disponibilidad actual sigue vigente hasta entonces.", "avail.approved": "Tu gerente aprobó tu disponibilidad.", "avail.declined": "Tu última solicitud fue rechazada; sigue vigente tu disponibilidad anterior.",
     "open.h2": "Turnos abiertos que puedes tomar", "open.empty": "No hay turnos abiertos para tus puestos por ahora.",
     "open.stamp": "Abierto", "open.asap": "Lo antes posible", "open.claim": "Tomar este turno", "open.waiting": "Anotado — esperando al gerente",
     "open.claimed": "Anotado — tu gerente lo confirmará pronto",
@@ -302,7 +305,7 @@ const dayLabel = k => I18N.t("days." + k);
 let myAvailability = {};
 let availInfo = null;
 let availBaseline = "{}"; // what is already saved (the waiting request, else the approved availability)
-const availKey = o => JSON.stringify(DAY_KEYS.map(k => { const e = (o || {})[k] || {}; return [e.available === true ? true : e.available === false ? false : null, String(e.note || "").trim()]; }));
+const availKey = o => JSON.stringify(DAY_KEYS.map(k => { const e = (o || {})[k] || {}; const busy = e.available === false; return [e.available === true ? true : busy ? false : null, String(e.note || "").trim(), busy ? (e.from || "") : "", busy ? (e.to || "") : ""]; }));
 function updateAvailSaveBtn() {
   const btn = document.getElementById("availSaveBtn");
   if (btn) btn.style.display = availKey(myAvailability) !== availBaseline ? "" : "none";
@@ -548,6 +551,7 @@ function renderAvailability() {
           <button class="${entry.available === true ? "active yes" : ""}" onclick="setAvailDay('${d.key}', true)">${tr("avail.free")}</button>
           <button class="${entry.available === false ? "active no" : ""}" onclick="setAvailDay('${d.key}', false)">${tr("avail.busy")}</button>
         </div>
+        ${entry.available === false ? `<div class="avail-hours"><span>${escapeHtml(tr("avail.from"))}</span><input type="time" value="${entry.from || ""}" onchange="setAvailTime('${d.key}','from',this.value)" /><span>${escapeHtml(tr("avail.to"))}</span><input type="time" value="${entry.to || ""}" onchange="setAvailTime('${d.key}','to',this.value)" /><em>${escapeHtml(tr("avail.allDayHint"))}</em></div>` : ""}
         <input type="text" class="avail-note" placeholder="${escapeHtml(tr("avail.notePh"))}" value="${escapeHtml(entry.note || "")}" oninput="setAvailNote('${d.key}', this.value)" />
       </div>
     `;
@@ -559,6 +563,12 @@ function setAvailDay(key, value) {
   if (!myAvailability[key]) myAvailability[key] = { available: null, note: "" };
   myAvailability[key].available = value;
   renderAvailability();
+}
+
+function setAvailTime(key, which, value) {
+  if (!myAvailability[key]) myAvailability[key] = { available: false, note: "" };
+  myAvailability[key][which] = value;
+  updateAvailSaveBtn();
 }
 
 function setAvailNote(key, value) {

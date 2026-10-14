@@ -59,4 +59,23 @@ describe("availability changes need a manager's approval", () => {
     expect((await ann.agent.get("/api/staff-auth/availability")).body).toMatchObject({ pending: null, decision: "declined" });
     expect((await A.agent.post(`/api/availability-requests/${ann.id}/approve`)).status).toBe(404); // nothing pending any more
   });
+
+  test("busy hours are kept, bad times dropped, and only approved availability reaches the schedule grid", async () => {
+    const res = await ann.agent.put("/api/staff-auth/availability").send({ availability: {
+      tue: { available: false, note: "", from: "17:00", to: "22:00" },
+      wed: { available: false, note: "", from: "25:99", to: "nope" },
+      thu: { available: true, note: "", from: "10:00", to: "12:00" }, // hours only mean something on a busy day
+    } });
+    expect(res.body.pending).toEqual({
+      tue: { available: false, note: "", from: "17:00", to: "22:00" },
+      wed: { available: false, note: "" },
+      thu: { available: true, note: "" },
+    });
+    expect((await A.agent.get("/api/availability")).body[ann.id]).not.toHaveProperty("tue"); // not approved yet
+    await A.agent.post(`/api/availability-requests/${ann.id}/approve`);
+    const grid = await A.agent.get("/api/availability");
+    expect(grid.body[ann.id].tue).toEqual({ available: false, note: "", from: "17:00", to: "22:00" });
+    expect((await B.agent.get("/api/availability")).body[ann.id]).toBeUndefined();
+    expect((await request(app).get("/api/availability")).status).toBe(401);
+  });
 });
