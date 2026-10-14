@@ -153,6 +153,12 @@ async function initDb() {
       created_at BIGINT NOT NULL
     );
   `);
+  // Punch clock: what the person really worked. Applying a punch rewrites start_time / end_time (so the grid, payroll
+  // and labor numbers all follow) and keeps the originally scheduled times so a punch can be undone.
+  await pool.query(`ALTER TABLE schedule_shifts ADD COLUMN IF NOT EXISTS punch_in TEXT;`);
+  await pool.query(`ALTER TABLE schedule_shifts ADD COLUMN IF NOT EXISTS punch_out TEXT;`);
+  await pool.query(`ALTER TABLE schedule_shifts ADD COLUMN IF NOT EXISTS scheduled_start TEXT;`);
+  await pool.query(`ALTER TABLE schedule_shifts ADD COLUMN IF NOT EXISTS scheduled_end TEXT;`);
   await pool.query(`CREATE INDEX IF NOT EXISTS schedule_shifts_restaurant_idx ON schedule_shifts (restaurant_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS schedule_shifts_date_idx ON schedule_shifts (shift_date);`);
 
@@ -523,6 +529,10 @@ function scheduleShiftRowToJson(row) {
     startTime: row.start_time,
     endTime: row.end_time,
     role: row.role || "",
+    punchIn: row.punch_in || "",
+    punchOut: row.punch_out || "",
+    scheduledStart: row.scheduled_start || "",
+    scheduledEnd: row.scheduled_end || "",
   };
 }
 function signToken(payload) {
@@ -2086,6 +2096,58 @@ app.patch("/api/schedule/:id", requireAuth, async (req, res) => {
     [updates.staff_id, updates.shift_date, updates.start_time, updates.end_time, updates.role, req.params.id, req.restaurantId]
   );
   res.json(scheduleShiftRowToJson(rows[0]));
+});
+
+// Punch clock: apply what people really worked to the schedule. Each entry is { id, punchIn?, punchOut?, reset? }.
+// A time left empty keeps the current value; reset:true puts the originally scheduled times back. All or nothing.
+app.post("/api/schedule/punch", requireAuth, async (req, res) => {
+  const entries = req.body && req.body.entries;
+  if (!Array.isArray(entries) || entries.length === 0) return res.status(400).json({ error: "entries must be a non-empty array" });
+  if (entries.length > 200) return res.status(400).json({ error: "too many entries" });
+  const ids = entries.map((e) => e && e.id);
+  const { rows } = await pool.query("SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND id = ANY($2)", [req.restaurantId, ids]);
+  const byId = {};
+  rows.forEach((r) => { byId[r.id] = r; });
+  const plan = [];
+  for (const e of entries) {
+    const row = byId[e && e.id];
+    if (!row) return res.status(404).json({ error: "shift not found" });
+    if (e.reset) {
+      if (!row.scheduled_start) continue; // never punched: nothing to undo
+      plan.push({ id: row.id, start: row.scheduled_start, end: row.scheduled_end || row.end_time, punchIn: null, punchOut: null, schedStart: null, schedEnd: null });
+      continue;
+    }
+    const pin = e.punchIn ? String(e.punchIn) : "", pout = e.punchOut ? String(e.punchOut) : "";
+    if ((pin && !SCHEDULE_TIME_RE.test(pin)) || (pout && !SCHEDULE_TIME_RE.test(pout))) return res.status(400).json({ error: "times must look like 17:00" });
+    if (!pin && !pout) continue;
+    const start = pin || row.start_time, end = pout || row.end_time;
+    if (start === end) return res.status(400).json({ error: "start and end can't be the same time" });
+    plan.push({
+      id: row.id, start, end,
+      punchIn: pin || row.punch_in || null, punchOut: pout || row.punch_out || null,
+      schedStart: row.scheduled_start || row.start_time, schedEnd: row.scheduled_end || row.end_time,
+    });
+  }
+  const client = await pool.connect();
+  const out = [];
+  try {
+    await client.query("BEGIN");
+    for (const u of plan) {
+      const { rows: done } = await client.query(
+        "UPDATE schedule_shifts SET start_time=$1, end_time=$2, punch_in=$3, punch_out=$4, scheduled_start=$5, scheduled_end=$6 WHERE id=$7 AND restaurant_id=$8 RETURNING *",
+        [u.start, u.end, u.punchIn, u.punchOut, u.schedStart, u.schedEnd, u.id, req.restaurantId]
+      );
+      out.push(scheduleShiftRowToJson(done[0]));
+    }
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+  if (out.length) logActivity({ restaurantId: req.restaurantId, eventType: "punch_applied", detail: `${out.length} shift${out.length === 1 ? "" : "s"} updated from punch times` });
+  res.json({ updated: out });
 });
 
 app.delete("/api/schedule/:id", requireAuth, async (req, res) => {
