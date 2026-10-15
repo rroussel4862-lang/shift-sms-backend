@@ -1054,7 +1054,7 @@ const T = {
       sendLogin: "Send login", resendLogin: "Reset login", resendConfirm: "This person already has a login. Send a new setup link? They will choose a new email and password.", edit: "Edit", portalActive: "Staff portal: active", portalNotSetUp: "Staff portal: not set up",
       mostAvailable: "Most available", pointsNote: "3 pts / covered · 1 pt / responded",
       noRateSet: "no rate set", hiredOn: date => `hired ${date}`,
-      editRate: "Hourly rate", editHireDate: "Hire date", save: "Save", cancel: "Cancel",
+      editAddress: "Address (optional)", editRate: "Hourly rate", editHireDate: "Hire date", save: "Save", cancel: "Cancel",
       bannerEnterName: "Enter a name first", bannerEnterPhone: "Enter a phone number first",
       bannerAdded: name => `Added ${name}`, bannerPhoneRequired: "Phone number can't be empty", bannerUpdated: "Staff updated",
       noStaffWithRole: role => `No staff with the "${role}" role.`, noStaffMatching: q => `No staff matching "${q}".`,
@@ -1209,7 +1209,7 @@ const T = {
       sendLogin: "Envoyer l'accès", resendLogin: "Réinitialiser l'accès", resendConfirm: "Cette personne a déjà un accès. Envoyer un nouveau lien ? Elle choisira un nouveau courriel et mot de passe.", edit: "Modifier", portalActive: "Portail employé : actif", portalNotSetUp: "Portail employé : non configuré",
       mostAvailable: "Les plus disponibles", pointsNote: "3 pts / quart couvert · 1 pt / réponse",
       noRateSet: "aucun taux défini", hiredOn: date => `embauché le ${date}`,
-      editRate: "Taux horaire", editHireDate: "Date d'embauche", save: "Enregistrer", cancel: "Annuler",
+      editAddress: "Adresse (facultatif)", editRate: "Taux horaire", editHireDate: "Date d'embauche", save: "Enregistrer", cancel: "Annuler",
       bannerEnterName: "Entrez d'abord un nom", bannerEnterPhone: "Entrez d'abord un numéro de téléphone",
       bannerAdded: name => `${name} ajouté(e)`, bannerPhoneRequired: "Le numéro de téléphone ne peut pas être vide", bannerUpdated: "Employé mis à jour",
       noStaffWithRole: role => `Aucun employé avec le poste « ${role} ».`, noStaffMatching: q => `Aucun employé correspondant à « ${q} ».`,
@@ -1364,7 +1364,7 @@ const T = {
       sendLogin: "Enviar acceso", resendLogin: "Restablecer acceso", resendConfirm: "Esta persona ya tiene acceso. ¿Enviar un nuevo enlace? Elegirá un nuevo correo y contraseña.", edit: "Editar", portalActive: "Portal del personal: activo", portalNotSetUp: "Portal del personal: no configurado",
       mostAvailable: "Más disponibles", pointsNote: "3 pts / turno cubierto · 1 pt / respuesta",
       noRateSet: "sin tarifa definida", hiredOn: date => `contratado el ${date}`,
-      editRate: "Tarifa por hora", editHireDate: "Fecha de contratación", save: "Guardar", cancel: "Cancelar",
+      editAddress: "Dirección (opcional)", editRate: "Tarifa por hora", editHireDate: "Fecha de contratación", save: "Guardar", cancel: "Cancelar",
       bannerEnterName: "Ingresa un nombre primero", bannerEnterPhone: "Ingresa un número de teléfono primero",
       bannerAdded: name => `${name} agregado(a)`, bannerPhoneRequired: "El número de teléfono no puede estar vacío", bannerUpdated: "Personal actualizado",
       noStaffWithRole: role => `No hay personal con el puesto "${role}".`, noStaffMatching: q => `No hay personal que coincida con "${q}".`,
@@ -1934,6 +1934,10 @@ function render() {
     ? `<p class="empty">${emptyFilterMessage}</p>`
     : visibleStaff.map(p => {
         if (p.id === editingStaffId) {
+          const existingNameInput = document.getElementById(`editName-${p.id}`);
+          const nameValue = existingNameInput ? existingNameInput.value : (p.name || "");
+          const existingAddrInput = document.getElementById(`editAddress-${p.id}`);
+          const addrValue = existingAddrInput ? existingAddrInput.value : (p.address || "");
           const existingInput = document.getElementById(`editPhone-${p.id}`);
           const phoneValue = existingInput ? existingInput.value : (p.phone || "");
           const existingRateInput = document.getElementById(`editRate-${p.id}`);
@@ -1942,13 +1946,16 @@ function render() {
           const hireDateValue = existingHireInput ? existingHireInput.value : (p.hireDate || "");
           return `
             <div class="staff-row stub" style="flex-direction:column;align-items:stretch">
-              <div class="staff-name">${escapeHtml(p.name)}</div>
-              <label style="margin-top:8px">${t("staff.phone")}</label>
+              <label style="margin-top:4px">${t("staff.name")}</label>
+              <input type="text" id="editName-${p.id}" value="${escapeHtml(nameValue)}" />
+              <label>${t("staff.phone")}</label>
               <input type="tel" id="editPhone-${p.id}" value="${escapeHtml(phoneValue)}" />
               <label>${t("staff.editRate")}</label>
               <input type="text" inputmode="decimal" id="editRate-${p.id}" value="${escapeHtml(rateValue)}" placeholder="e.g. 19.50" />
               <label>${t("staff.editHireDate")}</label>
               <input type="date" id="editHireDate-${p.id}" value="${escapeHtml(hireDateValue)}" />
+              <label>${t("staff.editAddress")}</label>
+              <input type="text" id="editAddress-${p.id}" value="${escapeHtml(addrValue)}" />
               <label>${t("staff.roles")}</label>
               <div class="roles">
                 ${ROLES.map(r => `
@@ -2939,6 +2946,11 @@ function toggleEditRole(btn, r) {
 }
 
 async function saveEdit(id) {
+  const nameInput = document.getElementById(`editName-${id}`);
+  const name = nameInput ? nameInput.value.trim() : "";
+  if (!name) return showBanner(t("staff.bannerEnterName"), "warn");
+  const addrInput = document.getElementById(`editAddress-${id}`);
+  const address = addrInput ? addrInput.value.trim() : "";
   const phoneInput = document.getElementById(`editPhone-${id}`);
   const phone = phoneInput ? phoneInput.value.trim() : "";
   if (!phone) return showBanner(t("staff.bannerPhoneRequired"), "warn");
@@ -2948,7 +2960,7 @@ async function saveEdit(id) {
   const hireDate = hireDateInput ? hireDateInput.value : "";
   const result = await api(`/api/staff/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ phone, roles: editDraftRoles, hourlyRate: hourlyRate || null, hireDate: hireDate || null }),
+    body: JSON.stringify({ name, address, phone, roles: editDraftRoles, hourlyRate: hourlyRate || null, hireDate: hireDate || null }),
   });
   if (result.ok) {
     showBanner(t("staff.bannerUpdated"), "success");
@@ -3276,9 +3288,9 @@ function enterApp() {
     started = true;
     loadAll();
     // keep the screen current: every 15 s while visible, and right away when the app comes back to the foreground
-    setInterval(() => { if (!document.hidden) loadAll(); }, 15000);
+    setInterval(() => { if (!document.hidden && !editingStaffId) loadAll(); }, 15000); // not while a staff row is being edited
     let lastWake = 0;
-    const wake = () => { if (!document.hidden && Date.now() - lastWake > 2000) { lastWake = Date.now(); loadAll(); } };
+    const wake = () => { if (!document.hidden && !editingStaffId && Date.now() - lastWake > 2000) { lastWake = Date.now(); loadAll(); } };
     document.addEventListener("visibilitychange", wake);
     window.addEventListener("focus", wake);
     window.addEventListener("pageshow", wake);
