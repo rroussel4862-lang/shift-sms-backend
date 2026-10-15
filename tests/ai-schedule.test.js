@@ -98,6 +98,18 @@ describe("POST /api/ai/schedule", () => {
     expect(lastBody.system).toContain('"dayName":"Monday"'); // 2026-03-02
   });
 
+  test("the model gets last week's shifts so it can copy them forward", async () => {
+    const prev = (await A.agent.post("/api/schedule").send({ staffId: ana, date: "2026-02-25", startTime: "16:00", endTime: "22:00", role: "Server" })).body;
+    nextReply = { summary: "Copied.", shifts: [sh(ana, "2026-03-04", "16:00", "22:00")] };
+    const res = await A.agent.post("/api/ai/schedule").send({ prompt: "Copy last week to this week", weekStart: WEEK });
+    expect(res.status).toBe(200);
+    const data = JSON.parse(lastBody.system.split("DATA:\n")[1]);
+    expect(data.previousWeek.weekStart).toBe("2026-02-23");
+    expect(data.previousWeek.shifts).toEqual([{ staffId: ana, date: "2026-02-25", dayName: "Wednesday", start: "16:00", end: "22:00", role: "Server" }]);
+    expect(lastBody.system).toContain("previousWeek");
+    await A.agent.delete(`/api/schedule/${prev.id}`);
+  });
+
   test("validates input and requires login", async () => {
     expect((await A.agent.post("/api/ai/schedule").send({ prompt: "", weekStart: WEEK })).status).toBe(400);
     expect((await A.agent.post("/api/ai/schedule").send({ prompt: "x", weekStart: "soon" })).status).toBe(400);

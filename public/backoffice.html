@@ -187,6 +187,11 @@
   .ai-sched .prop-line .nm { flex: 1; } .ai-sched .prop-line .rl { color: var(--text-dim); }
   .ai-sched .skipped { margin-top: 10px; font-size: 12px; color: var(--text-dim); line-height: 1.5; }
   .ai-sched .done { margin-top: 12px; font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--text-bright); }
+  .pub-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding: 9px 12px; border-radius: 8px; font-size: 13px; border: 1px solid var(--line, #ddd); }
+  .pub-bar .grow { flex: 1; min-width: 180px; }
+  .pub-bar.draft { background: #FFF6E0; border-color: var(--amber); }
+  .pub-bar.live { background: #EAF4EC; border-color: var(--green); }
+  .pub-bar button { font-size: 12px; padding: 5px 11px; }
   .week-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
   .week-label { font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 600; }
   .house-toggle { display: flex; gap: 6px; margin-bottom: 14px; }
@@ -463,6 +468,8 @@
         <button class="ghost" onclick="goToThisWeek()" data-i18n="sched.today">This week</button>
       </div>
 
+      <div class="pub-bar" id="pubBar" style="display:none"></div>
+
       <div class="ai-sched" id="aiSched">
         <h3 data-i18n="sched.aiTitle">✨ AI scheduler</h3>
         <div class="hint" data-i18n="sched.aiHint">Describe the week in plain words. The AI fills the grid for the staff shown below, respecting their availability. You'll preview it before anything is saved.</div>
@@ -604,7 +611,7 @@ I18N.add({
     "sched.aiPh": "e.g. Cover lunch and dinner every day, 3 servers on Friday and Saturday nights, nobody over 40 hours.", "sched.aiBuild": "Build schedule", "sched.aiThinking": "Building…",
     "sched.aiNeedPrompt": "Describe what you need first", "sched.aiNoShifts": "The AI didn't propose any shifts — try adding more detail.",
     "sched.aiProposal": n => `${n} shift${n === 1 ? "" : "s"} proposed — not saved yet`, "sched.aiApply": "Apply to grid", "sched.aiDiscard": "Discard",
-    "sched.aiApplied": n => `${n} shift${n === 1 ? "" : "s"} added to the grid.`, "sched.aiUndo": "Undo", "sched.aiUndone": "Undone — the shifts were removed.",
+    "pub.draft": "Draft — staff can't see this week yet. Work on it, then publish.", "pub.live": "Published — staff can see this week.", "pub.always": "This week is live — staff see changes as you make them.", "pub.publish": "Publish & text staff", "pub.unpublish": "Back to draft", "pub.confirm": w => `Publish the week of ${w}? Staff will be able to see it and everyone scheduled that week gets a text.`, "pub.confirmUn": w => `Hide the week of ${w} from staff again?`, "pub.done": n => `Published. ${n} staff texted.`, "pub.undone": "Back to draft — staff can no longer see this week.", "copy.btn": "Copy last week here", "copy.none": "Last week has no shifts for the staff shown.", "copy.confirm": (n, w) => `Copy ${n} shift${n === 1 ? "" : "s"} from the week of ${w} into this week?`, "copy.skipped": n => `${n} shift${n === 1 ? "" : "s"} skipped (already on the grid or conflicting).`, "sched.aiApplied": n => `${n} shift${n === 1 ? "" : "s"} added to the grid.`, "sched.aiUndo": "Undo", "sched.aiUndone": "Undone — the shifts were removed.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~$${sales} expected sales` : `~$${sales} expected sales · ${pct}% labor`, "sched.aiWeekLabor": pct => `${pct}% labor vs expected sales`, "sched.aiSkipped": "Left out:", "sched.aiHours": (h, c) => `${h}h total · about $${c} labor`,
     "sched.skip.unavailable": "marked unavailable", "sched.availShort": "Available", "sched.availFrom": "Available from", "sched.availUntil": "Available until", "sched.unavailAll": "Unavailable · all day", "sched.unavailShort": "Unavailable", "sched.unavailStart": "start", "sched.unavailEnd": "close", "sched.skip.overlap": "already has a shift then", "sched.skip.bad_time": "invalid times", "sched.skip.bad_date": "date outside this week", "sched.skip.unknown_staff": "unknown staff member",
     "sched.noStaff": h => `No staff tagged with ${h} roles yet. Add roles in the Staff tab.`,
@@ -652,7 +659,7 @@ I18N.add({
     "sched.aiPh": "ex. Couvrir le midi et le soir tous les jours, 3 serveurs les vendredis et samedis soir, personne au-delà de 40 heures.", "sched.aiBuild": "Créer l'horaire", "sched.aiThinking": "Création…",
     "sched.aiNeedPrompt": "Décrivez d'abord ce qu'il vous faut", "sched.aiNoShifts": "L'IA n'a proposé aucun quart — ajoutez plus de détails.",
     "sched.aiProposal": n => `${n} quart${n === 1 ? "" : "s"} proposé${n === 1 ? "" : "s"} — pas encore enregistré${n === 1 ? "" : "s"}`, "sched.aiApply": "Appliquer à la grille", "sched.aiDiscard": "Annuler",
-    "sched.aiApplied": n => `${n} quart${n === 1 ? "" : "s"} ajouté${n === 1 ? "" : "s"} à la grille.`, "sched.aiUndo": "Annuler l'ajout", "sched.aiUndone": "Annulé — les quarts ont été retirés.",
+    "pub.draft": "Brouillon — le personnel ne voit pas encore cette semaine. Travaillez-la, puis publiez.", "pub.live": "Publié — le personnel peut voir cette semaine.", "pub.always": "Cette semaine est en direct — le personnel voit vos changements au fur et à mesure.", "pub.publish": "Publier et aviser par texto", "pub.unpublish": "Retour en brouillon", "pub.confirm": w => `Publier la semaine du ${w} ? Le personnel pourra la voir et chaque personne à l'horaire recevra un texto.`, "pub.confirmUn": w => `Cacher de nouveau la semaine du ${w} au personnel ?`, "pub.done": n => `Publié. ${n} employé${n === 1 ? "" : "s"} avisé${n === 1 ? "" : "s"} par texto.`, "pub.undone": "Retour en brouillon — le personnel ne voit plus cette semaine.", "copy.btn": "Copier la semaine dernière ici", "copy.none": "La semaine dernière n'a aucun quart pour le personnel affiché.", "copy.confirm": (n, w) => `Copier ${n} quart${n === 1 ? "" : "s"} de la semaine du ${w} dans cette semaine ?`, "copy.skipped": n => `${n} quart${n === 1 ? "" : "s"} ignoré${n === 1 ? "" : "s"} (déjà dans la grille ou en conflit).`, "sched.aiApplied": n => `${n} quart${n === 1 ? "" : "s"} ajouté${n === 1 ? "" : "s"} à la grille.`, "sched.aiUndo": "Annuler l'ajout", "sched.aiUndone": "Annulé — les quarts ont été retirés.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~${sales} $ de ventes prévues` : `~${sales} $ de ventes prévues · ${pct}% main-d'œuvre`, "sched.aiWeekLabor": pct => `${pct}% de main-d'œuvre par rapport aux ventes prévues`, "sched.aiSkipped": "Exclus :", "sched.aiHours": (h, c) => `${h} h au total · environ ${c} $ de main-d'œuvre`,
     "sched.skip.unavailable": "marqué indisponible", "sched.availShort": "Disponible", "sched.availFrom": "Disponible dès", "sched.availUntil": "Disponible jusqu'à", "sched.unavailAll": "Indisponible · toute la journée", "sched.unavailShort": "Indisponible", "sched.unavailStart": "début", "sched.unavailEnd": "fermeture", "sched.skip.overlap": "a déjà un quart à ce moment", "sched.skip.bad_time": "heures invalides", "sched.skip.bad_date": "date hors de cette semaine", "sched.skip.unknown_staff": "employé inconnu",
     "sched.noStaff": h => `Aucun employé n'a de poste en ${h} pour l'instant. Ajoutez des postes dans l'onglet Personnel.`,
@@ -700,7 +707,7 @@ I18N.add({
     "sched.aiPh": "ej. Cubrir almuerzo y cena todos los días, 3 meseros los viernes y sábados por la noche, nadie más de 40 horas.", "sched.aiBuild": "Crear horario", "sched.aiThinking": "Creando…",
     "sched.aiNeedPrompt": "Describe primero lo que necesitas", "sched.aiNoShifts": "La IA no propuso ningún turno — agrega más detalles.",
     "sched.aiProposal": n => `${n} turno${n === 1 ? "" : "s"} propuesto${n === 1 ? "" : "s"} — aún sin guardar`, "sched.aiApply": "Aplicar a la cuadrícula", "sched.aiDiscard": "Descartar",
-    "sched.aiApplied": n => `${n} turno${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} a la cuadrícula.`, "sched.aiUndo": "Deshacer", "sched.aiUndone": "Deshecho — se quitaron los turnos.",
+    "pub.draft": "Borrador — el personal aún no ve esta semana. Trabájala y luego publícala.", "pub.live": "Publicado — el personal puede ver esta semana.", "pub.always": "Esta semana está en vivo — el personal ve tus cambios al instante.", "pub.publish": "Publicar y avisar por texto", "pub.unpublish": "Volver a borrador", "pub.confirm": w => `¿Publicar la semana del ${w}? El personal podrá verla y cada persona programada recibirá un texto.`, "pub.confirmUn": w => `¿Ocultar de nuevo la semana del ${w} al personal?`, "pub.done": n => `Publicado. ${n} persona${n === 1 ? "" : "s"} avisada${n === 1 ? "" : "s"} por texto.`, "pub.undone": "Vuelto a borrador — el personal ya no ve esta semana.", "copy.btn": "Copiar la semana pasada aquí", "copy.none": "La semana pasada no tiene turnos para el personal mostrado.", "copy.confirm": (n, w) => `¿Copiar ${n} turno${n === 1 ? "" : "s"} de la semana del ${w} a esta semana?`, "copy.skipped": n => `${n} turno${n === 1 ? "" : "s"} omitido${n === 1 ? "" : "s"} (ya están en la cuadrícula o hay conflicto).`, "sched.aiApplied": n => `${n} turno${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} a la cuadrícula.`, "sched.aiUndo": "Deshacer", "sched.aiUndone": "Deshecho — se quitaron los turnos.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~$${sales} de ventas esperadas` : `~$${sales} de ventas esperadas · ${pct}% mano de obra`, "sched.aiWeekLabor": pct => `${pct}% de mano de obra vs. ventas esperadas`, "sched.aiSkipped": "Omitidos:", "sched.aiHours": (h, c) => `${h} h en total · unos $${c} de mano de obra`,
     "sched.skip.unavailable": "marcado como no disponible", "sched.availShort": "Disponible", "sched.availFrom": "Disponible desde", "sched.availUntil": "Disponible hasta", "sched.unavailAll": "No disponible · todo el día", "sched.unavailShort": "No disponible", "sched.unavailStart": "inicio", "sched.unavailEnd": "cierre", "sched.skip.overlap": "ya tiene un turno a esa hora", "sched.skip.bad_time": "horas no válidas", "sched.skip.bad_date": "fecha fuera de esta semana", "sched.skip.unknown_staff": "empleado desconocido",
     "sched.noStaff": h => `Aún no hay personal con puestos de ${h}. Agrega puestos en la pestaña Personal.`,
@@ -1416,11 +1423,70 @@ async function initSchedule() {
   loadSchedule();
 }
 
+/* ---------- publishing a week to staff / copying last week ---------- */
+let pubState = null;
+async function loadPublishState() {
+  const wk = toISODate(weekStart);
+  const r = await api(`/api/schedule/publish?weekStart=${wk}`);
+  if (wk !== toISODate(weekStart)) return; // the manager moved to another week meanwhile
+  pubState = r.ok ? r.data : null;
+  renderPubBar();
+}
+function renderPubBar() {
+  const bar = document.getElementById("pubBar");
+  if (!bar) return;
+  if (!pubState) { bar.style.display = "none"; return; }
+  const copyBtn = `<button class="ghost" onclick="copyLastWeek()">${escapeHtml(tr("copy.btn"))}</button>`;
+  let cls, msg, btn = "";
+  if (pubState.alwaysLive) { cls = "live"; msg = tr("pub.always"); }
+  else if (pubState.published) { cls = "live"; msg = "✓ " + tr("pub.live"); btn = `<button class="ghost" onclick="unpublishWeek()">${escapeHtml(tr("pub.unpublish"))}</button>`; }
+  else { cls = "draft"; msg = "✎ " + tr("pub.draft"); btn = `<button class="action" onclick="publishWeek()">${escapeHtml(tr("pub.publish"))}</button>`; }
+  bar.className = "pub-bar " + cls;
+  bar.style.display = "flex";
+  bar.innerHTML = `<span class="grow">${escapeHtml(msg)}</span>${copyBtn}${btn}`;
+}
+function weekLabelShort() { return formatShort(weekStart); }
+async function publishWeek() {
+  if (!confirm(tr("pub.confirm", weekLabelShort()))) return;
+  const r = await api("/api/schedule/publish", { method: "POST", body: JSON.stringify({ weekStart: toISODate(weekStart) }) });
+  if (!r.ok) return showBanner(r.error, "warn");
+  showBanner(tr("pub.done", r.data.texted), "success");
+  loadPublishState();
+}
+async function unpublishWeek() {
+  if (!confirm(tr("pub.confirmUn", weekLabelShort()))) return;
+  const r = await api(`/api/schedule/publish/${toISODate(weekStart)}`, { method: "DELETE" });
+  if (!r.ok) return showBanner(r.error, "warn");
+  showBanner(tr("pub.undone"), "success");
+  loadPublishState();
+}
+async function copyLastWeek() {
+  const prev = new Date(weekStart); prev.setDate(prev.getDate() - 7);
+  const prevEnd = new Date(prev); prevEnd.setDate(prevEnd.getDate() + 6);
+  const r = await api(`/api/schedule?start=${toISODate(prev)}&end=${toISODate(prevEnd)}`);
+  if (!r.ok) return showBanner(r.error, "warn");
+  const ids = new Set(visibleStaffForView().map(p => p.id));
+  const shifts = r.data.filter(sh => ids.has(sh.staffId)).map(sh => {
+    const d = new Date(sh.date + "T00:00:00"); d.setDate(d.getDate() + 7);
+    return { staffId: sh.staffId, date: toISODate(d), startTime: sh.scheduledStart || sh.startTime, endTime: sh.scheduledEnd || sh.endTime, role: sh.role };
+  });
+  if (shifts.length === 0) return showBanner(tr("copy.none"), "warn");
+  if (!confirm(tr("copy.confirm", shifts.length, formatShort(prev)))) return;
+  const res = await api("/api/schedule/bulk", { method: "POST", body: JSON.stringify({ shifts }) });
+  if (!res.ok) return showBanner(res.error, "warn");
+  aiProposal = null;
+  aiApplied = { ids: res.data.created.map(c => c.id), count: res.data.created.length };
+  renderAiSched();
+  if (res.data.skipped && res.data.skipped.length) showBanner(tr("copy.skipped", res.data.skipped.length), "warn");
+  loadSchedule();
+}
+
 async function loadSchedule() {
   const endDate = new Date(weekStart);
   endDate.setDate(endDate.getDate() + 6);
   document.getElementById("weekLabel").textContent = `${formatShort(weekStart)} – ${formatShort(endDate)}, ${endDate.getFullYear()}`;
   const startStr = toISODate(weekStart), endStr = toISODate(endDate);
+  loadPublishState();
   const [shiftsResult, projResult, actualResult, availResult, timeOffResult] = await Promise.all([
     api(`/api/schedule?start=${startStr}&end=${endStr}`),
     api(`/api/sales-projections?start=${startStr}&end=${endStr}`),

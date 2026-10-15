@@ -159,6 +159,25 @@ async function initDb() {
   await pool.query(`ALTER TABLE schedule_shifts ADD COLUMN IF NOT EXISTS punch_out TEXT;`);
   await pool.query(`ALTER TABLE schedule_shifts ADD COLUMN IF NOT EXISTS scheduled_start TEXT;`);
   await pool.query(`ALTER TABLE schedule_shifts ADD COLUMN IF NOT EXISTS scheduled_end TEXT;`);
+  // Publishing: a FUTURE week stays hidden from staff until the manager publishes it. The current and past weeks are always live.
+  // The first time this table is created, every week that already has shifts is marked published so nothing vanishes from staff.
+  const { rows: pubExists } = await pool.query(`SELECT to_regclass('schedule_published') AS t`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS schedule_published (
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      week_start TEXT NOT NULL,
+      published_at BIGINT NOT NULL,
+      PRIMARY KEY (restaurant_id, week_start)
+    );
+  `);
+  if (!pubExists[0].t) {
+    await pool.query(`
+      INSERT INTO schedule_published (restaurant_id, week_start, published_at)
+      SELECT DISTINCT restaurant_id, to_char(shift_date - ((EXTRACT(ISODOW FROM shift_date)::int - 1) * INTERVAL '1 day'), 'YYYY-MM-DD'), $1
+      FROM schedule_shifts
+      ON CONFLICT DO NOTHING
+    `, [Date.now()]);
+  }
   await pool.query(`CREATE INDEX IF NOT EXISTS schedule_shifts_restaurant_idx ON schedule_shifts (restaurant_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS schedule_shifts_date_idx ON schedule_shifts (shift_date);`);
 
@@ -1296,6 +1315,15 @@ app.get("/api/staff-auth/me", requireStaffAuth, async (req, res) => {
 
 // ---------- staff portal: schedule, availability, open shifts (staff, authenticated) ----------
 
+// A future week is hidden from staff until the manager publishes it (the current and past weeks are always visible).
+async function onlyPublishedForStaff(restaurantId, shifts) {
+  const thisMonday = mondayOfIso(ownerToday());
+  if (!shifts.some((sh) => mondayOfIso(sh.date) > thisMonday)) return shifts;
+  const { rows } = await pool.query("SELECT week_start FROM schedule_published WHERE restaurant_id = $1", [restaurantId]);
+  const published = new Set(rows.map((r) => r.week_start));
+  return shifts.filter((sh) => { const wk = mondayOfIso(sh.date); return wk <= thisMonday || published.has(wk); });
+}
+
 app.get("/api/staff-auth/schedule", requireStaffAuth, async (req, res) => {
   const { start, end } = req.query;
   if (!start || !end) return res.status(400).json({ error: "start and end date query params are required (YYYY-MM-DD)" });
@@ -1303,7 +1331,7 @@ app.get("/api/staff-auth/schedule", requireStaffAuth, async (req, res) => {
     "SELECT * FROM schedule_shifts WHERE staff_id = $1 AND restaurant_id = $2 AND shift_date >= $3 AND shift_date <= $4 ORDER BY shift_date ASC, start_time ASC",
     [req.staffId, req.restaurantId, start, end]
   );
-  res.json(rows.map(scheduleShiftRowToJson));
+  res.json(await onlyPublishedForStaff(req.restaurantId, rows.map(scheduleShiftRowToJson)));
 });
 
 const AVAIL_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -1611,7 +1639,7 @@ app.get("/api/staff-auth/swaps", requireStaffAuth, async (req, res) => {
     "SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND staff_id = $2 AND shift_date >= $3 ORDER BY shift_date ASC, start_time ASC",
     [req.restaurantId, req.staffId, floor]
   );
-  const myShifts = myShiftRows.map(scheduleShiftRowToJson);
+  const myShifts = await onlyPublishedForStaff(req.restaurantId, myShiftRows.map(scheduleShiftRowToJson));
   const busy = new Set(all.filter((w) => w.status === "open" || w.status === "pending").flatMap((w) => [w.shift.id, ...(w.swapShift ? [w.swapShift.id] : [])]));
   const available = [];
   for (const w of all) {
@@ -1906,6 +1934,48 @@ app.get("/api/schedule", requireAuth, async (req, res) => {
     [req.restaurantId, start, end]
   );
   res.json(rows.map(scheduleShiftRowToJson));
+});
+
+// ---- publishing a week to staff ----
+const isMondayIso = (d) => isIsoDate(d) && new Date(d + "T00:00:00Z").getUTCDay() === 1;
+
+app.get("/api/schedule/publish", requireAuth, async (req, res) => {
+  const weekStart = String(req.query.weekStart || "");
+  if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
+  const { rows } = await pool.query("SELECT published_at FROM schedule_published WHERE restaurant_id = $1 AND week_start = $2", [req.restaurantId, weekStart]);
+  const alwaysLive = weekStart <= mondayOfIso(ownerToday());
+  res.json({ weekStart, published: rows.length > 0, alwaysLive, visibleToStaff: alwaysLive || rows.length > 0 });
+});
+
+// Publish a week: staff can see it from now on, and everyone who is on it gets a text (unless ?notify=0).
+app.post("/api/schedule/publish", requireAuth, async (req, res) => {
+  const weekStart = String((req.body && req.body.weekStart) || "");
+  if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
+  const { rowCount } = await pool.query(
+    "INSERT INTO schedule_published (restaurant_id, week_start, published_at) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
+    [req.restaurantId, weekStart, Date.now()]
+  );
+  let texted = 0;
+  if (rowCount > 0 && !(req.body && req.body.notify === false)) {
+    const { rows } = await pool.query(
+      "SELECT DISTINCT staff_id FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3",
+      [req.restaurantId, weekStart, addDaysIso(weekStart, 6)]
+    );
+    const label = (loc) => new Date(weekStart + "T12:00:00").toLocaleDateString(loc, { month: "short", day: "numeric" });
+    rows.forEach((r) => notifyStaff(req.restaurantId, r.staff_id, `L'horaire de la semaine du ${label("fr-CA")} est publié. Consultez-le dans votre portail.`, `The schedule for the week of ${label("en-CA")} is posted. Check it in your staff portal.`));
+    texted = rows.length;
+  }
+  logActivity({ restaurantId: req.restaurantId, eventType: "schedule_published", detail: `week of ${weekStart}` });
+  res.json({ weekStart, published: true, visibleToStaff: true, texted });
+});
+
+// Take a future week back to draft (staff stop seeing it). The current and past weeks can't be hidden.
+app.delete("/api/schedule/publish/:weekStart", requireAuth, async (req, res) => {
+  const weekStart = req.params.weekStart;
+  if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
+  if (weekStart <= mondayOfIso(ownerToday())) return res.status(400).json({ error: "The current week is always visible to staff." });
+  await pool.query("DELETE FROM schedule_published WHERE restaurant_id = $1 AND week_start = $2", [req.restaurantId, weekStart]);
+  res.json({ weekStart, published: false, visibleToStaff: false });
 });
 
 app.post("/api/schedule", requireAuth, async (req, res) => {
@@ -3507,13 +3577,16 @@ async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds
   const availabilityByStaff = await loadAvailabilityMap(restaurantId, pool_.map((p) => p.id));
   const timeOffByStaff = await loadTimeOffMap(restaurantId, pool_.map((p) => p.id), weekStart, weekEnd);
   const historyStart = addDaysIso(weekStart, -56); // 8 weeks of history
-  const [existingRes, projRes, salesRes, pastShiftRes] = await Promise.all([
+  const prevStart = addDaysIso(weekStart, -7);
+  const [existingRes, projRes, salesRes, pastShiftRes, prevWeekRes] = await Promise.all([
     pool.query("SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3", [restaurantId, weekStart, weekEnd]),
     pool.query("SELECT * FROM sales_projections WHERE restaurant_id = $1 AND proj_date >= $2 AND proj_date <= $3", [restaurantId, weekStart, weekEnd]),
     pool.query("SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date >= $2 AND sale_date < $3 ORDER BY sale_date", [restaurantId, historyStart, weekStart]),
     pool.query("SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date < $3", [restaurantId, historyStart, weekStart]),
+    pool.query("SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date < $3 ORDER BY shift_date, start_time", [restaurantId, prevStart, weekStart]),
   ]);
   const existing = existingRes.rows.map(scheduleShiftRowToJson);
+  const previousWeek = prevWeekRes.rows.map(scheduleShiftRowToJson).filter((e) => staffById[e.staffId]);
   const plan = buildSalesPlan({
     weekStart,
     projections: projRes.rows,
@@ -3532,6 +3605,10 @@ async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds
       timeOff: Object.entries(timeOffByStaff[p.id] || {}).flatMap(([date, list]) => list.map((o) => ({ date, ...(o.from || o.to ? { unavailableFrom: o.from || "00:00", unavailableTo: o.to || "24:00" } : {}) }))),
       availability: Object.fromEntries(Object.entries(availabilityByStaff[p.id] || {}).map(([k, v]) => [k, { free: v.available, note: v.note || "", ...(v.available === false && (v.from || v.to) ? { unavailableFrom: v.from || "00:00", unavailableTo: v.to || "24:00" } : {}), ...(v.available === true && (v.from || v.to) ? { onlyAvailableFrom: v.from || "00:00", onlyAvailableUntil: v.to || "24:00" } : {}) }])),
     })),
+    previousWeek: {
+      weekStart: prevStart,
+      shifts: previousWeek.map((e) => ({ staffId: e.staffId, date: e.date, dayName: DAY_NAMES_EN[new Date(e.date + "T12:00:00Z").getUTCDay()], start: e.scheduledStart || e.startTime, end: e.scheduledEnd || e.endTime, role: e.role })),
+    },
     alreadyScheduledThisWeek: existing.filter((e) => staffById[e.staffId]).map((e) => ({ staffId: e.staffId, date: e.date, start: e.startTime, end: e.endTime, role: e.role })),
     salesPlan: plan.salesPlan,
     staffingBenchmarks: plan.benchmarks,
@@ -3547,6 +3624,7 @@ Rules:
 - One shift per person per day unless asked otherwise. Keep shifts between 3 and 12 hours. Avoid more than 40 hours a week per person unless asked.
 - Size crews to expected sales. "salesPlan" gives each day's expected sales (the manager's projection when set, otherwise that weekday's recent average) with the food / beverage split. Busier days get more people; food sales drive the kitchen and beverage sales drive bartenders and bussers. When "staffingBenchmarks.suggestedLaborHours" is present, aim for each day's total shift hours to land near that number (and mention it in the summary). Headcounts or hours the manager states explicitly always win over these suggestions. If there is no sales data, spread staff evenly and say that in the summary.
 - The data gives today's and tomorrow's real dates ("today", "tomorrow") and the dayName of every date in "week". Resolve words like today, tomorrow, tonight, this Friday or Saturday from them. If the manager asks for a day that is not inside "week", schedule nothing for it and say so in "summary" (they need to open that week in the grid).
+- "previousWeek" lists the shifts of the week just before the target week (original scheduled times). When the manager asks to copy, repeat, duplicate or reuse last week's / the previous / this week's schedule for the target week, reproduce those shifts exactly one week later (same person, weekday, times and role: add 7 days to each date), skipping only what conflicts with timeOff, availability or "alreadyScheduledThisWeek", and mention anything you skipped in "summary". If previousWeek.shifts is empty, say last week had no shifts for this group of staff.
 - Times are 24-hour "HH:MM". Dates are YYYY-MM-DD and must fall inside the week.
 - If the request can't be fully met (not enough staff, conflicts), schedule what you can and say so briefly in "summary".
 Reply with ONLY a JSON object: {"summary":"<one or two sentences, in ${LANG_NAMES[lang] || "English"}>","shifts":[{"staffId":"","date":"","startTime":"","endTime":"","role":""}]}.
