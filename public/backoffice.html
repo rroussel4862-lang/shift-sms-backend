@@ -1519,7 +1519,7 @@ async function loadSchedule() {
       actualSales[a.date] = a.amount; actualSource[a.date] = a.source;
       // each service's actual = its food + beverage from the Sales tab (plus any amount a POS reported for a service)
       const bySvc = { ...(a.serviceAmounts || {}) };
-      Object.keys(a.serviceSplit || {}).forEach(k => { bySvc[k] = (a.serviceSplit[k].food || 0) + (a.serviceSplit[k].bev || 0); });
+      Object.keys(a.serviceSplit || {}).forEach(k => { bySvc[k] = Math.round(((a.serviceSplit[k].food || 0) + (a.serviceSplit[k].bev || 0)) * 100) / 100; });
       actualSvc[a.date] = bySvc;
     });
   }
