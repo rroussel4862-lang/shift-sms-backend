@@ -2169,7 +2169,18 @@ app.post("/api/schedule/punch", requireAuth, async (req, res) => {
 });
 
 app.delete("/api/schedule/:id", requireAuth, async (req, res) => {
+  // ?notify=1 (the punch clock's "Cancel shift") also texts the person, but only for a shift that hasn't happened yet.
+  const { rows } = req.query.notify === "1"
+    ? await pool.query("SELECT * FROM schedule_shifts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId])
+    : { rows: [] };
   await pool.query("DELETE FROM schedule_shifts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  if (rows[0]) {
+    const sh = scheduleShiftRowToJson(rows[0]);
+    if (sh.date >= ownerToday()) {
+      const when = (loc) => `${new Date(sh.date + "T12:00:00").toLocaleDateString(loc, { weekday: "short", month: "short", day: "numeric" })} (${sh.startTime}–${sh.endTime})`;
+      notifyStaff(req.restaurantId, sh.staffId, `Votre quart du ${when("fr-CA")} a été annulé.`, `Your shift on ${when("en-CA")} has been cancelled.`);
+    }
+  }
   res.status(204).end();
 });
 

@@ -53,3 +53,32 @@ describe("punch clock", () => {
     expect(await get()).toMatchObject({ startTime: "17:00" });
   });
 });
+
+describe("cancelling a shift from the punch clock", () => {
+  const smsCount = async (phone) => (await pool.query("SELECT COUNT(*)::int AS n FROM activity_log WHERE restaurant_id = $1 AND event_type = 'sms_sent' AND detail LIKE $2", [A.restaurantId, `%${phone}%`])).rows[0].n;
+  const waitFor = async (fn, ms = 3000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await new Promise((r) => setTimeout(r, 100)); } return false; };
+  const mk = async (date) => (await A.agent.post("/api/schedule").send({ staffId: ana, date, startTime: "17:00", endTime: "22:00", role: "Server" })).body;
+
+  test("notify=1 on a future shift removes it and texts the person; a plain delete does not", async () => {
+    const phone = (await pool.query("SELECT phone FROM staff WHERE id = $1", [ana])).rows[0].phone;
+    const before = await smsCount(phone);
+    const s1 = await mk("2030-01-10");
+    expect((await A.agent.delete(`/api/schedule/${s1.id}?notify=1`)).status).toBe(204);
+    expect(await waitFor(async () => (await smsCount(phone)) === before + 1)).toBe(true);
+    const s2 = await mk("2030-01-11");
+    expect((await A.agent.delete(`/api/schedule/${s2.id}`)).status).toBe(204);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(await smsCount(phone)).toBe(before + 1);
+  });
+
+  test("a past shift is removed without a text, and another restaurant can't delete it", async () => {
+    const phone = (await pool.query("SELECT phone FROM staff WHERE id = $1", [ana])).rows[0].phone;
+    const before = await smsCount(phone);
+    const past = await mk("2020-01-10");
+    await B.agent.delete(`/api/schedule/${past.id}?notify=1`);
+    expect((await pool.query("SELECT 1 FROM schedule_shifts WHERE id = $1", [past.id])).rows).toHaveLength(1);
+    expect((await A.agent.delete(`/api/schedule/${past.id}?notify=1`)).status).toBe(204);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(await smsCount(phone)).toBe(before);
+  });
+});
