@@ -173,7 +173,7 @@ async function initDb() {
   if (!pubExists[0].t) {
     await pool.query(`
       INSERT INTO schedule_published (restaurant_id, week_start, published_at)
-      SELECT DISTINCT restaurant_id, to_char(shift_date - ((EXTRACT(ISODOW FROM shift_date)::int - 1) * INTERVAL '1 day'), 'YYYY-MM-DD'), $1
+      SELECT DISTINCT restaurant_id, to_char(shift_date - ((EXTRACT(ISODOW FROM shift_date)::int - 1) * INTERVAL '1 day'), 'YYYY-MM-DD'), $1::bigint
       FROM schedule_shifts
       ON CONFLICT DO NOTHING
     `, [Date.now()]);
