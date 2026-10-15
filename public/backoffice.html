@@ -532,7 +532,7 @@
     <div class="section-panel" id="sectionSales">
       <div class="toolbar"><div>
         <h2 data-i18n="sales.h2">Weekly sales</h2>
-        <div class="desc" data-i18n="sales.desc">Food and alcohol sales for each day. Type them in for now — when your POS is connected this grid fills in by itself and the cells lock.</div>
+        <div class="desc" data-i18n="sales.desc">Food and beverage sales for each service, each day. Type them in for now — when your POS is connected this grid fills in by itself and the cells lock.</div>
       </div></div>
       <div class="week-nav">
         <button class="ghost" onclick="shiftSalesWeek(-1)" data-i18n="sched.prev">← Prev week</button>
@@ -578,8 +578,8 @@ I18N.add({
     "gate.title": "Log in required", "gate.p": "The Back Office uses the same account as the main app. Log in there first, then come back to this page.", "gate.link": "Go to the main app",
     "header.sub": "Business data that keeps the app up to date — separate from day-to-day operations.", "header.back": "← Back to main app", heading: "Back Office", headingOf: n => `${n} — Back Office`,
     "nav.punch": "Punch clock", "punch.h2": "Punch clock", "punch.desc": "Enter when each person actually clocked in and out. When you press Done, those times replace the scheduled times in the schedule grid.", "punch.prev": "← Previous day", "punch.next": "Next day →", "punch.today": "Today", "punch.done": "Done — update the schedule", "punch.hint": "Only rows where you typed a time are changed.", "punch.empty": "Nobody is scheduled this day.", "punch.scheduled": "Scheduled", "punch.in": "Punch in", "punch.out": "Punch out", "punch.asSched": "= Scheduled", "punch.applied": "Updated", "punch.undo": "Undo", "punch.delete": "Cancel shift", "punch.deleted": "Shift removed from the schedule and the person was texted", "punch.confirmDelete": (n, t) => `Remove ${n}'s shift (${t}) from the schedule and text them that it was cancelled? This cannot be undone.`, "punch.nothing": "Type at least one punch time first.", "punch.chipTitle": (a, b) => `Punched. Scheduled ${a}–${b}`, "punch.saved": n => `${n} shift${n === 1 ? "" : "s"} updated in the schedule`, "nav.staff": "Staff", "nav.schedule": "Schedule", "nav.sales": "Sales", "nav.revenue": "Revenue history", "nav.soon": "Coming next",
-    "sales.h2": "Weekly sales", "sales.desc": "Food and alcohol sales for each day. Type them in for now — when your POS is connected this grid fills in by itself and the cells lock.",
-    "sales.food": "Food sales", "sales.alcohol": "Alcohol sales", "sales.total": "Total sales", "sales.source": "Source", "sales.manual": "Manual", "sales.pos": "POS", "sales.weekTotal": "Week", "sales.unsplit": "Total only (not split)", "sales.saved": "Sales saved",
+    "sales.h2": "Weekly sales", "sales.desc": "Food and beverage sales for each service, each day. Type them in for now — when your POS is connected this grid fills in by itself and the cells lock.",
+    "sales.svcFood": n => `${n} — food`, "sales.svcBev": n => `${n} — beverage`, "sched.acFromSales": "Filled in from the Sales tab", "sales.food": "Food sales", "sales.alcohol": "Beverage sales", "sales.total": "Total sales", "sales.source": "Source", "sales.manual": "Manual", "sales.pos": "POS", "sales.weekTotal": "Week", "sales.unsplit": "Total only (not split)", "sales.saved": "Sales saved",
     "rev.h2": "Revenue history", "rev.desc": "Compare this year to last year. Enter last year's weekly totals once; this year fills in automatically from your daily sales.",
     "rev.weekRule": "Weeks run Monday to Sunday and count toward the month that contains their Thursday. Only finished weeks are compared, and only weeks where both years have a number.",
     "rev.weeklyHint": "Weekly detail — type last year's total for each week in the \"Last year\" column.",
@@ -626,8 +626,8 @@ I18N.add({
     "gate.title": "Connexion requise", "gate.p": "L'arrière-boutique utilise le même compte que l'application principale. Connectez-vous d'abord là-bas, puis revenez sur cette page.", "gate.link": "Aller à l'application principale",
     "header.sub": "Les données d'affaires qui gardent l'application à jour — séparées des opérations quotidiennes.", "header.back": "← Retour à l'application principale", heading: "Arrière-boutique", headingOf: n => `${n} — Arrière-boutique`,
     "nav.punch": "Pointage", "punch.h2": "Pointage", "punch.desc": "Entrez l'heure réelle d'arrivée et de départ de chaque personne. Quand vous appuyez sur Terminé, ces heures remplacent les heures prévues dans la grille d'horaire.", "punch.prev": "← Jour précédent", "punch.next": "Jour suivant →", "punch.today": "Aujourd'hui", "punch.done": "Terminé — mettre l'horaire à jour", "punch.hint": "Seules les lignes où vous avez entré une heure sont modifiées.", "punch.empty": "Personne n'est à l'horaire ce jour-là.", "punch.scheduled": "Prévu", "punch.in": "Arrivée", "punch.out": "Départ", "punch.asSched": "= Prévu", "punch.applied": "Mis à jour", "punch.undo": "Annuler", "punch.delete": "Annuler le quart", "punch.deleted": "Quart retiré de l'horaire et la personne a été avisée par texto", "punch.confirmDelete": (n, t) => `Retirer le quart de ${n} (${t}) de l'horaire et l'aviser par texto de l'annulation ? Cette action est irréversible.`, "punch.nothing": "Entrez d'abord au moins une heure.", "punch.chipTitle": (a, b) => `Pointé. Prévu ${a}–${b}`, "punch.saved": n => `${n} quart${n === 1 ? "" : "s"} mis à jour dans l'horaire`, "nav.staff": "Personnel", "nav.schedule": "Horaire", "nav.sales": "Ventes", "nav.revenue": "Historique des revenus", "nav.soon": "Bientôt disponible",
-    "sales.h2": "Ventes de la semaine", "sales.desc": "Ventes de nourriture et d'alcool pour chaque jour. Saisissez-les pour l'instant — une fois votre caisse (POS) connectée, cette grille se remplit seule et les cases se verrouillent.",
-    "sales.food": "Ventes de nourriture", "sales.alcohol": "Ventes d'alcool", "sales.total": "Ventes totales", "sales.source": "Source", "sales.manual": "Manuel", "sales.pos": "Caisse", "sales.weekTotal": "Semaine", "sales.unsplit": "Total seulement (non réparti)", "sales.saved": "Ventes enregistrées",
+    "sales.h2": "Ventes de la semaine", "sales.desc": "Ventes de nourriture et de boissons pour chaque service, chaque jour. Saisissez-les pour l'instant — une fois votre caisse (POS) connectée, cette grille se remplit seule et les cases se verrouillent.",
+    "sales.svcFood": n => `${n} — nourriture`, "sales.svcBev": n => `${n} — boissons`, "sched.acFromSales": "Rempli à partir de l'onglet Ventes", "sales.food": "Ventes de nourriture", "sales.alcohol": "Ventes de boissons", "sales.total": "Ventes totales", "sales.source": "Source", "sales.manual": "Manuel", "sales.pos": "Caisse", "sales.weekTotal": "Semaine", "sales.unsplit": "Total seulement (non réparti)", "sales.saved": "Ventes enregistrées",
     "rev.h2": "Historique des revenus", "rev.desc": "Comparez cette année à l'an dernier. Saisissez une fois les totaux hebdomadaires de l'an dernier; cette année se remplit seule à partir de vos ventes quotidiennes.",
     "rev.weekRule": "Les semaines vont du lundi au dimanche et comptent pour le mois qui contient leur jeudi. Seules les semaines terminées sont comparées, et seulement si les deux années ont un chiffre.",
     "rev.weeklyHint": "Détail hebdomadaire — saisissez le total de l'an dernier pour chaque semaine dans la colonne « An dernier ».",
@@ -674,8 +674,8 @@ I18N.add({
     "gate.title": "Se requiere iniciar sesión", "gate.p": "La Oficina usa la misma cuenta que la aplicación principal. Inicia sesión allí primero y luego vuelve a esta página.", "gate.link": "Ir a la aplicación principal",
     "header.sub": "Datos del negocio que mantienen la aplicación al día — separados de las operaciones diarias.", "header.back": "← Volver a la aplicación principal", heading: "Oficina", headingOf: n => `${n} — Oficina`,
     "nav.punch": "Registro de horas", "punch.h2": "Registro de horas", "punch.desc": "Anota cuándo entró y salió realmente cada persona. Al pulsar Listo, esas horas reemplazan las horas programadas en la cuadrícula del horario.", "punch.prev": "← Día anterior", "punch.next": "Día siguiente →", "punch.today": "Hoy", "punch.done": "Listo — actualizar el horario", "punch.hint": "Solo se cambian las filas donde escribiste una hora.", "punch.empty": "Nadie está programado ese día.", "punch.scheduled": "Programado", "punch.in": "Entrada", "punch.out": "Salida", "punch.asSched": "= Programado", "punch.applied": "Actualizado", "punch.undo": "Deshacer", "punch.delete": "Cancelar turno", "punch.deleted": "Turno eliminado del horario y la persona fue avisada por texto", "punch.confirmDelete": (n, t) => `¿Quitar el turno de ${n} (${t}) del horario y avisarle por texto de la cancelación? Esta acción no se puede deshacer.`, "punch.nothing": "Escribe al menos una hora primero.", "punch.chipTitle": (a, b) => `Registrado. Programado ${a}–${b}`, "punch.saved": n => `${n} turno${n === 1 ? "" : "s"} actualizado${n === 1 ? "" : "s"} en el horario`, "nav.staff": "Personal", "nav.schedule": "Horario", "nav.sales": "Ventas", "nav.revenue": "Historial de ingresos", "nav.soon": "Próximamente",
-    "sales.h2": "Ventas de la semana", "sales.desc": "Ventas de comida y alcohol de cada día. Escríbelas por ahora — cuando tu caja (POS) esté conectada, esta cuadrícula se llena sola y las celdas se bloquean.",
-    "sales.food": "Ventas de comida", "sales.alcohol": "Ventas de alcohol", "sales.total": "Ventas totales", "sales.source": "Origen", "sales.manual": "Manual", "sales.pos": "Caja", "sales.weekTotal": "Semana", "sales.unsplit": "Solo total (sin dividir)", "sales.saved": "Ventas guardadas",
+    "sales.h2": "Ventas de la semana", "sales.desc": "Ventas de comida y bebidas de cada servicio, cada día. Escríbelas por ahora — cuando tu caja (POS) esté conectada, esta cuadrícula se llena sola y las celdas se bloquean.",
+    "sales.svcFood": n => `${n} — comida`, "sales.svcBev": n => `${n} — bebidas`, "sched.acFromSales": "Se llena desde la pestaña Ventas", "sales.food": "Ventas de comida", "sales.alcohol": "Ventas de bebidas", "sales.total": "Ventas totales", "sales.source": "Origen", "sales.manual": "Manual", "sales.pos": "Caja", "sales.weekTotal": "Semana", "sales.unsplit": "Solo total (sin dividir)", "sales.saved": "Ventas guardadas",
     "rev.h2": "Historial de ingresos", "rev.desc": "Compara este año con el pasado. Escribe una vez los totales semanales del año pasado; este año se llena solo con tus ventas diarias.",
     "rev.weekRule": "Las semanas van de lunes a domingo y cuentan para el mes que contiene su jueves. Solo se comparan semanas terminadas y solo si ambos años tienen un dato.",
     "rev.weeklyHint": "Detalle semanal — escribe el total del año pasado de cada semana en la columna «Año pasado».",
@@ -788,8 +788,9 @@ function svcName(sv) {
 function renderSvcToggle() {
   const el = document.getElementById("svcToggle");
   if (!el) return;
-  if (serviceView !== "both" && !SERVICES.some(sv => sv.id === serviceView)) serviceView = "both";
-  if (SERVICES.length < 2) { el.innerHTML = ""; return; }
+  serviceView = "both";
+  el.innerHTML = ""; // one big schedule grid: the Lunch/Dinner switch is gone (services still define the sales rows)
+  return;
   el.innerHTML = [`<button class="${serviceView === "both" ? "active" : ""}" onclick="setServiceView('both')">${escapeHtml(tr("sched.svcBoth"))}</button>`]
     .concat(SERVICES.map(sv => `<button class="${serviceView === sv.id ? "active" : ""}" onclick="setServiceView('${sv.id}')">${escapeHtml(svcName(sv))}</button>`)).join("");
 }
@@ -798,7 +799,9 @@ function setServiceView(v) {
   renderSvcToggle();
   renderScheduleGrid();
 }
+let servicesLoaded = false;
 async function loadServices() {
+  servicesLoaded = true;
   const r = await api("/api/services");
   if (r.ok && Array.isArray(r.data.services) && r.data.services.length) SERVICES = buildServices(r.data.services);
   renderSvcToggle();
@@ -1240,6 +1243,7 @@ function goToSalesThisWeek() { salesWeek = getMonday(new Date()); loadSales(); }
 async function loadSales() {
   const end = new Date(salesWeek); end.setDate(end.getDate() + 6);
   document.getElementById("salesWeekLabel").textContent = `${formatShort(salesWeek)} – ${formatShort(end)}, ${end.getFullYear()}`;
+  if (!servicesLoaded) await loadServices();
   const result = await api(`/api/actual-sales?start=${toISODate(salesWeek)}&end=${toISODate(end)}`);
   if (!result.ok) return showBanner(result.error, "warn");
   salesRows = {};
@@ -1258,41 +1262,45 @@ function renderSales() {
   document.getElementById("salesHeadRow").innerHTML = `<th style="text-align:left"></th>` +
     dates.map((d, i) => `<th class="${toISODate(d) === todayStr ? "today" : ""}">${names[i]}<span class="day-date">${d.getMonth() + 1}/${d.getDate()}</span></th>`).join("") + `<th>${tr("sales.weekTotal")}</th>`;
 
-  let foodSum = 0, bevSum = 0, totalSum = 0;
-  const cell = (kind, d) => {
+  let totalSum = 0;
+  const cellVal = (kind, svc, ds) => { const e = ((salesRows[ds] || {}).serviceSplit || {})[svc]; return e ? e[kind] : null; };
+  const cell = (kind, svc, d) => {
     const ds = toISODate(d), r = salesRows[ds] || {};
     const locked = r.source && r.source !== "manual";
-    const v = kind === "food" ? r.foodAmount : r.bevAmount;
-    return `<td class="${ds === todayStr ? "today" : ""}"><input type="text" inputmode="decimal" ${locked ? "readonly" : ""} data-date="${ds}" data-kind="${kind}" value="${v !== null && v !== undefined ? v : ""}" placeholder="$" onblur="saveSalesCell(this)" onkeydown="if(event.key==='Enter')this.blur()" /></td>`;
+    const v = cellVal(kind, svc, ds);
+    return `<td class="${ds === todayStr ? "today" : ""}"><input type="text" inputmode="decimal" ${locked ? "readonly" : ""} data-date="${ds}" data-kind="${kind}" data-svc="${svc}" value="${v !== null && v !== undefined ? v : ""}" placeholder="$" onblur="saveSalesCell(this)" onkeydown="if(event.key==='Enter')this.blur()" /></td>`;
   };
   const totals = dates.map(d => {
     const r = salesRows[toISODate(d)];
     if (!r) return null;
     const t = r.amount !== null && r.amount !== undefined ? r.amount : null;
-    if (r.foodAmount !== null && r.foodAmount !== undefined) foodSum += r.foodAmount;
-    if (r.bevAmount !== null && r.bevAmount !== undefined) bevSum += r.bevAmount;
     if (t !== null) totalSum += t;
-    return { t, unsplit: t !== null && (r.foodAmount === null || r.foodAmount === undefined) && (r.bevAmount === null || r.bevAmount === undefined) };
+    return { t, unsplit: t !== null && Object.keys(r.serviceSplit || {}).length === 0 };
   });
   const srcCells = dates.map(d => {
     const r = salesRows[toISODate(d)];
     if (!r) return `<td>—</td>`;
     return `<td><span class="src-pill ${r.source && r.source !== "manual" ? "pos" : ""}">${r.source && r.source !== "manual" ? tr("sales.pos") : tr("sales.manual")}</span></td>`;
   }).join("");
-  document.getElementById("salesBody").innerHTML = `
-    <tr><td class="lbl">${tr("sales.food")}</td>${dates.map(d => cell("food", d)).join("")}<td class="num">${money2(foodSum)}</td></tr>
-    <tr><td class="lbl">${tr("sales.alcohol")}</td>${dates.map(d => cell("bev", d)).join("")}<td class="num">${money2(bevSum)}</td></tr>
+  // one Food row and one Beverage row for every service (Brunch, Dinner, ...); a restaurant with a single service keeps the plain labels
+  const rowsHtml = SERVICES.map(sv => ["food", "bev"].map(kind => {
+    let sum = 0;
+    const label = SERVICES.length > 1 ? tr(kind === "food" ? "sales.svcFood" : "sales.svcBev", svcName(sv)) : tr(kind === "food" ? "sales.food" : "sales.alcohol");
+    const cells = dates.map(d => { const v = cellVal(kind, sv.id, toISODate(d)); if (v !== null && v !== undefined) sum += v; return cell(kind, sv.id, d); }).join("");
+    return `<tr><td class="lbl">${escapeHtml(label)}</td>${cells}<td class="num">${money2(sum)}</td></tr>`;
+  }).join("")).join("");
+  document.getElementById("salesBody").innerHTML = rowsHtml + `
     <tr class="total"><td class="lbl">${tr("sales.total")}</td>${totals.map(x => `<td class="num" title="${x && x.unsplit ? escapeHtml(tr("sales.unsplit")) : ""}">${x && x.t !== null ? money2(x.t) : "—"}${x && x.unsplit ? " *" : ""}</td>`).join("")}<td class="num">${money2(totalSum)}</td></tr>
     <tr><td class="lbl">${tr("sales.source")}</td>${srcCells}<td></td></tr>`;
 }
 
 async function saveSalesCell(input) {
-  const ds = input.dataset.date, kind = input.dataset.kind;
+  const ds = input.dataset.date, kind = input.dataset.kind, svc = input.dataset.svc;
   const raw = input.value.trim().replace(/[$,\s]/g, "");
-  const prev = salesRows[ds] ? (kind === "food" ? salesRows[ds].foodAmount : salesRows[ds].bevAmount) : null;
+  const e = salesRows[ds] && (salesRows[ds].serviceSplit || {})[svc];
+  const prev = e ? e[kind] : null;
   if ((raw === "" && (prev === null || prev === undefined)) || (raw !== "" && Number(raw) === prev)) return;
-  const body = { date: ds, source: "manual" };
-  body[kind === "food" ? "foodAmount" : "bevAmount"] = raw === "" ? null : raw;
+  const body = { date: ds, source: "manual", serviceSplit: { [svc]: { [kind]: raw === "" ? null : raw } } };
   const result = await api("/api/actual-sales", { method: "PUT", body: JSON.stringify(body) });
   if (!result.ok) { showBanner(result.error, "warn"); return loadSales(); }
   salesRows[ds] = result.data;
@@ -1507,7 +1515,13 @@ async function loadSchedule() {
   }
   actualSales = {};
   if (actualResult.ok) {
-    actualResult.data.forEach(a => { actualSales[a.date] = a.amount; actualSvc[a.date] = a.serviceAmounts || {}; actualSource[a.date] = a.source; });
+    actualResult.data.forEach(a => {
+      actualSales[a.date] = a.amount; actualSource[a.date] = a.source;
+      // each service's actual = its food + beverage from the Sales tab (plus any amount a POS reported for a service)
+      const bySvc = { ...(a.serviceAmounts || {}) };
+      Object.keys(a.serviceSplit || {}).forEach(k => { bySvc[k] = (a.serviceSplit[k].food || 0) + (a.serviceSplit[k].bev || 0); });
+      actualSvc[a.date] = bySvc;
+    });
   }
   renderScheduleGrid();
 }
@@ -1711,8 +1725,8 @@ function unavailBox(staffId, dateStr, svc) {
   if (weekly && weekly.available === false) html += unavailBoxFor(weekly, svc);
   ((timeOffByStaff[staffId] || {})[dateStr] || []).forEach(o => { html += unavailBoxFor(o, svc, true); });
   if (weekly && weekly.available === true && (weekly.from || weekly.to)) html += limitedBox(weekly, svc);
-  // the staff member's own note ("prefer closing", "after the lunch rush"...) shows once per day, in the first service row
-  if (weekly && weekly.note && SERVICES[0] && svc === SERVICES[0].id) html += `<div class="note-box" title="${escapeHtml(weekly.note)}">📝 ${escapeHtml(weekly.note)}</div>`;
+  // the staff member's own note ("prefer closing", "after the lunch rush"...) shows once per day
+  if (weekly && weekly.note && (!svc || (SERVICES[0] && svc === SERVICES[0].id))) html += `<div class="note-box" title="${escapeHtml(weekly.note)}">📝 ${escapeHtml(weekly.note)}</div>`;
   return html;
 }
 // "Free, but only from 4 PM": shown in the service rows that fall outside those hours
@@ -1720,10 +1734,12 @@ function limitedBox(e, svc) {
   const mins = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
   const f = e.from ? mins(e.from) : 0;
   const tEnd = e.to ? (mins(e.to) <= f ? 1440 : mins(e.to)) : 1440;
-  const i = SERVICES.findIndex(x => x.id === svc);
-  if (i < 0) return "";
-  const sf = mins(SERVICES[i].from), ef = i + 1 < SERVICES.length ? mins(SERVICES[i + 1].from) : 1440;
-  const sStart = i === 0 ? 0 : sf;
+  let sStart = 0, ef = 1440; // no service given = the whole day (single schedule grid)
+  if (svc) {
+    const i = SERVICES.findIndex(x => x.id === svc);
+    if (i < 0) return "";
+    sStart = i === 0 ? 0 : mins(SERVICES[i].from); ef = i + 1 < SERVICES.length ? mins(SERVICES[i + 1].from) : 1440;
+  }
   if (!(f > sStart || tEnd < ef)) return "";
   const label = e.from && e.to ? `${tr("sched.availShort")} ${formatTime(e.from)}–${formatTime(e.to)}` : e.from ? `${tr("sched.availFrom")} ${formatTime(e.from)}` : `${tr("sched.availUntil")} ${formatTime(e.to)}`;
   return `<div class="avail-box" title="${escapeHtml(e.note || "")}">${label}</div>`;
@@ -1736,19 +1752,21 @@ function unavailBoxFor(e, svc, showNote) {
   let t = e.to ? mins(e.to) : 1440;
   if (t <= f) t = 1440;
   // show it in the service rows the unavailable hours touch
-  const i = SERVICES.findIndex(x => x.id === svc);
-  const sf = mins(SERVICES[i].from), ef = i + 1 < SERVICES.length ? mins(SERVICES[i + 1].from) : 1440;
-  const sStart = i === 0 ? 0 : sf;
+  let sStart = 0, ef = 1440;
+  if (svc) {
+    const i = SERVICES.findIndex(x => x.id === svc);
+    sStart = i === 0 ? 0 : mins(SERVICES[i].from); ef = i + 1 < SERVICES.length ? mins(SERVICES[i + 1].from) : 1440;
+  }
   if (!(f < ef && t > sStart)) return "";
   const label = `${e.from ? formatTime(e.from) : tr("sched.unavailStart")}–${e.to ? formatTime(e.to) : tr("sched.unavailEnd")}`;
   return `<div class="unavail-box" title="${escapeHtml(e.note || "")}">${tr("sched.unavailShort")} ${label}${noteTxt}</div>`;
 }
 
-function renderDayCell(staffMember, dateStr, groupRole, svc) {
-  const shiftsForCell = scheduleShifts.filter(s => s.staffId === staffMember.id && s.date === dateStr && shiftGroup(staffMember, s) === groupRole && serviceOf(s.startTime) === svc);
-  const isAdding = addingCell && addingCell.staffId === staffMember.id && addingCell.dateStr === dateStr && addingCell.role === groupRole && addingCell.svc === svc;
+function renderDayCell(staffMember, dateStr, groupRole) {
+  const shiftsForCell = scheduleShifts.filter(s => s.staffId === staffMember.id && s.date === dateStr && shiftGroup(staffMember, s) === groupRole);
+  const isAdding = addingCell && addingCell.staffId === staffMember.id && addingCell.dateStr === dateStr && addingCell.role === groupRole;
 
-  let html = unavailBox(staffMember.id, dateStr, svc);
+  let html = unavailBox(staffMember.id, dateStr);
   html += shiftsForCell.map(s => s.id === editingShiftId ? `
     <div class="shift-form edit-form" style="--role-color:${roleColor(s.role)}">
       <input type="time" id="editStart" value="${s.startTime}" />
@@ -1777,7 +1795,7 @@ function renderDayCell(staffMember, dateStr, groupRole, svc) {
     </div>
   `).join("");
 
-  html += draftShifts.filter(d => d.staffId === staffMember.id && d.date === dateStr && d.role === groupRole && serviceOf(d.startTime) === svc).map(d => `
+  html += draftShifts.filter(d => d.staffId === staffMember.id && d.date === dateStr && d.role === groupRole).map(d => `
     <div class="shift-chip draft" style="--role-color:${roleColor(d.role)}">
       <div class="chip-top">
         <div class="times">${formatTime(d.startTime)}–${formatTime(d.endTime)}</div>
@@ -1789,8 +1807,8 @@ function renderDayCell(staffMember, dateStr, groupRole, svc) {
   if (isAdding) {
     html += `
       <div class="shift-form">
-        <input type="time" id="shiftStart-${staffMember.id}-${dateStr}" value="${SERVICES.find(x => x.id === svc).def[0]}" />
-        <input type="time" id="shiftEnd-${staffMember.id}-${dateStr}" value="${SERVICES.find(x => x.id === svc).def[1]}" />
+        <input type="time" id="shiftStart-${staffMember.id}-${dateStr}" value="${SERVICES[SERVICES.length - 1].def[0]}" />
+        <input type="time" id="shiftEnd-${staffMember.id}-${dateStr}" value="${SERVICES[SERVICES.length - 1].def[1]}" />
         <select id="shiftRoleSel-${staffMember.id}-${dateStr}">
           <option value="">${tr("sched.rolePh")}</option>
           ${ROLES.map(r => `<option value="${r}"${r === groupRole ? " selected" : ""}>${escapeHtml(roleLabel(r))}</option>`).join("")}
@@ -1802,8 +1820,8 @@ function renderDayCell(staffMember, dateStr, groupRole, svc) {
       </div>
     `;
   } else {
-    html += `<button class="add-shift-btn" onclick="showAddShiftForm('${staffMember.id}','${dateStr}','${groupRole}','${svc}')">${tr("sched.addShift")}</button>`;
-    if (copiedShift && serviceOf(copiedShift.startTime) === svc) {
+    html += `<button class="add-shift-btn" onclick="showAddShiftForm('${staffMember.id}','${dateStr}','${groupRole}')">${tr("sched.addShift")}</button>`;
+    if (copiedShift) {
       html += `<button class="paste-btn" onclick="pasteShift('${staffMember.id}','${dateStr}','${groupRole}')">${tr("sched.paste")}</button>`;
     }
   }
@@ -1823,8 +1841,8 @@ async function saveShiftEdit(id) {
   loadSchedule();
 }
 
-function showAddShiftForm(staffId, dateStr, role, svc) {
-  addingCell = { staffId, dateStr, role, svc }; editingShiftId = null;
+function showAddShiftForm(staffId, dateStr, role) {
+  addingCell = { staffId, dateStr, role }; editingShiftId = null;
   renderScheduleGrid();
 }
 
@@ -1917,8 +1935,8 @@ function renderScheduleGrid() {
       const dateStr = toISODate(d);
       const v = (store[dateStr] || {})[svc];
       if (has(v)) { tot += v; any = true; }
-      const locked = kind === "actual" && actualSource[dateStr] && actualSource[dateStr] !== "manual";
-      return `<td><input type="text" inputmode="decimal" value="${has(v) ? v : ''}" placeholder="$"${locked ? " readonly" : ""} onblur="saveServiceSales('${kind}','${svc}','${dateStr}',this)" /></td>`;
+      if (kind === "actual") return `<td><input type="text" value="${has(v) ? v : ''}" placeholder="—" readonly title="${escapeHtml(tr("sched.acFromSales"))}" style="cursor:default;opacity:.85" /></td>`;
+      return `<td><input type="text" inputmode="decimal" value="${has(v) ? v : ''}" placeholder="$" onblur="saveServiceSales('${kind}','${svc}','${dateStr}',this)" /></td>`;
     }).join("");
     rowEl.innerHTML = `<td class="row-label">${label}</td>${cells}<td class="day-total">${any ? money(tot) : "—"}</td>`;
   };
@@ -1970,23 +1988,21 @@ function renderScheduleGrid() {
     const label = houseLabel();
     body.innerHTML = `<tr><td colspan="9" class="empty-note">${tr("sched.noStaff", label)}</td></tr>`;
   } else {
-    body.innerHTML = SERVICES.filter(sv => serviceView === "both" || serviceView === sv.id).map(sv => {
-      let svcHours = 0, svcCost = 0;
-      const sectionHtml = groups.map(g => {
-        const head = `<tr class="role-row" style="--role-color:${roleColor(g.role)}"><td colspan="9">${escapeHtml(roleLabel(g.role))}<span class="cnt">${g.people.length}</span></td></tr>`;
-        const rowsHtml = g.people.map(p => {
-          let weekHours = 0, weekCost = 0;
-          const dayCells = weekDates.map(d => {
-            const dateStr = toISODate(d);
-            scheduleShifts.filter(s => s.staffId === p.id && s.date === dateStr && shiftGroup(p, s) === g.role && serviceOf(s.startTime) === sv.id).forEach(s => {
-              const hrs = computeHours(s.startTime, s.endTime);
-              weekHours += hrs;
-              weekCost += hrs * (p.hourlyRate || 0);
-            });
-            return `<td class="day-cell" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${p.id}','${dateStr}','${g.role}')">${renderDayCell(p, dateStr, g.role, sv.id)}</td>`;
-          }).join("");
-          svcHours += weekHours; svcCost += weekCost;
-          return `
+    // ONE big grid: every shift of the day sits in the person's cell, whatever service it falls in.
+    body.innerHTML = groups.map(g => {
+      const head = `<tr class="role-row" style="--role-color:${roleColor(g.role)}"><td colspan="9">${escapeHtml(roleLabel(g.role))}<span class="cnt">${g.people.length}</span></td></tr>`;
+      const rowsHtml = g.people.map(p => {
+        let weekHours = 0, weekCost = 0;
+        const dayCells = weekDates.map(d => {
+          const dateStr = toISODate(d);
+          scheduleShifts.filter(s => s.staffId === p.id && s.date === dateStr && shiftGroup(p, s) === g.role).forEach(s => {
+            const hrs = computeHours(s.startTime, s.endTime);
+            weekHours += hrs;
+            weekCost += hrs * (p.hourlyRate || 0);
+          });
+          return `<td class="day-cell" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${p.id}','${dateStr}','${g.role}')">${renderDayCell(p, dateStr, g.role)}</td>`;
+        }).join("");
+        return `
         <tr class="rl" style="--role-color:${roleColor(g.role)}">
           <td class="staff-cell">
             <div class="name">${escapeHtml(p.name)}</div>
@@ -1995,18 +2011,8 @@ function renderScheduleGrid() {
           ${dayCells}
           <td class="day-total">${weekHours.toFixed(1)}h<br>$${weekCost.toFixed(2)}</td>
         </tr>`;
-        }).join("");
-        return head + rowsHtml;
       }).join("");
-      let basis = 0, basisCost = 0;
-      weekDates.forEach(d => {
-        const ds = toISODate(d);
-        const sales = serviceSales(ds, sv.id);
-        if (sales && sales > 0) { basis += sales; basisCost += serviceDayCost(sv.id, ds, groups); }
-      });
-      const pctTxt = basis > 0 ? ` · ${(basisCost / basis * 100).toFixed(1)}% ${tr("sched.laborShort")}` : "";
-      const svcHead = `<tr class="svc-row" style="--svc-color:${sv.color}"><td colspan="9">${escapeHtml(svcName(sv))}<span class="cnt">${svcHours.toFixed(1)}h · $${svcCost.toFixed(2)}${pctTxt}</span></td></tr>`;
-      return svcHead + sectionHtml;
+      return head + rowsHtml;
     }).join("");
   }
 

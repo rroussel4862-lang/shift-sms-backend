@@ -64,12 +64,12 @@ describe("availability changes need a manager's approval", () => {
     const res = await ann.agent.put("/api/staff-auth/availability").send({ availability: {
       tue: { available: false, note: "", from: "17:00", to: "22:00" },
       wed: { available: false, note: "", from: "25:99", to: "nope" },
-      thu: { available: true, note: "", from: "10:00", to: "12:00" }, // hours only mean something on a busy day
+      thu: { available: true, note: "", from: "10:00", to: "12:00" }, // on a free day the hours mean "only available between these times"
     } });
     expect(res.body.pending).toEqual({
       tue: { available: false, note: "", from: "17:00", to: "22:00" },
       wed: { available: false, note: "" },
-      thu: { available: true, note: "" },
+      thu: { available: true, note: "", from: "10:00", to: "12:00" },
     });
     expect((await A.agent.get("/api/availability")).body[ann.id]).not.toHaveProperty("tue"); // not approved yet
     await A.agent.post(`/api/availability-requests/${ann.id}/approve`);

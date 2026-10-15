@@ -222,6 +222,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS services JSONB;`);
   await pool.query(`ALTER TABLE sales_projections ADD COLUMN IF NOT EXISTS service_amounts JSONB;`);
   await pool.query(`ALTER TABLE actual_sales ADD COLUMN IF NOT EXISTS service_amounts JSONB;`);
+  // Food / beverage split PER SERVICE: {serviceId: {food, bev}}. The day's food_amount / bev_amount / amount stay the sums of it.
+  await pool.query(`ALTER TABLE actual_sales ADD COLUMN IF NOT EXISTS service_split JSONB;`);
   await pool.query(`UPDATE sales_projections SET service_amounts = jsonb_strip_nulls(jsonb_build_object('lunch', lunch_amount, 'dinner', dinner_amount))
                     WHERE service_amounts IS NULL AND (lunch_amount IS NOT NULL OR dinner_amount IS NOT NULL)`);
   await pool.query(`UPDATE actual_sales SET service_amounts = jsonb_strip_nulls(jsonb_build_object('lunch', lunch_amount, 'dinner', dinner_amount))
@@ -2412,9 +2414,27 @@ app.put("/api/sales-projections", requireAuth, async (req, res) => {
 
 // ---------- actual sales (empty until a POS integration exists; this is the slot it will write into) ----------
 
-function actualSalesRowToJson(r) {
+// The per-service food/beverage split of a day. Days entered before services had their own rows (a whole-day food / beverage
+// pair and no split) are shown under the LAST service of the day (normally dinner) until the manager edits them.
+function effectiveServiceSplit(r, services) {
+  const out = {};
+  const sp = r && r.service_split;
+  if (sp && typeof sp === "object") {
+    Object.keys(sp).forEach((k) => {
+      const f = sp[k] && sp[k].food, b = sp[k] && sp[k].bev;
+      if ((f !== null && f !== undefined) || (b !== null && b !== undefined)) out[k] = { food: f !== null && f !== undefined ? Number(f) : null, bev: b !== null && b !== undefined ? Number(b) : null };
+    });
+    if (Object.keys(out).length) return out;
+  }
+  const hasF = r && r.food_amount !== null && r.food_amount !== undefined, hasB = r && r.bev_amount !== null && r.bev_amount !== undefined;
+  if ((hasF || hasB) && services && services.length) out[services[services.length - 1].id] = { food: hasF ? Number(r.food_amount) : null, bev: hasB ? Number(r.bev_amount) : null };
+  return out;
+}
+
+function actualSalesRowToJson(r, services) {
   const num = (v) => (v !== null && v !== undefined ? Number(v) : null);
   return {
+    serviceSplit: effectiveServiceSplit(r, services),
     date: r.sale_date instanceof Date ? r.sale_date.toISOString().slice(0, 10) : r.sale_date,
     amount: num(r.amount),
     foodAmount: num(r.food_amount),
@@ -2433,12 +2453,15 @@ app.get("/api/actual-sales", requireAuth, async (req, res) => {
     "SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date >= $2 AND sale_date <= $3",
     [req.restaurantId, start, end]
   );
-  res.json(rows.map(actualSalesRowToJson));
+  const services = await getServices(req.restaurantId);
+  res.json(rows.map((r) => actualSalesRowToJson(r, services)));
 });
 
-// Two ways to write a day's sales:
+// Ways to write a day's sales:
 //  - foodAmount and/or bevAmount: the manager's entry (or a POS that reports categories). The day's total is food + beverage.
 //  - amount only: a POS total with no split. The food/beverage split is cleared so the total stays authoritative.
+//  - serviceSplit: {serviceId: {food, bev}} — the Sales tab's rows. Each service's amount (what the schedule grid shows) is its
+//    food + beverage, and the day's food / beverage / total are the sums across services.
 // Empty string or null clears a value.
 app.put("/api/actual-sales", requireAuth, async (req, res) => {
   const { date, amount, foodAmount, bevAmount, source } = req.body || {};
@@ -2450,6 +2473,47 @@ app.put("/api/actual-sales", requireAuth, async (req, res) => {
   const bev = parseMoneyField(bevAmount, "bevAmount");
   const sa = parseServiceAmounts(req.body, services);
   for (const p of [total, food, bev, sa]) if (p.error) return res.status(400).json({ error: p.error });
+
+  // Per-service food / beverage cells (the Sales tab).
+  if (req.body && req.body.serviceSplit !== undefined) {
+    const ss = req.body.serviceSplit;
+    if (!ss || typeof ss !== "object" || Array.isArray(ss)) return res.status(400).json({ error: "serviceSplit must be an object" });
+    const ids = new Set(services.map((x) => x.id));
+    const edits = [];
+    for (const sid of Object.keys(ss)) {
+      if (!ids.has(sid)) return res.status(400).json({ error: `unknown service "${sid}"` });
+      const f = parseMoneyField(ss[sid] && ss[sid].food, `${sid} food`), b = parseMoneyField(ss[sid] && ss[sid].bev, `${sid} beverage`);
+      if (f.error) return res.status(400).json({ error: f.error });
+      if (b.error) return res.status(400).json({ error: b.error });
+      edits.push([sid, f, b]);
+    }
+    const { rows: existing } = await pool.query("SELECT * FROM actual_sales WHERE restaurant_id = $1 AND sale_date = $2", [req.restaurantId, date]);
+    const prev = existing[0] || {};
+    const split = effectiveServiceSplit(prev, services);
+    const sAmts = cleanAmounts(prev.service_amounts);
+    for (const [sid, f, b] of edits) {
+      const cur = split[sid] || { food: null, bev: null };
+      if (f.provided) cur.food = f.value;
+      if (b.provided) cur.bev = b.value;
+      if (cur.food === null && cur.bev === null) { delete split[sid]; delete sAmts[sid]; } else split[sid] = cur;
+    }
+    // every service that has a split is food + beverage; the others keep whatever amount they had
+    Object.keys(split).forEach((sid) => { sAmts[sid] = Math.round(((split[sid].food || 0) + (split[sid].bev || 0)) * 100) / 100; });
+    const keys = Object.keys(split);
+    const foodSum = keys.some((k) => split[k].food !== null) ? Math.round(keys.reduce((n, k) => n + (split[k].food || 0), 0) * 100) / 100 : null;
+    const bevSum = keys.some((k) => split[k].bev !== null) ? Math.round(keys.reduce((n, k) => n + (split[k].bev || 0), 0) * 100) / 100 : null;
+    const amt = sumServiceAmounts(sAmts, services);
+    const { rows } = await pool.query(
+      `INSERT INTO actual_sales (id, restaurant_id, sale_date, amount, food_amount, bev_amount, service_amounts, service_split, source, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10)
+       ON CONFLICT (restaurant_id, sale_date) DO UPDATE
+         SET amount = EXCLUDED.amount, food_amount = EXCLUDED.food_amount, bev_amount = EXCLUDED.bev_amount,
+             service_amounts = EXCLUDED.service_amounts, service_split = EXCLUDED.service_split, source = EXCLUDED.source
+       RETURNING *`,
+      [id(), req.restaurantId, date, amt, foodSum, bevSum, JSON.stringify(sAmts), JSON.stringify(split), (source || "manual").trim(), Date.now()]
+    );
+    return res.json(actualSalesRowToJson(rows[0], services));
+  }
 
   // Per-service amounts only (the schedule grid's boxes): the day's total becomes the sum of the services,
   // unless the day already has a food/beverage split — then that split stays the authority for the total.
@@ -2467,7 +2531,7 @@ app.put("/api/actual-sales", requireAuth, async (req, res) => {
        RETURNING *`,
       [id(), req.restaurantId, date, amt2, JSON.stringify(merged), (source || "manual").trim(), Date.now()]
     );
-    return res.json(actualSalesRowToJson(rows[0]));
+    return res.json(actualSalesRowToJson(rows[0], services));
   }
 
   let foodVal = null, bevVal = null, amt = null;
@@ -2490,7 +2554,7 @@ app.put("/api/actual-sales", requireAuth, async (req, res) => {
     `INSERT INTO actual_sales (id, restaurant_id, sale_date, amount, food_amount, bev_amount, source, created_at)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
      ON CONFLICT (restaurant_id, sale_date) DO UPDATE
-       SET amount = EXCLUDED.amount, food_amount = EXCLUDED.food_amount, bev_amount = EXCLUDED.bev_amount, source = EXCLUDED.source
+       SET amount = EXCLUDED.amount, food_amount = EXCLUDED.food_amount, bev_amount = EXCLUDED.bev_amount, source = EXCLUDED.source, service_split = NULL
      RETURNING *`,
     [newId, req.restaurantId, date, amt, foodVal, bevVal, (source || "manual").trim(), Date.now()]
   );
@@ -2500,9 +2564,9 @@ app.put("/api/actual-sales", requireAuth, async (req, res) => {
       "UPDATE actual_sales SET service_amounts = $1::jsonb WHERE restaurant_id = $2 AND sale_date = $3 RETURNING *",
       [JSON.stringify(merged), req.restaurantId, date]
     );
-    return res.json(actualSalesRowToJson(upd.rows[0]));
+    return res.json(actualSalesRowToJson(upd.rows[0], services));
   }
-  res.json(actualSalesRowToJson(rows[0]));
+  res.json(actualSalesRowToJson(rows[0], services));
 });
 
 // ---------- revenue history: this year (from daily sales) vs last year (entered weekly) ----------
