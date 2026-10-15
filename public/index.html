@@ -2965,9 +2965,13 @@ async function saveEdit(id) {
   if (result.ok) {
     showBanner(t("staff.bannerUpdated"), "success");
     editingStaffId = null;
+    const i = staff.findIndex(x => x.id === id);
+    if (i >= 0 && result.data) staff[i] = result.data; // close the form right away with the new values
+    render();
     loadAll();
   } else {
-    showBanner(result.error, "warn");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    showBanner(result.error || "Could not save", "warn");
   }
 }
 

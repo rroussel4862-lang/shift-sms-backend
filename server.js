@@ -1015,8 +1015,13 @@ app.patch("/api/staff/:id", requireAuth, async (req, res) => {
       updates.hourly_rate = rate;
     }
   }
-  if (hireDate !== undefined) updates.hire_date = hireDate.trim() || null;
-  if (address !== undefined) updates.address = address.trim() || null;
+  // The edit form sends null for an empty hire date / address — treat that as "clear it" (null.trim() used to crash with a 500).
+  if (hireDate !== undefined) {
+    const hd = String(hireDate === null ? "" : hireDate).trim();
+    if (hd && !isIsoDate(hd)) return res.status(400).json({ error: "hire date must be YYYY-MM-DD" });
+    updates.hire_date = hd || null;
+  }
+  if (address !== undefined) updates.address = String(address === null ? "" : address).trim() || null;
 
   const { rows } = await pool.query(
     "UPDATE staff SET name=$1, phone=$2, roles=$3, hourly_rate=$4, hire_date=$5, address=$6 WHERE id=$7 AND restaurant_id=$8 RETURNING *",
