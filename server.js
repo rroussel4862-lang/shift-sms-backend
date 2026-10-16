@@ -57,6 +57,10 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
+if (String(JWT_SECRET).length < 32 && process.env.NODE_ENV !== "test") {
+  console.warn("WARNING: JWT_SECRET is shorter than 32 characters — use a long random string (anyone who learns it can forge logins).");
+}
+
 const smsClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 const pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
@@ -333,6 +337,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS password_hash TEXT;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS claim_token TEXT UNIQUE;`);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS claim_token_at BIGINT;`); // when the setup link was sent (links expire after 14 days)
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS staff_availability (
@@ -491,6 +496,19 @@ async function sendSms(to, body, restaurantId = null) {
       console.error("Couldn't look up restaurant's dedicated number, using shared default:", e.message);
     }
   }
+  // Safety net against runaway or abusive texting (every text costs money and reaches a real person): a daily cap per restaurant.
+  if (restaurantId) {
+    try {
+      const cap = Number(process.env.SMS_DAILY_CAP) || 300;
+      const { rows: sentRows } = await pool.query("SELECT COUNT(*)::int AS n FROM activity_log WHERE restaurant_id = $1 AND event_type = 'sms_sent' AND created_at > $2", [restaurantId, Date.now() - 24 * 60 * 60 * 1000]);
+      if (sentRows[0].n >= cap) {
+        logActivity({ restaurantId, eventType: "sms_blocked", level: "error", detail: `Daily text limit (${cap}) reached — not texting ${to}` });
+        return { to, ok: false, error: "daily text limit reached" };
+      }
+    } catch (e) {
+      console.error("SMS cap check failed (sending anyway):", e.message);
+    }
+  }
   try {
     await smsClient.messages.create({ to, from: fromNumber, body });
     const durationMs = Date.now() - startedAt;
@@ -576,7 +594,7 @@ function scheduleShiftRowToJson(row) {
   };
 }
 function signToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "30d" });
+  return jwt.sign(payload, JWT_SECRET, { algorithm: "HS256", expiresIn: "30d" });
 }
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -593,7 +611,7 @@ function requireAuth(req, res, next) {
   const token = req.cookies && req.cookies.token;
   if (!token) return res.status(401).json({ error: "not logged in" });
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
     req.restaurantId = payload.restaurantId;
     req.userId = payload.userId;
     req.ownerId = payload.ownerId || null; // set when an owner is acting as manager of one of their restaurants
@@ -607,7 +625,7 @@ function requireStaffAuth(req, res, next) {
   const token = req.cookies && req.cookies.staff_token;
   if (!token) return res.status(401).json({ error: "not logged in" });
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
     req.staffId = payload.staffId;
     req.restaurantId = payload.restaurantId;
     next();
@@ -620,7 +638,7 @@ function requirePlatformAuth(req, res, next) {
   const token = req.cookies && req.cookies.platform_token;
   if (!token) return res.status(401).json({ error: "not logged in" });
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
     if (!payload.platformAdminId) throw new Error("not a platform token");
     req.platformAdminId = payload.platformAdminId;
     next();
@@ -633,7 +651,7 @@ function requireOwnerAuth(req, res, next) {
   const token = req.cookies && req.cookies.owner_token;
   if (!token) return res.status(401).json({ error: "not logged in" });
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
     if (!payload.ownerId) throw new Error("not an owner token");
     req.ownerId = payload.ownerId;
     next();
@@ -645,6 +663,47 @@ function requireOwnerAuth(req, res, next) {
 // ---------- app setup ----------
 
 const app = express();
+
+// Express 4 does not catch errors thrown inside async route handlers: the request just hangs and the error shows up as an
+// "unhandled rejection". Wrap every route handler so a failure goes to the error handler at the bottom of this file instead.
+function wrapAsync(fn) {
+  if (typeof fn !== "function" || fn.length >= 4) return fn; // leave error-handling middleware alone
+  return function (req, res, next) {
+    try {
+      const out = fn(req, res, next);
+      if (out && typeof out.catch === "function") out.catch(next);
+    } catch (e) {
+      next(e);
+    }
+  };
+}
+const wrapHandlers = (args) => args.map((a) => (Array.isArray(a) ? wrapHandlers(a) : wrapAsync(a)));
+for (const verb of ["get", "post", "put", "patch", "delete"]) {
+  const original = app[verb].bind(app);
+  app[verb] = (...args) => (verb === "get" && args.length === 1 ? original(...args) : original(...wrapHandlers(args))); // app.get("setting") is a settings lookup
+}
+
+// A short reference code for each unexpected error — shown to the person and written to the activity log, so one code finds one error.
+function makeErrorCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O or 1/I to misread
+  const bytes = crypto.randomBytes(6);
+  return "E-" + Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
+
+app.disable("x-powered-by");
+// Security headers on every response: no content sniffing, no embedding in other sites' frames, HTTPS only once seen over HTTPS,
+// and a minimal Content-Security-Policy that blocks framing, plugins and form posts to other sites (it does not restrict scripts).
+app.use((req, res, next) => {
+  res.set({
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    "Content-Security-Policy": "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'",
+  });
+  if (req.secure) res.set("Strict-Transport-Security", "max-age=15552000");
+  next();
+});
 app.set("trust proxy", 1); // Render sits in front of this app — without this, every visitor looks like the same IP to rate limiting
 // API answers are always live data: never let a browser or home-screen app reuse an old copy.
 app.use("/api", (req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
@@ -653,7 +712,8 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
 const allowedOrigins = ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean);
-app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : true, credentials: true }));
+// The app and its API are served from the same address, so no other website needs access. Without ALLOWED_ORIGINS, send no CORS headers at all.
+app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : false, credentials: true }));
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -675,6 +735,18 @@ const loginLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  message: { error: "Too many login attempts. Please wait a few minutes and try again." },
+});
+
+// Same idea per ACCOUNT: only failed attempts count, so a guessing attack spread over many addresses still can't try more than a
+// handful of passwords per account every 15 minutes (the real person's correct logins are never counted).
+const loginEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => "login:" + String((req.body && req.body.email) || "").trim().toLowerCase().slice(0, 200),
   message: { error: "Too many login attempts. Please wait a few minutes and try again." },
 });
 
@@ -729,7 +801,7 @@ app.post("/api/auth/signup", signupLimiter, async (req, res) => {
   res.status(201).json({ restaurant: { id: restaurantId, name: restaurantName.trim() }, email: email.toLowerCase() });
 });
 
-app.post("/api/auth/login", loginLimiter, async (req, res) => {
+app.post("/api/auth/login", loginLimiter, loginEmailLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: "email and password are required" });
 
@@ -1062,7 +1134,7 @@ app.post("/api/staff/:id/send-login-setup", requireAuth, async (req, res) => {
   const staffer = rows[0];
 
   const token = id() + id(); // longer, single-use token
-  await pool.query("UPDATE staff SET claim_token = $1 WHERE id = $2 AND restaurant_id = $3", [token, staffer.id, req.restaurantId]);
+  await pool.query("UPDATE staff SET claim_token = $1, claim_token_at = $4 WHERE id = $2 AND restaurant_id = $3", [token, staffer.id, req.restaurantId, Date.now()]);
 
   const restaurantRows = await pool.query("SELECT name FROM restaurants WHERE id = $1", [req.restaurantId]);
   const restaurantName = restaurantRows.rows[0] ? restaurantRows.rows[0].name : "your restaurant";
@@ -1194,7 +1266,30 @@ app.delete("/api/shifts/:id", requireAuth, async (req, res) => {
 // All restaurants share one Twilio number right now, so we find the right
 // restaurant by looking up which restaurant this phone number is staff at.
 
+// Only Twilio may post to the inbound-text webhook: Twilio signs every request with the account's auth token. Without this check
+// anyone who knew the address could fake a staff member's reply. Tests skip it (NODE_ENV=test) unless TWILIO_VALIDATE_SIGNATURE=true;
+// TWILIO_VALIDATE_SIGNATURE=false is an emergency off switch if the signature check ever blocks real replies.
+function twilioRequestIsGenuine(req) {
+  const force = process.env.TWILIO_VALIDATE_SIGNATURE;
+  if (force === "false") return true;
+  if (force !== "true" && process.env.NODE_ENV === "test") return true;
+  const signature = req.get("X-Twilio-Signature");
+  if (!signature) return false;
+  const urls = new Set();
+  if (PUBLIC_URL) urls.add(PUBLIC_URL.replace(/\/+$/, "") + "/api/sms/inbound");
+  urls.add(`${req.protocol}://${req.get("host")}${req.originalUrl}`);
+  try {
+    return [...urls].some((u) => twilio.validateRequest(TWILIO_AUTH_TOKEN, signature, u, req.body || {}));
+  } catch (e) {
+    return false;
+  }
+}
+
 app.post("/api/sms/inbound", async (req, res) => {
+  if (!twilioRequestIsGenuine(req)) {
+    logActivity({ eventType: "sms_inbound_rejected", level: "warn", detail: `Rejected an inbound text with a missing or wrong Twilio signature (from ${String((req.body && req.body.From) || "unknown").slice(0, 30)})` });
+    return res.status(403).type("text/plain").send("forbidden");
+  }
   const from = req.body.From;
   const to = req.body.To;
   const body = (req.body.Body || "").trim();
@@ -1274,9 +1369,12 @@ app.post("/api/sms/inbound", async (req, res) => {
 
 // ---------- staff portal: account setup & login (public) ----------
 
+const CLAIM_LINK_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const claimLinkExpired = (row) => row.claim_token_at !== null && row.claim_token_at !== undefined && Date.now() - Number(row.claim_token_at) > CLAIM_LINK_MAX_AGE_MS; // older links (no date) stay valid until re-sent
+
 app.get("/api/staff-auth/claim/:token", async (req, res) => {
   const { rows } = await pool.query("SELECT staff.*, restaurants.name AS restaurant_name FROM staff JOIN restaurants ON restaurants.id = staff.restaurant_id WHERE staff.claim_token = $1", [req.params.token]);
-  if (rows.length === 0) return res.status(404).json({ error: "This setup link isn't valid — ask your manager to send a new one." });
+  if (rows.length === 0 || claimLinkExpired(rows[0])) return res.status(404).json({ error: "This setup link isn't valid — ask your manager to send a new one." });
   res.json({ name: rows[0].name, restaurantName: rows[0].restaurant_name });
 });
 
@@ -1287,7 +1385,7 @@ app.post("/api/staff-auth/claim", signupLimiter, async (req, res) => {
   if (!password || password.length < 8) return res.status(400).json({ error: "password must be at least 8 characters" });
 
   const { rows } = await pool.query("SELECT * FROM staff WHERE claim_token = $1", [token]);
-  if (rows.length === 0) return res.status(404).json({ error: "This setup link isn't valid — ask your manager to send a new one." });
+  if (rows.length === 0 || claimLinkExpired(rows[0])) return res.status(404).json({ error: "This setup link isn't valid — ask your manager to send a new one." });
   const staffer = rows[0];
 
   const { rows: emailTaken } = await pool.query("SELECT id FROM staff WHERE email = $1 AND id != $2", [email.toLowerCase(), staffer.id]);
@@ -1302,7 +1400,7 @@ app.post("/api/staff-auth/claim", signupLimiter, async (req, res) => {
   res.status(201).json({ name: staffer.name });
 });
 
-app.post("/api/staff-auth/login", loginLimiter, async (req, res) => {
+app.post("/api/staff-auth/login", loginLimiter, loginEmailLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: "email and password are required" });
 
@@ -3845,7 +3943,11 @@ app.post("/api/ai/schedule", requireAuth, aiLimiter, async (req, res) => {
 app.post("/api/platform-auth/signup", signupLimiter, async (req, res) => {
   const { email, password, setupKey } = req.body || {};
   if (!PLATFORM_SETUP_KEY) return res.status(503).json({ error: "Platform account creation isn't configured — set PLATFORM_SETUP_KEY first." });
-  if (setupKey !== PLATFORM_SETUP_KEY) return res.status(403).json({ error: "Invalid setup key" });
+  const keyA = Buffer.from(String(setupKey || "")), keyB = Buffer.from(String(PLATFORM_SETUP_KEY));
+  if (keyA.length !== keyB.length || !crypto.timingSafeEqual(keyA, keyB)) {
+    logActivity({ eventType: "platform_signup_failed", level: "warn", detail: `platform account setup refused (wrong setup key) [${deviceLabel(req)}]` });
+    return res.status(403).json({ error: "Invalid setup key" });
+  }
   if (!email || !isValidEmail(email)) return res.status(400).json({ error: "a valid email is required" });
   if (!password || password.length < 8) return res.status(400).json({ error: "password must be at least 8 characters" });
 
@@ -3861,19 +3963,21 @@ app.post("/api/platform-auth/signup", signupLimiter, async (req, res) => {
   res.status(201).json({ email: email.toLowerCase() });
 });
 
-app.post("/api/platform-auth/login", loginLimiter, async (req, res) => {
+app.post("/api/platform-auth/login", loginLimiter, loginEmailLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: "email and password are required" });
 
   const { rows } = await pool.query("SELECT * FROM platform_admins WHERE email = $1", [email.toLowerCase()]);
   const admin = rows[0];
-  if (!admin) return res.status(401).json({ error: "incorrect email or password" });
-
-  const valid = await bcrypt.compare(password, admin.password_hash);
-  if (!valid) return res.status(401).json({ error: "incorrect email or password" });
+  const valid = admin ? await bcrypt.compare(password, admin.password_hash) : false;
+  if (!valid) {
+    logActivity({ eventType: "platform_login_failed", level: "warn", detail: `platform login failed: ${String(email).toLowerCase().slice(0, 100)} [${deviceLabel(req)}]` });
+    return res.status(401).json({ error: "incorrect email or password" });
+  }
 
   const token = signToken({ platformAdminId: admin.id });
   res.cookie("platform_token", token, COOKIE_OPTS);
+  logActivity({ eventType: "platform_login_success", detail: `platform login: ${admin.email} [${deviceLabel(req)}]` });
   res.json({ email: admin.email });
 });
 
@@ -4147,6 +4251,27 @@ app.get("/api/health", async (req, res) => {
   res.json({ ok: true, database: "connected", restaurants: Number(restaurantCount.rows[0].count) });
 });
 
+// Last stop for any error thrown (or rejected) inside a route: log it with a reference code and answer cleanly instead of hanging.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const status = Number(err && (err.status || err.statusCode));
+  if (status >= 400 && status < 500) { // bad input from the client (malformed JSON, body too large …): not our bug
+    return res.status(status).json({ error: status === 413 ? "that upload is too large" : "invalid request" });
+  }
+  const code = makeErrorCode();
+  console.error(`[${code}] ${req.method} ${req.originalUrl}`, err);
+  logActivity({
+    restaurantId: req.restaurantId || null,
+    eventType: "server_error",
+    level: "error",
+    detail: `[${code}] ${req.method} ${String(req.path || "").slice(0, 120)} — ${err && err.message ? err.message : String(err)}`,
+  });
+  res.status(500).json({
+    error: `Something went wrong on our side. Please try again — if it keeps happening, tell us this code: ${code}`,
+    errorCode: code,
+  });
+});
+
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled rejection:", reason);
   logActivity({ eventType: "server_error", level: "error", detail: `Unhandled rejection: ${reason && reason.message ? reason.message : String(reason)}` });
@@ -4287,7 +4412,7 @@ app.delete("/api/platform/owners/:id", requirePlatformAuth, async (req, res) => 
 
 // ---------- owner login + multi-restaurant snapshot ----------
 
-app.post("/api/owner-auth/login", loginLimiter, async (req, res) => {
+app.post("/api/owner-auth/login", loginLimiter, loginEmailLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: "email and password are required" });
   const { rows } = await pool.query("SELECT * FROM owners WHERE email = $1", [String(email).trim().toLowerCase()]);
@@ -4425,4 +4550,4 @@ app.get("/api/owner/overview", requireOwnerAuth, async (req, res) => {
   });
 });
 
-module.exports = { app, pool, initDb, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates, cleanAvailability };
+module.exports = { app, pool, initDb, makeErrorCode, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates, cleanAvailability };

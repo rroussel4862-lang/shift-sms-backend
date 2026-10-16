@@ -28,4 +28,13 @@ class MessagingResponse {
 
 twilio.twiml = { MessagingResponse };
 
+// Same algorithm as the real library (HMAC-SHA1 of the full URL + the sorted POST parameters, base64), so tests can check the
+// inbound-text signature gate without contacting Twilio.
+const crypto = require("crypto");
+twilio.getExpectedTwilioSignature = (authToken, url, params) => {
+  const data = Object.keys(params || {}).sort().reduce((acc, k) => acc + k + params[k], url);
+  return crypto.createHmac("sha1", authToken).update(Buffer.from(data, "utf-8")).digest("base64");
+};
+twilio.validateRequest = (authToken, signature, url, params) => signature === twilio.getExpectedTwilioSignature(authToken, url, params);
+
 module.exports = twilio;
