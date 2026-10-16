@@ -12,122 +12,31 @@
 (function () {
   "use strict";
 
-  /* ---------------------------------------------------------------- text */
-  var UI = {
-    en: {
-      next: "Next", back: "Back", skip: "Skip tour", finish: "Let's go!", of: function (a, b) { return a + " / " + b; },
-      help: "Replay the walk-through", pausedT: "Tour paused ⏸️", pausedB: "Want to pick up where you left off?", cont: "Continue",
-      clTitle: "Getting started 🚀", clHide: "Hide", clReplay: "Replay the tour", clDoneT: "You're all set! 🎉", clDoneB: "Your restaurant is up and running. You can replay the tour any time with the ? button.",
-      clItems: {
-        staff: "Add your first team member", login: "Send a login", services: "Set your services & hours",
-        schedule: "Create your first schedule (AI or by hand)", sales: "Enter sales for a day", post: "Post a week to your staff"
-      }
-    },
-    fr: {
-      next: "Suivant", back: "Retour", skip: "Passer la visite", finish: "C'est parti !", of: function (a, b) { return a + " / " + b; },
-      help: "Revoir la visite guidée", pausedT: "Visite en pause ⏸️", pausedB: "Voulez-vous reprendre là où vous étiez rendu ?", cont: "Continuer",
-      clTitle: "Pour bien démarrer 🚀", clHide: "Masquer", clReplay: "Revoir la visite", clDoneT: "Tout est prêt ! 🎉", clDoneB: "Votre restaurant est lancé. Vous pouvez revoir la visite en tout temps avec le bouton ?.",
-      clItems: {
-        staff: "Ajouter votre premier employé", login: "Envoyer un accès", services: "Régler vos services et heures",
-        schedule: "Créer votre premier horaire (IA ou à la main)", sales: "Entrer les ventes d'une journée", post: "Publier une semaine à votre équipe"
-      }
-    },
-    es: {
-      next: "Siguiente", back: "Atrás", skip: "Saltar el recorrido", finish: "¡Vamos!", of: function (a, b) { return a + " / " + b; },
-      help: "Repetir el recorrido", pausedT: "Recorrido en pausa ⏸️", pausedB: "¿Quieres seguir donde lo dejaste?", cont: "Continuar",
-      clTitle: "Para empezar 🚀", clHide: "Ocultar", clReplay: "Repetir el recorrido", clDoneT: "¡Todo listo! 🎉", clDoneB: "Tu restaurante ya está en marcha. Puedes repetir el recorrido cuando quieras con el botón ?.",
-      clItems: {
-        staff: "Agrega a tu primer empleado", login: "Envía un acceso", services: "Configura tus servicios y horarios",
-        schedule: "Crea tu primer horario (con IA o a mano)", sales: "Ingresa las ventas de un día", post: "Publica una semana para tu equipo"
-      }
-    }
-  };
-
-  // Every step: [title, text] in each language.
-  var TEXT = {
-    manager: {
-      en: [
-        ["Hey boss! 👋", "Welcome to Open Shift Rail. Two minutes, and you'll see how the whole machine fits together. Skip anytime."],
-        ["Your command center", "Open shifts, who's working, what needs you. Everything we're about to visit feeds this page."],
-        ["Meet your crew", "Add each person with their name, phone and roles. That's all we need."],
-        ["No more group chats", "Hit Send login and they get a text, set up their phone, and see their own shifts."],
-        ["Your week on one grid", "Tap a cell to add a shift, drag one to move it. Your sales sit right on top of the days."],
-        ["Blank week? Ask the AI 🪄", "It knows who's available, who does what, and what sales to expect. Or tap Copy last week and be done."],
-        ["Work in private", "Next week stays a draft that staff can't see. When you're happy, hit Post schedule and it shows up in their app."],
-        ["Feed the machine", "Enter food and beverage sales per service. The AI forecasts from your history, and these numbers shape your schedule."],
-        ["See that?", "Your actual sales show up in the grid on their own. No double entry."],
-        ["Who was really here?", "Log when each person actually clocked in and out. Those times replace the scheduled ones, and payroll gets the real hours."],
-        ["That's the loop 🔁", "Crew → schedule → sales → punches → payroll, with AI helping at every turn. Now go run your floor. 🍽️"]
-      ],
-      fr: [
-        ["Salut, boss ! 👋", "Bienvenue sur Open Shift Rail. Deux minutes pour voir comment toute la machine s'emboîte. Vous pouvez passer en tout temps."],
-        ["Votre poste de commande", "Quarts ouverts, qui travaille, ce qui demande votre attention. Tout ce qu'on va visiter alimente cette page."],
-        ["Faites connaissance avec votre équipe", "Ajoutez chaque personne avec son nom, son téléphone et ses rôles. C'est tout ce qu'il nous faut."],
-        ["Fini les groupes de texto", "Appuyez sur Envoyer l'accès : chaque employé reçoit un texto, configure son téléphone et voit ses propres quarts."],
-        ["Votre semaine sur une seule grille", "Touchez une case pour ajouter un quart, glissez-en un pour le déplacer. Les ventes sont juste au-dessus des jours."],
-        ["Semaine vide ? Demandez à l'IA 🪄", "Elle sait qui est disponible, qui fait quoi et quelles ventes prévoir. Ou touchez Copier la semaine dernière et c'est réglé."],
-        ["Travaillez en privé", "La semaine prochaine reste un brouillon invisible pour l'équipe. Quand c'est bon, touchez Afficher l'horaire et il apparaît dans leur appli."],
-        ["Nourrissez la machine", "Entrez les ventes de nourriture et de boissons par service. L'IA prévoit à partir de votre historique, et ces chiffres guident votre horaire."],
-        ["Vous voyez ça ?", "Vos ventes réelles apparaissent toutes seules dans la grille. Aucune double saisie."],
-        ["Qui était vraiment là ?", "Notez l'heure réelle d'arrivée et de départ de chacun. Ces heures remplacent celles de l'horaire, et la paie reçoit les vraies heures."],
-        ["Voilà la boucle 🔁", "Équipe → horaire → ventes → pointages → paie, avec l'IA qui aide à chaque étape. Maintenant, allez mener votre salle. 🍽️"]
-      ],
-      es: [
-        ["¡Hola, jefe! 👋", "Bienvenido a Open Shift Rail. En dos minutos verás cómo encaja toda la máquina. Puedes saltarlo cuando quieras."],
-        ["Tu centro de mando", "Turnos abiertos, quién trabaja y qué necesita tu atención. Todo lo que vamos a visitar alimenta esta página."],
-        ["Conoce a tu equipo", "Agrega a cada persona con su nombre, teléfono y roles. Eso es todo lo que necesitamos."],
-        ["Se acabaron los chats grupales", "Toca Enviar acceso y recibirán un mensaje, configurarán su teléfono y verán sus propios turnos."],
-        ["Tu semana en una sola cuadrícula", "Toca una celda para agregar un turno, arrastra uno para moverlo. Las ventas están justo encima de los días."],
-        ["¿Semana en blanco? Pídele a la IA 🪄", "Sabe quién está disponible, quién hace qué y cuántas ventas esperar. O toca Copiar la semana pasada y listo."],
-        ["Trabaja en privado", "La próxima semana queda como borrador que el equipo no ve. Cuando estés conforme, toca Publicar horario y aparece en su app."],
-        ["Alimenta la máquina", "Ingresa las ventas de comida y bebidas por servicio. La IA pronostica con tu historial, y estas cifras guían tu horario."],
-        ["¿Ves eso?", "Tus ventas reales aparecen solas en la cuadrícula. Sin doble captura."],
-        ["¿Quién estuvo de verdad?", "Registra cuándo entró y salió cada persona. Esas horas reemplazan las del horario y la nómina recibe las horas reales."],
-        ["Ese es el ciclo 🔁", "Equipo → horario → ventas → registros → nómina, con la IA ayudando en cada paso. Ahora ve a dirigir tu salón. 🍽️"]
-      ]
-    },
-    staff: {
-      en: [
-        ["Here's your schedule 📅", "Your upcoming shifts live here. Peek before you make plans!"],
-        ["Tell us when you're free", "Set your availability and time off. Your manager plans around it."],
-        ["Grab a shift", "Open shifts and shifts coworkers want to hand off show up here. Tap one to take it."],
-        ["The Board has the news 📣", "Announcements from your manager land here. Check in once in a while."]
-      ],
-      fr: [
-        ["Voici ton horaire 📅", "Tes prochains quarts sont ici. Jette un œil avant de faire des plans !"],
-        ["Dis-nous quand t'es libre", "Entre tes disponibilités et tes congés. Ton gestionnaire planifie en fonction de ça."],
-        ["Prends un quart", "Les quarts ouverts et ceux que des collègues veulent céder apparaissent ici. Touches-en un pour le prendre."],
-        ["Le babillard a les nouvelles 📣", "Les annonces de ton gestionnaire arrivent ici. Viens y jeter un œil de temps en temps."]
-      ],
-      es: [
-        ["Este es tu horario 📅", "Tus próximos turnos están aquí. ¡Échale un vistazo antes de hacer planes!"],
-        ["Dinos cuándo estás libre", "Indica tu disponibilidad y tus días libres. Tu gerente planea en base a eso."],
-        ["Toma un turno", "Aquí aparecen los turnos abiertos y los que tus compañeros quieren ceder. Toca uno para tomarlo."],
-        ["El tablón tiene las novedades 📣", "Los anuncios de tu gerente llegan aquí. Pásate de vez en cuando."]
-      ]
-    }
-  };
+  /* ---------------------------------------------------------------- text
+     All wording lives in /tour-texts.js (every line has a code, e.g. M04) so it can be edited without touching this file. */
+  var X = window.OSR_TOUR_TEXTS || {};
+  var CL_CODE = { staff: "C1", login: "C2", services: "C3", schedule: "C4", sales: "C5", post: "C6" };
 
   // Where each step happens: page, the view to open there, and the element(s) to spotlight (first visible one wins).
   var STEPS = {
     manager: [
-      { page: "mi", view: "overview", sel: null },
-      { page: "mi", view: "overview", sel: ["#overviewGrid"] },
-      { page: "mi", view: "staff", sel: ["#panelStaff .stub.plain"] },
-      { page: "mi", view: "staff", sel: ["#staffList .row-actions .edit-btn", "#staffList"] },
-      { page: "bo", view: "schedule", sel: ["#sectionSchedule .grid-wrap"] },
-      { page: "bo", view: "schedule", sel: ["#aiSched"] },
-      { page: "bo", view: "schedule", sel: ["#pubBar", "#sectionSchedule .week-nav"] },
-      { page: "bo", view: "sales", sel: ["#sectionSales .sales-wrap", "#sectionSales .week-nav"] },
-      { page: "bo", view: "schedule", sel: ["#sectionSchedule tr.sales-ac", "#sectionSchedule .grid-wrap"] },
-      { page: "bo", view: "punch", sel: ["#punchList", "#sectionPunch .week-nav"] },
-      { page: "mi", view: "overview", sel: null }
+      { code: "M01", page: "mi", view: "overview", sel: null },
+      { code: "M02", page: "mi", view: "overview", sel: ["#overviewGrid"] },
+      { code: "M03", page: "mi", view: "staff", sel: ["#panelStaff .stub.plain"] },
+      { code: "M04", page: "mi", view: "staff", sel: ["#staffList .row-actions .edit-btn", "#staffList"] },
+      { code: "M05", page: "bo", view: "schedule", sel: ["#sectionSchedule .grid-wrap"] },
+      { code: "M06", page: "bo", view: "schedule", sel: ["#aiSched"] },
+      { code: "M07", page: "bo", view: "schedule", sel: ["#pubBar", "#sectionSchedule .week-nav"] },
+      { code: "M08", page: "bo", view: "sales", sel: ["#sectionSales .sales-wrap", "#sectionSales .week-nav"] },
+      { code: "M09", page: "bo", view: "schedule", sel: ["#sectionSchedule tr.sales-ac", "#sectionSchedule .grid-wrap"] },
+      { code: "M10", page: "bo", view: "punch", sel: ["#punchList", "#sectionPunch .week-nav"] },
+      { code: "M11", page: "mi", view: "overview", sel: null }
     ],
     staff: [
-      { page: "si", view: "schedule", sel: ["#myScheduleList"] },
-      { page: "si", view: "availability", sel: ["#tabBtnAvailability"] },
-      { page: "si", view: "open", sel: ["#tabBtnOpen"] },
-      { page: "si", view: "board", sel: ["#tabBtnBoard"] }
+      { code: "S01", page: "si", view: "schedule", sel: ["#myScheduleList"] },
+      { code: "S02", page: "si", view: "availability", sel: ["#tabBtnAvailability"] },
+      { code: "S03", page: "si", view: "open", sel: ["#tabBtnOpen"] },
+      { code: "S04", page: "si", view: "board", sel: ["#tabBtnBoard"] }
     ]
   };
 
@@ -137,16 +46,32 @@
   /* --------------------------------------------------------------- state */
   var cfg = null, idx = 0, running = false, paused = false;
   var elOv = null, elSpot = null, elBub = null, curTarget = null, rafId = 0;
-  var clLast = 0, clData = null;
+  var clLast = 0, clData = null, tourStatus = "new"; // tourStatus: new | active | done | skipped (as saved on the server)
 
   function lang() {
     var l = "en";
     try { l = localStorage.getItem("osr-lang") || "en"; } catch (e) {}
-    return UI[l] ? l : "en";
+    return l === "fr" || l === "es" ? l : "en";
   }
-  function ui() { return UI[lang()]; }
+  // one piece of wording by code, in the current language (English if that language is missing)
+  function L(code) { var e = X[code] || {}; return e[lang()] || e.en || code; }
+  function ui() {
+    return {
+      next: L("L01"), back: L("L02"), skip: L("L03"), finish: L("L04"), help: L("L05"), pausedT: L("L06"), pausedB: L("L07"), cont: L("L08"),
+      clTitle: L("L09"), clHide: L("L10"), clReplay: L("L11"), clDoneT: L("L12"), clDoneB: L("L13"),
+      of: function (a, b) { return a + " / " + b; }
+    };
+  }
+  // ?codes=1 in the address shows each bubble's code (for editing the wording); ?codes=0 hides it again
+  function showCodes() {
+    try {
+      var m = /[?&]codes=([01])/.exec(location.search);
+      if (m) sessionStorage.setItem("osr-tour-codes", m[1]);
+      return sessionStorage.getItem("osr-tour-codes") === "1";
+    } catch (e) { return false; }
+  }
   function steps() { return STEPS[cfg.tour]; }
-  function text(i) { var t = TEXT[cfg.tour][lang()] || TEXT[cfg.tour].en; return t[i]; }
+  function text(i) { var e = X[steps()[i].code] || {}; return e[lang()] || e.en || [steps()[i].code, ""]; }
   // every visible string goes through esc(); in French a space before ? ! : is a non-breaking one
   function esc(s) {
     s = String(s);
@@ -173,6 +98,7 @@
       ".osr-bub h4{margin:0 0 6px;font:700 18px/1.25 'Oswald','IBM Plex Sans',sans-serif;letter-spacing:.01em}",
       ".osr-bub p{margin:0 0 12px;font-size:14px;color:#3a3d33}",
       ".osr-bub .osr-count{position:absolute;top:12px;right:16px;font:600 11px 'IBM Plex Mono',monospace;color:#7a7566}",
+      ".osr-bub .osr-code{background:#23261F;color:#E2A33B;border-radius:5px;padding:1px 6px;margin-right:4px}",
       ".osr-bub .osr-dots{display:flex;gap:4px;margin:0 0 12px}",
       ".osr-bub .osr-dots i{width:7px;height:7px;border-radius:50%;background:#d6cfba}",
       ".osr-bub .osr-dots i.on{background:#E2A33B}",
@@ -329,7 +255,7 @@
     var n = steps().length, tx = text(i), u = ui();
     var last = i === n - 1;
     elBub.innerHTML =
-      '<div class="osr-arrow"></div><span class="osr-count">' + esc(u.of(i + 1, n)) + "</span>" +
+      '<div class="osr-arrow"></div><span class="osr-count">' + (showCodes() ? '<b class="osr-code">' + esc(steps()[i].code) + "</b> " : "") + esc(u.of(i + 1, n)) + "</span>" +
       "<h4>" + esc(tx[0]) + "</h4><p>" + esc(tx[1]) + "</p>" + dotsHtml(i, n) +
       '<div class="osr-row">' +
       '<button type="button" class="osr-link" data-a="skip">' + esc(u.skip) + "</button>" +
@@ -382,13 +308,16 @@
     openStep(idx - 1);
   }
   function finish() {
+    tourStatus = "done";
     save("done", 0);
     teardown();
     clLast = 0; refreshChecklist(true);
   }
   function skip() {
+    tourStatus = "skipped";
     save("skipped", idx);
     teardown();
+    var box = document.getElementById("gettingStarted"); if (box) box.innerHTML = "";
   }
   function goHere() { // from the "tour paused" bubble
     var s = steps()[idx];
@@ -412,6 +341,7 @@
   function startFromServer() {
     return api("GET").then(function (d) {
       if (!d || !d.tour) return;
+      tourStatus = d.tour.status;
       if (d.checklist) renderChecklist(d.checklist);
       var st = d.tour.status, step = Math.min(Math.max(d.tour.step || 0, 0), steps().length - 1);
       if (st === "new") {
@@ -428,11 +358,12 @@
   function replay() {
     try { localStorage.removeItem("osr-cl-hide"); } catch (e) {}
     if (running) teardown();
+    tourStatus = "active";
     save("active", 0).then(function () {
+      clLast = 0; refreshChecklist(true); // after the save, so the server already says "active"
       if (steps()[0].page === cfg.page) openStep(0);
       else window.location.href = PAGE_URL[steps()[0].page];
     });
-    clLast = 0; refreshChecklist(true);
   }
 
   function mountHelp() {
@@ -458,13 +389,13 @@
     var box = document.getElementById("gettingStarted");
     if (!box || cfg.tour !== "manager") return;
     var u = ui();
-    if (clHidden()) { box.innerHTML = ""; return; }
+    if (clHidden() || tourStatus === "skipped") { box.innerHTML = ""; return; } // skipping the walk-through also puts the checklist away
     var done = cl.items.filter(function (i) { return i.done; }).length, n = cl.items.length;
     if (cl.allDone) {
       box.innerHTML = '<div class="osr-cl"><div class="osr-cl-head"><b>' + esc(u.clDoneT) + '</b><span class="osr-sp"></span><button type="button" class="osr-x" data-x="hide">' + esc(u.clHide) + '</button></div><div style="margin-top:6px">' + esc(u.clDoneB) + "</div></div>";
     } else {
       var li = cl.items.map(function (it) {
-        return '<li class="' + (it.done ? "done" : "") + '"><button type="button" data-go="' + it.key + '"><span class="osr-box">' + (it.done ? "✓" : "") + '</span><span class="osr-t">' + esc(u.clItems[it.key] || it.key) + "</span></button></li>";
+        return '<li class="' + (it.done ? "done" : "") + '"><button type="button" data-go="' + it.key + '"><span class="osr-box">' + (it.done ? "✓" : "") + '</span><span class="osr-t">' + esc(L(CL_CODE[it.key])) + "</span></button></li>";
       }).join("");
       box.innerHTML = '<div class="osr-cl"><div class="osr-cl-head"><b>' + esc(u.clTitle) + '</b><span class="osr-n">' + done + " / " + n + '</span><span class="osr-sp"></span><button type="button" class="osr-x" data-x="replay">' + esc(u.clReplay) + '</button><button type="button" class="osr-x" data-x="hide">' + esc(u.clHide) + "</button></div>" +
         '<div class="osr-cl-bar"><i style="width:' + Math.round(done / n * 100) + '%"></i></div><ul>' + li + "</ul></div>";
@@ -489,12 +420,13 @@
     if (!cfg || cfg.tour !== "manager" || !document.getElementById("gettingStarted")) return;
     if (!force && Date.now() - clLast < 10000) { if (clData) renderChecklist(clData); return; }
     clLast = Date.now();
-    api("GET").then(function (d) { if (d && d.checklist) renderChecklist(d.checklist); });
+    api("GET").then(function (d) { if (d && d.tour) tourStatus = d.tour.status; if (d && d.checklist) renderChecklist(d.checklist); });
   }
 
   /* ----------------------------------------------------------------- API */
   window.OSRTour = {
     init: function (c) {
+      if (!window.OSR_TOUR_TEXTS) return; // wording file missing: stay silent rather than show broken bubbles
       cfg = c;
       mountHelp();
       return startFromServer();
@@ -509,6 +441,6 @@
       if (paused) showPaused();
       else if (running && elBub && steps()[idx] && steps()[idx].page === cfg.page) render(idx, curTarget);
     },
-    _steps: STEPS, _text: TEXT
+    _steps: STEPS, _texts: X
   };
 })();
