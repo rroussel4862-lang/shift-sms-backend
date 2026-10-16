@@ -28,7 +28,6 @@
       { code: "M06", page: "bo", view: "schedule", sel: ["#aiSched"] },
       { code: "M07", page: "bo", view: "schedule", sel: ["#pubBar", "#sectionSchedule .week-nav"] },
       { code: "M08", page: "bo", view: "sales", sel: ["#sectionSales .sales-wrap", "#sectionSales .week-nav"] },
-      { code: "M09", page: "bo", view: "schedule", sel: ["#sectionSchedule tr.sales-ac", "#sectionSchedule .grid-wrap"] },
       { code: "M10", page: "bo", view: "punch", sel: ["#punchList", "#sectionPunch .week-nav"] },
       { code: "M11", page: "mi", view: "overview", sel: null }
     ],
@@ -58,7 +57,7 @@
   function ui() {
     return {
       next: L("L01"), back: L("L02"), skip: L("L03"), finish: L("L04"), help: L("L05"), pausedT: L("L06"), pausedB: L("L07"), cont: L("L08"),
-      clTitle: L("L09"), clHide: L("L10"), clReplay: L("L11"), clDoneT: L("L12"), clDoneB: L("L13"),
+      again: L("L14"), go: L("L15"), clTitle: L("L09"), clHide: L("L10"), clReplay: L("L11"), clDoneT: L("L12"), clDoneB: L("L13"),
       of: function (a, b) { return a + " / " + b; }
     };
   }
@@ -103,6 +102,8 @@
       ".osr-bub .osr-dots i{width:7px;height:7px;border-radius:50%;background:#d6cfba}",
       ".osr-bub .osr-dots i.on{background:#E2A33B}",
       ".osr-bub .osr-dots i.cur{background:#23261F;transform:scale(1.25)}",
+      ".osr-bub .osr-stack{display:flex;flex-direction:column;gap:8px}",
+      ".osr-bub .osr-stack button{width:100%;text-align:center}",
       ".osr-bub .osr-row{display:flex;align-items:center;gap:8px}",
       ".osr-bub .osr-grow{flex:1}",
       ".osr-bub button{font:600 13px 'IBM Plex Sans',system-ui,sans-serif;border-radius:9px;padding:8px 14px;cursor:pointer;border:1.5px solid #23261F;background:transparent;color:#23261F}",
@@ -257,11 +258,15 @@
     elBub.innerHTML =
       '<div class="osr-arrow"></div><span class="osr-count">' + (showCodes() ? '<b class="osr-code">' + esc(steps()[i].code) + "</b> " : "") + esc(u.of(i + 1, n)) + "</span>" +
       "<h4>" + esc(tx[0]) + "</h4><p>" + esc(tx[1]) + "</p>" + dotsHtml(i, n) +
-      '<div class="osr-row">' +
-      '<button type="button" class="osr-link" data-a="skip">' + esc(u.skip) + "</button>" +
-      '<span class="osr-grow"></span>' +
-      (i > 0 ? '<button type="button" data-a="back">' + esc(u.back) + "</button>" : "") +
-      '<button type="button" class="osr-primary" data-a="next">' + esc(last ? u.finish : u.next) + "</button></div>";
+      (last && cfg.tour === "manager"
+        // the manager tour's closing bubble: finish, or run it again
+        ? '<div class="osr-stack"><button type="button" class="osr-primary" data-a="next">' + esc(u.go) + '</button>' +
+          '<button type="button" data-a="again">' + esc(u.again) + "</button></div>"
+        : '<div class="osr-row">' +
+          '<button type="button" class="osr-link" data-a="skip">' + esc(u.skip) + "</button>" +
+          '<span class="osr-grow"></span>' +
+          (i > 0 ? '<button type="button" data-a="back">' + esc(u.back) + "</button>" : "") +
+          '<button type="button" class="osr-primary" data-a="next">' + esc(last ? u.finish : u.next) + "</button></div>");
     wireButtons();
     curTarget = el;
     if (el) {
@@ -279,7 +284,7 @@
       b.addEventListener("click", function (ev) {
         ev.stopPropagation();
         var a = b.getAttribute("data-a");
-        if (a === "next") next(); else if (a === "back") back(); else if (a === "skip") skip(); else if (a === "go") goHere();
+        if (a === "next") next(); else if (a === "again") replay(); else if (a === "back") back(); else if (a === "skip") skip(); else if (a === "go") goHere();
       });
     });
   }

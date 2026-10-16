@@ -18,24 +18,24 @@ window.OSR_TOUR_TEXTS = {
   /* ---------------------------------------------------------------- MANAGER TOUR (11 bubbles) */
 
   M01: { // MI · Overview — welcome
-    en: ["Hey boss! 👋", "Welcome to Open Shift Rail. Two minutes, and you'll see how the whole machine fits together. Skip anytime."],
-    fr: ["Salut, boss ! 👋", "Bienvenue sur Open Shift Rail. Deux minutes pour voir comment toute la machine s'emboîte. Vous pouvez passer en tout temps."],
-    es: ["¡Hola, jefe! 👋", "Bienvenido a Open Shift Rail. En dos minutos verás cómo encaja toda la máquina. Puedes saltarlo cuando quieras."],
+    en: ["Hey boss!", "Welcome to Open Shift Rail. 30 seconds, and you'll see how the whole machine fits together. Skip anytime."],
+    fr: ["Salut, boss !", "Bienvenue sur Open Shift Rail. 30 secondes pour voir comment toute la machine s'emboîte. Vous pouvez passer en tout temps."],
+    es: ["¡Hola, jefe!", "Bienvenido a Open Shift Rail. En 30 segundos verás cómo encaja toda la máquina. Puedes saltarlo cuando quieras."],
   },
   M02: { // MI · Overview — the page itself
-    en: ["Your command center", "Open shifts, who's working, what needs you. Everything we're about to visit feeds this page."],
-    fr: ["Votre poste de commande", "Quarts ouverts, qui travaille, ce qui demande votre attention. Tout ce qu'on va visiter alimente cette page."],
-    es: ["Tu centro de mando", "Turnos abiertos, quién trabaja y qué necesita tu atención. Todo lo que vamos a visitar alimenta esta página."],
+    en: ["The heart of Open Shift", "Open shifts, who's working, what needs you. Everything we're about to visit feeds this page."],
+    fr: ["Le cœur d'Open Shift", "Quarts ouverts, qui travaille, ce qui demande votre attention. Tout ce qu'on va visiter alimente cette page."],
+    es: ["El corazón de Open Shift", "Turnos abiertos, quién trabaja y qué necesita tu atención. Todo lo que vamos a visitar alimenta esta página."],
   },
   M03: { // MI · Staff — the add-staff form
-    en: ["Meet your crew", "Add each person with their name, phone and roles. That's all we need."],
-    fr: ["Faites connaissance avec votre équipe", "Ajoutez chaque personne avec son nom, son téléphone et ses rôles. C'est tout ce qu'il nous faut."],
-    es: ["Conoce a tu equipo", "Agrega a cada persona con su nombre, teléfono y roles. Eso es todo lo que necesitamos."],
+    en: ["Meet your crew", "Add each person with their name, phone and roles. That's all we need. It takes 2 seconds."],
+    fr: ["Faites connaissance avec votre équipe", "Ajoutez chaque personne avec son nom, son téléphone et ses rôles. C'est tout ce qu'il nous faut. Ça prend 2 secondes."],
+    es: ["Conoce a tu equipo", "Agrega a cada persona con su nombre, teléfono y roles. Eso es todo lo que necesitamos. Toma 2 segundos."],
   },
   M04: { // MI · Staff — the Send login button
-    en: ["No more group chats", "Hit Send login and they get a text, set up their phone, and see their own shifts."],
-    fr: ["Fini les groupes de texto", "Appuyez sur Envoyer l'accès : chaque employé reçoit un texto, configure son téléphone et voit ses propres quarts."],
-    es: ["Se acabaron los chats grupales", "Toca Enviar acceso y recibirán un mensaje, configurarán su teléfono y verán sus propios turnos."],
+    en: ["No more group chats", "Hit Send login and they get a text and set up their phone. And they see their own shifts."],
+    fr: ["Fini les groupes de texto", "Appuyez sur Envoyer l'accès : chaque employé reçoit un texto et configure son téléphone. Et il voit ses propres quarts."],
+    es: ["Se acabaron los chats grupales", "Toca Enviar acceso y recibirán un mensaje y configurarán su teléfono. Y ven sus propios turnos."],
   },
   M05: { // BO · Schedule — the grid
     en: ["Your week on one grid", "Tap a cell to add a shift, drag one to move it. Your sales sit right on top of the days."],
@@ -57,11 +57,8 @@ window.OSR_TOUR_TEXTS = {
     fr: ["Nourrissez la machine", "Entrez les ventes de nourriture et de boissons par service. L'IA prévoit à partir de votre historique, et ces chiffres guident votre horaire."],
     es: ["Alimenta la máquina", "Ingresa las ventas de comida y bebidas por servicio. La IA pronostica con tu historial, y estas cifras guían tu horario."],
   },
-  M09: { // BO · Schedule — the Actual sales row
-    en: ["See that?", "Your actual sales show up in the grid on their own. No double entry."],
-    fr: ["Vous voyez ça ?", "Vos ventes réelles apparaissent toutes seules dans la grille. Aucune double saisie."],
-    es: ["¿Ves eso?", "Tus ventas reales aparecen solas en la cuadrícula. Sin doble captura."],
-  },
+  // M09 ("See that? Your actual sales show up in the grid on their own") was taken out of the tour. Codes M10 and M11 keep their numbers.
+
   M10: { // BO · Punch clock
     en: ["Who was really here?", "Log when each person actually clocked in and out. Those times replace the scheduled ones, and payroll gets the real hours."],
     fr: ["Qui était vraiment là ?", "Notez l'heure réelle d'arrivée et de départ de chacun. Ces heures remplacent celles de l'horaire, et la paie reçoit les vraies heures."],
@@ -119,6 +116,8 @@ window.OSR_TOUR_TEXTS = {
   L10: { en: "Hide", fr: "Masquer", es: "Ocultar" },                                          // checklist link
   L11: { en: "Replay the tour", fr: "Revoir la visite", es: "Repetir el recorrido" },         // checklist link
   L12: { en: "You're all set! 🎉", fr: "Tout est prêt ! 🎉", es: "¡Todo listo! 🎉" },         // checklist card when everything is done
+  L14: { en: "Show me again, I use pens", fr: "Remontrez-moi ça, je travaille au stylo", es: "Muéstramelo otra vez, yo uso bolígrafo" }, // last bubble: replays the tour
+  L15: { en: "Let's get this show on the road", fr: "Allons-y, on met ça en route !", es: "¡Manos a la obra!" },                    // last bubble: finishes
   L13: {
     en: "Your restaurant is up and running. You can replay the tour any time with the ? button.",
     fr: "Votre restaurant est lancé. Vous pouvez revoir la visite en tout temps avec le bouton ?.",
