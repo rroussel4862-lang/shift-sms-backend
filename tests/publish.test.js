@@ -34,7 +34,7 @@ const smsCount = async (phone) => (await pool.query("SELECT COUNT(*)::int AS n F
 const waitFor = async (fn, ms = 3000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await new Promise((r) => setTimeout(r, 100)); } return false; };
 
 describe("draft weeks stay hidden from staff until published", () => {
-  test("a future week is hidden, the manager still sees it, publishing reveals it and texts the people on it", async () => {
+  test("a future week is hidden, the manager still sees it, posting it reveals it (and sends no text)", async () => {
     const mk = await A.agent.post("/api/schedule").send({ staffId: ann.id, date: NEXT_MON, startTime: "17:00", endTime: "23:00", role: "Server" });
     expect(mk.status).toBe(201);
     expect(await staffSees(NEXT_MON, addDays(NEXT_MON, 6))).toHaveLength(0);
@@ -46,12 +46,11 @@ describe("draft weeks stay hidden from staff until published", () => {
     const before = await smsCount(ann.phone);
     const pub = await A.agent.post("/api/schedule/publish").send({ weekStart: NEXT_MON });
     expect(pub.status).toBe(200);
-    expect(pub.body).toMatchObject({ published: true, texted: 1 });
+    expect(pub.body).toMatchObject({ published: true, visibleToStaff: true });
     expect(await staffSees(NEXT_MON, addDays(NEXT_MON, 6))).toHaveLength(1);
-    expect(await waitFor(async () => (await smsCount(ann.phone)) === before + 1)).toBe(true);
-
-    // publishing twice doesn't text twice
-    expect((await A.agent.post("/api/schedule/publish").send({ weekStart: NEXT_MON })).body.texted).toBe(0);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(await smsCount(ann.phone)).toBe(before); // staff find it in the portal, no text
+    expect((await A.agent.post("/api/schedule/publish").send({ weekStart: NEXT_MON })).status).toBe(200); // posting twice is harmless
   });
 
   test("back to draft hides it again", async () => {
@@ -77,12 +76,8 @@ describe("draft weeks stay hidden from staff until published", () => {
     expect(await staffSees(AFTER_MON, addDays(AFTER_MON, 6))).toHaveLength(0);
   });
 
-  test("publish with notify:false reveals without texting", async () => {
-    const before = await smsCount(ann.phone);
-    const pub = await A.agent.post("/api/schedule/publish").send({ weekStart: AFTER_MON, notify: false });
-    expect(pub.body.texted).toBe(0);
+  test("another week can be posted on its own", async () => {
+    await A.agent.post("/api/schedule/publish").send({ weekStart: AFTER_MON });
     expect(await staffSees(AFTER_MON, addDays(AFTER_MON, 6))).toHaveLength(1);
-    await new Promise((r) => setTimeout(r, 400));
-    expect(await smsCount(ann.phone)).toBe(before);
   });
 });

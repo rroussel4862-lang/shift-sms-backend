@@ -1954,26 +1954,16 @@ app.get("/api/schedule/publish", requireAuth, async (req, res) => {
   res.json({ weekStart, published: rows.length > 0, alwaysLive, visibleToStaff: alwaysLive || rows.length > 0 });
 });
 
-// Publish a week: staff can see it from now on, and everyone who is on it gets a text (unless ?notify=0).
+// Post a week: staff can see it in their portal from now on. No text message is sent.
 app.post("/api/schedule/publish", requireAuth, async (req, res) => {
   const weekStart = String((req.body && req.body.weekStart) || "");
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
-  const { rowCount } = await pool.query(
+  await pool.query(
     "INSERT INTO schedule_published (restaurant_id, week_start, published_at) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
     [req.restaurantId, weekStart, Date.now()]
   );
-  let texted = 0;
-  if (rowCount > 0 && !(req.body && req.body.notify === false)) {
-    const { rows } = await pool.query(
-      "SELECT DISTINCT staff_id FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3",
-      [req.restaurantId, weekStart, addDaysIso(weekStart, 6)]
-    );
-    const label = (loc) => new Date(weekStart + "T12:00:00").toLocaleDateString(loc, { month: "short", day: "numeric" });
-    rows.forEach((r) => notifyStaff(req.restaurantId, r.staff_id, `L'horaire de la semaine du ${label("fr-CA")} est publié. Consultez-le dans votre portail.`, `The schedule for the week of ${label("en-CA")} is posted. Check it in your staff portal.`));
-    texted = rows.length;
-  }
   logActivity({ restaurantId: req.restaurantId, eventType: "schedule_published", detail: `week of ${weekStart}` });
-  res.json({ weekStart, published: true, visibleToStaff: true, texted });
+  res.json({ weekStart, published: true, visibleToStaff: true });
 });
 
 // Take a future week back to draft (staff stop seeing it). The current and past weeks can't be hidden.

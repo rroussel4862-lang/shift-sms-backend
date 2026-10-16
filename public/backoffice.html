@@ -189,6 +189,7 @@
   .ai-sched .done { margin-top: 12px; font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--text-bright); }
   .pub-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding: 9px 12px; border-radius: 8px; font-size: 13px; border: 1px solid var(--line, #ddd); }
   .pub-bar .grow { flex: 1; min-width: 180px; }
+  .pub-bar { color: var(--ink); }
   .pub-bar.draft { background: #FFF6E0; border-color: var(--amber); }
   .pub-bar.live { background: #EAF4EC; border-color: var(--green); }
   .pub-bar button { font-size: 12px; padding: 5px 11px; }
@@ -221,7 +222,7 @@
   .shift-chip.draft { border: 1px dashed var(--amber); opacity: .85; }
 
   .grid-wrap { overflow: auto; border: 1px solid var(--grid-border); border-radius: 8px; }
-  #sectionSchedule .grid-wrap { max-height: calc(100vh - 150px); min-height: 360px; }
+  #sectionSchedule .grid-wrap { max-height: none; }
   table.schedule-grid { border-collapse: separate !important; border-spacing: 0; overflow: visible !important; }
   table.schedule-grid th, table.schedule-grid td { border-width: 0 1px 1px 0 !important; }
   #scheduleHeaderRow th { position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 0 var(--grid-border), 0 3px 6px rgba(0,0,0,.18); }
@@ -333,7 +334,7 @@
 
   /* ---------- Schedule: bigger, easier to read, colour-coded by role ---------- */
   main:has(#sectionSchedule.active) { max-width: none; }
-  #sectionSchedule .grid-wrap { max-height: calc(100vh - 90px); }
+  #sectionSchedule .grid-wrap { max-height: none; }
   table.schedule-grid { min-width: 1380px; font-size: 15px; }
   table.schedule-grid th, table.schedule-grid td { padding: 10px; }
   table.schedule-grid thead th { font-size: 14px; padding: 12px 8px; }
@@ -374,6 +375,38 @@
   tr.total-row td { font-weight: 700; background: var(--grid-alt); }
   tr.total-row td.row-label { font-weight: 700; }
   button.ai-gen { font-size: 11.5px; padding: 3px 8px; margin-top: 5px; text-transform: none; letter-spacing: 0; }
+
+  /* ---------- sales block of the schedule grid: one colour family per kind of row ---------- */
+  table.schedule-grid tr.sales-ai td { background: linear-gradient(90deg, #E9DEF5 0%, #F7F1FC 100%); border-left: 0; }
+  table.schedule-grid tr.sales-ai td.row-label { border-left: 6px solid #8E63B8 !important; }
+  table.schedule-grid tr.sales-fc td { background: linear-gradient(90deg, #DCEAF8 0%, #F0F6FC 100%); }
+  table.schedule-grid tr.sales-fc td.row-label { border-left: 6px solid #4F86C6 !important; }
+  table.schedule-grid tr.sales-fc-total td { background: linear-gradient(90deg, #BFD8F1 0%, #DCEAF8 100%); }
+  table.schedule-grid tr.sales-ac td { background: linear-gradient(90deg, #D9F0E0 0%, #EEF8F1 100%); }
+  table.schedule-grid tr.sales-ac td.row-label { border-left: 6px solid #4C9A6A !important; }
+  table.schedule-grid tr.sales-ac-total td { background: linear-gradient(90deg, #BCE3C8 0%, #D9F0E0 100%); }
+  table.schedule-grid tr.sales-ly td { background: linear-gradient(90deg, #FAEBCB 0%, #FDF6E6 100%); }
+  table.schedule-grid tr.sales-ly td.row-label { border-left: 6px solid #D49A2A !important; }
+  table.schedule-grid tr.sales-ac input[readonly] { background: rgba(255,255,255,.65); border-style: dashed; }
+
+  /* ---------- shifts: rounder, and they lift off the page under the cursor ---------- */
+  .shift-chip {
+    border-radius: 16px; position: relative; padding: 10px 13px;
+    transition: transform .16s ease, box-shadow .16s ease;
+  }
+  .shift-chip:hover {
+    transform: translateY(-4px) scale(1.05); z-index: 12;
+    box-shadow: 0 10px 22px rgba(0,0,0,.28), 0 2px 5px rgba(0,0,0,.16);
+  }
+  .shift-chip.dragging, .shift-chip.dragging:hover { transform: none; box-shadow: none; }
+  .add-shift-btn, .paste-btn, .shift-form.edit-form { border-radius: 14px; }
+  .shift-form input, .shift-form select { border-radius: 8px; }
+  .unavail-box, .avail-box, .note-box { border-radius: 10px; }
+
+  /* ---------- the day names follow you down the grid (the page scrolls, not the grid) ---------- */
+  #floatHead { display: none; position: fixed; top: 0; z-index: 40; overflow: hidden; background: var(--grid-alt); box-shadow: 0 6px 14px rgba(0,0,0,.25); border-radius: 0 0 10px 10px; pointer-events: none; }
+  #floatHead table.schedule-grid { table-layout: fixed; border-radius: 0; border: 0; min-width: 0; margin: 0; }
+  #floatHead th { box-sizing: border-box; background: var(--grid-alt); color: var(--grid-text); text-align: center; }
 </style>
 </head>
 <body>
@@ -495,10 +528,10 @@
             <tr id="scheduleHeaderRow">
               <th style="text-align:left">Staff</th>
             </tr>
-            <tr class="ai-row" id="scheduleAiRow"></tr>
-            <tr class="proj-row total-row" id="scheduleProjRow"></tr>
-            <tr class="proj-row total-row" id="scheduleActualRow"></tr>
-            <tr class="proj-row" id="scheduleLastYearRow"></tr>
+            <tr class="ai-row sales-ai" id="scheduleAiRow"></tr>
+            <tr class="proj-row total-row sales-fc sales-fc-total" id="scheduleProjRow"></tr>
+            <tr class="proj-row total-row sales-ac sales-ac-total" id="scheduleActualRow"></tr>
+            <tr class="proj-row sales-ly" id="scheduleLastYearRow"></tr>
             <tr class="index-row" id="scheduleIndexRow"></tr>
           </thead>
           <tbody id="scheduleBody"></tbody>
@@ -507,6 +540,8 @@
           </tfoot>
         </table>
       </div>
+
+      <div id="floatHead" aria-hidden="true"><table class="schedule-grid"><thead><tr id="floatHeadRow"></tr></thead></table></div>
 
       <div class="grand-total-bar" id="grandTotalBar"></div>
     </div>
@@ -611,7 +646,7 @@ I18N.add({
     "sched.aiPh": "e.g. Cover lunch and dinner every day, 3 servers on Friday and Saturday nights, nobody over 40 hours.", "sched.aiBuild": "Build schedule", "sched.aiThinking": "Building…",
     "sched.aiNeedPrompt": "Describe what you need first", "sched.aiNoShifts": "The AI didn't propose any shifts — try adding more detail.",
     "sched.aiProposal": n => `${n} shift${n === 1 ? "" : "s"} proposed — not saved yet`, "sched.aiApply": "Apply to grid", "sched.aiDiscard": "Discard",
-    "pub.draft": "Draft — staff can't see this week yet. Work on it, then publish.", "pub.live": "Published — staff can see this week.", "pub.always": "This week is live — staff see changes as you make them.", "pub.publish": "Publish & text staff", "pub.unpublish": "Back to draft", "pub.confirm": w => `Publish the week of ${w}? Staff will be able to see it and everyone scheduled that week gets a text.`, "pub.confirmUn": w => `Hide the week of ${w} from staff again?`, "pub.done": n => `Published. ${n} staff texted.`, "pub.undone": "Back to draft — staff can no longer see this week.", "copy.btn": "Copy last week here", "copy.none": "Last week has no shifts for the staff shown.", "copy.confirm": (n, w) => `Copy ${n} shift${n === 1 ? "" : "s"} from the week of ${w} into this week?`, "copy.skipped": n => `${n} shift${n === 1 ? "" : "s"} skipped (already on the grid or conflicting).`, "sched.aiApplied": n => `${n} shift${n === 1 ? "" : "s"} added to the grid.`, "sched.aiUndo": "Undo", "sched.aiUndone": "Undone — the shifts were removed.",
+    "pub.draft": "Draft — staff can't see this week yet. Work on it, then publish.", "pub.live": "Published — staff can see this week.", "pub.always": "This week is live — staff see changes as you make them.", "pub.publish": "Post schedule", "pub.unpublish": "Back to draft", "pub.confirm": w => `Post the schedule for the week of ${w}? Staff will see it in their portal.`, "pub.confirmUn": w => `Hide the week of ${w} from staff again?`, "pub.done": "Schedule posted — staff can see it in their portal.", "pub.undone": "Back to draft — staff can no longer see this week.", "copy.btn": "Copy last week here", "copy.none": "Last week has no shifts for the staff shown.", "copy.confirm": (n, w) => `Copy ${n} shift${n === 1 ? "" : "s"} from the week of ${w} into this week?`, "copy.skipped": n => `${n} shift${n === 1 ? "" : "s"} skipped (already on the grid or conflicting).`, "sched.aiApplied": n => `${n} shift${n === 1 ? "" : "s"} added to the grid.`, "sched.aiUndo": "Undo", "sched.aiUndone": "Undone — the shifts were removed.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~$${sales} expected sales` : `~$${sales} expected sales · ${pct}% labor`, "sched.aiWeekLabor": pct => `${pct}% labor vs expected sales`, "sched.aiSkipped": "Left out:", "sched.aiHours": (h, c) => `${h}h total · about $${c} labor`,
     "sched.skip.unavailable": "marked unavailable", "sched.availShort": "Available", "sched.availFrom": "Available from", "sched.availUntil": "Available until", "sched.unavailAll": "Unavailable · all day", "sched.unavailShort": "Unavailable", "sched.unavailStart": "start", "sched.unavailEnd": "close", "sched.skip.overlap": "already has a shift then", "sched.skip.bad_time": "invalid times", "sched.skip.bad_date": "date outside this week", "sched.skip.unknown_staff": "unknown staff member",
     "sched.noStaff": h => `No staff tagged with ${h} roles yet. Add roles in the Staff tab.`,
@@ -659,7 +694,7 @@ I18N.add({
     "sched.aiPh": "ex. Couvrir le midi et le soir tous les jours, 3 serveurs les vendredis et samedis soir, personne au-delà de 40 heures.", "sched.aiBuild": "Créer l'horaire", "sched.aiThinking": "Création…",
     "sched.aiNeedPrompt": "Décrivez d'abord ce qu'il vous faut", "sched.aiNoShifts": "L'IA n'a proposé aucun quart — ajoutez plus de détails.",
     "sched.aiProposal": n => `${n} quart${n === 1 ? "" : "s"} proposé${n === 1 ? "" : "s"} — pas encore enregistré${n === 1 ? "" : "s"}`, "sched.aiApply": "Appliquer à la grille", "sched.aiDiscard": "Annuler",
-    "pub.draft": "Brouillon — le personnel ne voit pas encore cette semaine. Travaillez-la, puis publiez.", "pub.live": "Publié — le personnel peut voir cette semaine.", "pub.always": "Cette semaine est en direct — le personnel voit vos changements au fur et à mesure.", "pub.publish": "Publier et aviser par texto", "pub.unpublish": "Retour en brouillon", "pub.confirm": w => `Publier la semaine du ${w} ? Le personnel pourra la voir et chaque personne à l'horaire recevra un texto.`, "pub.confirmUn": w => `Cacher de nouveau la semaine du ${w} au personnel ?`, "pub.done": n => `Publié. ${n} employé${n === 1 ? "" : "s"} avisé${n === 1 ? "" : "s"} par texto.`, "pub.undone": "Retour en brouillon — le personnel ne voit plus cette semaine.", "copy.btn": "Copier la semaine dernière ici", "copy.none": "La semaine dernière n'a aucun quart pour le personnel affiché.", "copy.confirm": (n, w) => `Copier ${n} quart${n === 1 ? "" : "s"} de la semaine du ${w} dans cette semaine ?`, "copy.skipped": n => `${n} quart${n === 1 ? "" : "s"} ignoré${n === 1 ? "" : "s"} (déjà dans la grille ou en conflit).`, "sched.aiApplied": n => `${n} quart${n === 1 ? "" : "s"} ajouté${n === 1 ? "" : "s"} à la grille.`, "sched.aiUndo": "Annuler l'ajout", "sched.aiUndone": "Annulé — les quarts ont été retirés.",
+    "pub.draft": "Brouillon — le personnel ne voit pas encore cette semaine. Travaillez-la, puis publiez.", "pub.live": "Publié — le personnel peut voir cette semaine.", "pub.always": "Cette semaine est en direct — le personnel voit vos changements au fur et à mesure.", "pub.publish": "Afficher l'horaire", "pub.unpublish": "Retour en brouillon", "pub.confirm": w => `Afficher l'horaire de la semaine du ${w} ? Le personnel le verra dans son portail.`, "pub.confirmUn": w => `Cacher de nouveau la semaine du ${w} au personnel ?`, "pub.done": "Horaire affiché — le personnel peut le voir dans son portail.", "pub.undone": "Retour en brouillon — le personnel ne voit plus cette semaine.", "copy.btn": "Copier la semaine dernière ici", "copy.none": "La semaine dernière n'a aucun quart pour le personnel affiché.", "copy.confirm": (n, w) => `Copier ${n} quart${n === 1 ? "" : "s"} de la semaine du ${w} dans cette semaine ?`, "copy.skipped": n => `${n} quart${n === 1 ? "" : "s"} ignoré${n === 1 ? "" : "s"} (déjà dans la grille ou en conflit).`, "sched.aiApplied": n => `${n} quart${n === 1 ? "" : "s"} ajouté${n === 1 ? "" : "s"} à la grille.`, "sched.aiUndo": "Annuler l'ajout", "sched.aiUndone": "Annulé — les quarts ont été retirés.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~${sales} $ de ventes prévues` : `~${sales} $ de ventes prévues · ${pct}% main-d'œuvre`, "sched.aiWeekLabor": pct => `${pct}% de main-d'œuvre par rapport aux ventes prévues`, "sched.aiSkipped": "Exclus :", "sched.aiHours": (h, c) => `${h} h au total · environ ${c} $ de main-d'œuvre`,
     "sched.skip.unavailable": "marqué indisponible", "sched.availShort": "Disponible", "sched.availFrom": "Disponible dès", "sched.availUntil": "Disponible jusqu'à", "sched.unavailAll": "Indisponible · toute la journée", "sched.unavailShort": "Indisponible", "sched.unavailStart": "début", "sched.unavailEnd": "fermeture", "sched.skip.overlap": "a déjà un quart à ce moment", "sched.skip.bad_time": "heures invalides", "sched.skip.bad_date": "date hors de cette semaine", "sched.skip.unknown_staff": "employé inconnu",
     "sched.noStaff": h => `Aucun employé n'a de poste en ${h} pour l'instant. Ajoutez des postes dans l'onglet Personnel.`,
@@ -707,7 +742,7 @@ I18N.add({
     "sched.aiPh": "ej. Cubrir almuerzo y cena todos los días, 3 meseros los viernes y sábados por la noche, nadie más de 40 horas.", "sched.aiBuild": "Crear horario", "sched.aiThinking": "Creando…",
     "sched.aiNeedPrompt": "Describe primero lo que necesitas", "sched.aiNoShifts": "La IA no propuso ningún turno — agrega más detalles.",
     "sched.aiProposal": n => `${n} turno${n === 1 ? "" : "s"} propuesto${n === 1 ? "" : "s"} — aún sin guardar`, "sched.aiApply": "Aplicar a la cuadrícula", "sched.aiDiscard": "Descartar",
-    "pub.draft": "Borrador — el personal aún no ve esta semana. Trabájala y luego publícala.", "pub.live": "Publicado — el personal puede ver esta semana.", "pub.always": "Esta semana está en vivo — el personal ve tus cambios al instante.", "pub.publish": "Publicar y avisar por texto", "pub.unpublish": "Volver a borrador", "pub.confirm": w => `¿Publicar la semana del ${w}? El personal podrá verla y cada persona programada recibirá un texto.`, "pub.confirmUn": w => `¿Ocultar de nuevo la semana del ${w} al personal?`, "pub.done": n => `Publicado. ${n} persona${n === 1 ? "" : "s"} avisada${n === 1 ? "" : "s"} por texto.`, "pub.undone": "Vuelto a borrador — el personal ya no ve esta semana.", "copy.btn": "Copiar la semana pasada aquí", "copy.none": "La semana pasada no tiene turnos para el personal mostrado.", "copy.confirm": (n, w) => `¿Copiar ${n} turno${n === 1 ? "" : "s"} de la semana del ${w} a esta semana?`, "copy.skipped": n => `${n} turno${n === 1 ? "" : "s"} omitido${n === 1 ? "" : "s"} (ya están en la cuadrícula o hay conflicto).`, "sched.aiApplied": n => `${n} turno${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} a la cuadrícula.`, "sched.aiUndo": "Deshacer", "sched.aiUndone": "Deshecho — se quitaron los turnos.",
+    "pub.draft": "Borrador — el personal aún no ve esta semana. Trabájala y luego publícala.", "pub.live": "Publicado — el personal puede ver esta semana.", "pub.always": "Esta semana está en vivo — el personal ve tus cambios al instante.", "pub.publish": "Publicar horario", "pub.unpublish": "Volver a borrador", "pub.confirm": w => `¿Publicar el horario de la semana del ${w}? El personal lo verá en su portal.`, "pub.confirmUn": w => `¿Ocultar de nuevo la semana del ${w} al personal?`, "pub.done": "Horario publicado — el personal puede verlo en su portal.", "pub.undone": "Vuelto a borrador — el personal ya no ve esta semana.", "copy.btn": "Copiar la semana pasada aquí", "copy.none": "La semana pasada no tiene turnos para el personal mostrado.", "copy.confirm": (n, w) => `¿Copiar ${n} turno${n === 1 ? "" : "s"} de la semana del ${w} a esta semana?`, "copy.skipped": n => `${n} turno${n === 1 ? "" : "s"} omitido${n === 1 ? "" : "s"} (ya están en la cuadrícula o hay conflicto).`, "sched.aiApplied": n => `${n} turno${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} a la cuadrícula.`, "sched.aiUndo": "Deshacer", "sched.aiUndone": "Deshecho — se quitaron los turnos.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~$${sales} de ventas esperadas` : `~$${sales} de ventas esperadas · ${pct}% mano de obra`, "sched.aiWeekLabor": pct => `${pct}% de mano de obra vs. ventas esperadas`, "sched.aiSkipped": "Omitidos:", "sched.aiHours": (h, c) => `${h} h en total · unos $${c} de mano de obra`,
     "sched.skip.unavailable": "marcado como no disponible", "sched.availShort": "Disponible", "sched.availFrom": "Disponible desde", "sched.availUntil": "Disponible hasta", "sched.unavailAll": "No disponible · todo el día", "sched.unavailShort": "No disponible", "sched.unavailStart": "inicio", "sched.unavailEnd": "cierre", "sched.skip.overlap": "ya tiene un turno a esa hora", "sched.skip.bad_time": "horas no válidas", "sched.skip.bad_date": "fecha fuera de esta semana", "sched.skip.unknown_staff": "empleado desconocido",
     "sched.noStaff": h => `Aún no hay personal con puestos de ${h}. Agrega puestos en la pestaña Personal.`,
@@ -900,6 +935,7 @@ function showSection(name) {
     document.getElementById("sectionBtn" + cap).classList.toggle("active", name === n);
   });
   currentSection = name;
+  syncFloatHead();
   if (name === "schedule" && !scheduleLoaded) {
     scheduleLoaded = true;
     initSchedule();
@@ -1458,7 +1494,7 @@ async function publishWeek() {
   if (!confirm(tr("pub.confirm", weekLabelShort()))) return;
   const r = await api("/api/schedule/publish", { method: "POST", body: JSON.stringify({ weekStart: toISODate(weekStart) }) });
   if (!r.ok) return showBanner(r.error, "warn");
-  showBanner(tr("pub.done", r.data.texted), "success");
+  showBanner(tr("pub.done"), "success");
   loadPublishState();
 }
 async function unpublishWeek() {
@@ -1901,6 +1937,30 @@ async function deleteScheduleShift(id) {
   loadSchedule();
 }
 
+// Day header that stays on screen: when the real header row has scrolled off the top, a copy is pinned to the top of the window,
+// lined up with the grid's columns (and following it sideways).
+function syncFloatHead() {
+  const fh = document.getElementById("floatHead");
+  if (!fh) return;
+  const hdr = document.getElementById("scheduleHeaderRow"), wrap = document.querySelector("#sectionSchedule .grid-wrap");
+  if (currentSection !== "schedule" || !hdr || !wrap || !hdr.children.length) { fh.style.display = "none"; return; }
+  const hr = hdr.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+  if (hr.bottom > 0 || wr.bottom < 90) { fh.style.display = "none"; return; }
+  const row = document.getElementById("floatHeadRow");
+  if (row.dataset.sig !== hdr.innerHTML) { row.innerHTML = hdr.innerHTML; row.dataset.sig = hdr.innerHTML; }
+  fh.style.display = "block";
+  fh.style.left = wr.left + "px";
+  fh.style.width = wr.width + "px";
+  const tbl = fh.firstElementChild;
+  tbl.style.width = hdr.closest("table").offsetWidth + "px";
+  tbl.style.transform = `translateX(${-wrap.scrollLeft}px)`;
+  const real = hdr.children;
+  for (let i = 0; i < row.children.length && i < real.length; i++) row.children[i].style.width = real[i].getBoundingClientRect().width + "px";
+}
+window.addEventListener("scroll", syncFloatHead, { passive: true });
+window.addEventListener("resize", syncFloatHead);
+document.addEventListener("scroll", e => { if (e.target && e.target.classList && e.target.classList.contains("grid-wrap")) syncFloatHead(); }, true);
+
 function renderScheduleGrid() {
   updateSaveBar();
   const weekDates = [];
@@ -1942,7 +2002,7 @@ function renderScheduleGrid() {
   };
   // one forecast row and one actual row per service, placed above the matching total row
   document.querySelectorAll("tr[data-svc-sales]").forEach(e => e.remove());
-  const mkRow = (beforeId) => { const r = document.createElement("tr"); r.className = "proj-row"; r.setAttribute("data-svc-sales", "1"); document.getElementById(beforeId).before(r); return r; };
+  const mkRow = (beforeId) => { const r = document.createElement("tr"); r.className = "proj-row " + (beforeId === "scheduleProjRow" ? "sales-fc" : "sales-ac"); r.setAttribute("data-svc-sales", "1"); document.getElementById(beforeId).before(r); return r; };
 
   // AI forecast: filled by the AI on request, never typed
   {
@@ -2058,6 +2118,7 @@ function renderScheduleGrid() {
     <div class="item"><span class="num">${grandHours.toFixed(1)}</span><span class="label">${tr("sched.hoursWeek", houseShort())}</span></div>
     <div class="item"><span class="num">$${grandCost.toFixed(2)}</span><span class="label">${tr("sched.costWeek", houseShort())}</span></div>
   `;
+  syncFloatHead();
 }
 
 (async function init() {
