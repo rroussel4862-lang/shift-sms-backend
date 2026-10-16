@@ -1504,7 +1504,8 @@ let staffNameQuery = "";
 
 function populateRoleSelect(select) {
   select.innerHTML = "";
-  ROLES.forEach(r => {
+  // "Manager" is a staff role, but not a position you fill on the spot
+  ROLES.filter(r => r !== "Manager").forEach(r => {
     const opt = document.createElement("option");
     opt.value = r; opt.textContent = roleLabel(r);
     select.appendChild(opt);
