@@ -1882,6 +1882,15 @@ function renderToday() {
     </div>`;
 }
 
+// alphabetical by last name (the last word of the name), then first name — same rule as the schedule grid
+function byLastName(a, b) {
+  const parts = n => String(n.name || "").trim().split(/\s+/);
+  const pa = parts(a), pb = parts(b);
+  const la = pa.length > 1 ? pa[pa.length - 1] : pa[0], lb = pb.length > 1 ? pb[pb.length - 1] : pb[0];
+  const opt = { sensitivity: "base" };
+  return la.localeCompare(lb, undefined, opt) || pa[0].localeCompare(pb[0], undefined, opt);
+}
+
 function render() {
   document.getElementById("subtitle").textContent =
     `${restaurantName ? restaurantName + " · " : ""}${shifts.filter(s => s.status === "open").length} ${t("overview.openShifts").toLowerCase()} · ${staff.length} ${t("overview.staffLabel").toLowerCase()}`;
@@ -1915,12 +1924,12 @@ function render() {
 
   // staff list
   const staffDiv = document.getElementById("staffList");
-  let visibleStaff = staff;
+  let visibleStaff = staff.slice().sort(byLastName);
   if (staffFilterMode === "position" && staffRoleFilter) {
-    visibleStaff = staff.filter(p => p.id === editingStaffId || (p.roles && p.roles.includes(staffRoleFilter)));
+    visibleStaff = visibleStaff.filter(p => p.id === editingStaffId || (p.roles && p.roles.includes(staffRoleFilter)));
   } else if (staffFilterMode === "name" && staffNameQuery.trim()) {
     const q = staffNameQuery.trim().toLowerCase();
-    visibleStaff = staff.filter(p => p.id === editingStaffId || p.name.toLowerCase().includes(q));
+    visibleStaff = visibleStaff.filter(p => p.id === editingStaffId || p.name.toLowerCase().includes(q));
   }
   const emptyFilterMessage =
     staffFilterMode === "position" && staffRoleFilter
