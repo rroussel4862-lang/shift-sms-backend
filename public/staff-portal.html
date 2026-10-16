@@ -137,7 +137,7 @@
         <p id="staffSub"></p>
       </div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="i18n-switch"></div><button id="logoutBtn" onclick="logout()" data-i18n="app.logout">Log out</button></div>
+    <div id="hdrRight" style="display:flex;gap:8px;align-items:center"><div class="i18n-switch"></div><button id="logoutBtn" onclick="logout()" data-i18n="app.logout">Log out</button></div>
   </header>
 
   <div id="banner"></div>
@@ -207,6 +207,7 @@
   </main>
 </div>
 
+<script src="/tour.js"></script>
 <script>
 I18N.add({
   en: {
@@ -396,6 +397,13 @@ async function enterApp(name) {
   document.getElementById("landing").style.display = "none";
   document.getElementById("appShell").style.display = "block";
   document.getElementById("staffHeading").textContent = name ? tr("app.hi", name.split(" ")[0]) : tr("app.myShifts");
+  if (window.OSRTour && !window.__tourStarted) {
+    window.__tourStarted = true;
+    OSRTour.init({
+      tour: "staff", page: "si", helpMount: "#hdrRight",
+      views: { schedule: () => switchStaffTab("schedule"), availability: () => switchStaffTab("availability"), open: () => switchStaffTab("open"), board: () => switchStaffTab("board") },
+    });
+  }
   loadSchedule();
   loadAvailability();
   loadOpenShifts();
@@ -792,6 +800,7 @@ async function ackBoard(postId) {
   renderBoard();
 }
 I18N.onChange(() => {
+  if (window.OSRTour) OSRTour.relang();
   if (document.getElementById("appShell").style.display === "block") {
     const h = document.getElementById("staffHeading");
     h.textContent = window.__myName ? tr("app.hi", window.__myName.split(" ")[0]) : tr("app.myShifts");

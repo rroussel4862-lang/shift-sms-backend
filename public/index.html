@@ -756,7 +756,7 @@
           <p id="subtitle">loading…</p>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div id="topbarRight" style="display:flex;align-items:center;gap:8px">
         <div class="lang-switch" id="appLangSwitch"></div>
         <a href="/backoffice.html" class="top-chip back-link" data-i18n="topbar.backOffice">Back Office</a>
         <a id="ownerBackLink" href="/owner.html" class="top-chip amber" style="display:none" data-i18n="topbar.allRestaurants">← All restaurants</a>
@@ -773,6 +773,7 @@
           <div class="eyebrow" data-i18n="overview.eyebrow">Overview</div>
           <p data-i18n="overview.desc">Today at a glance.</p>
         </div>
+        <div id="gettingStarted"></div>
         <div class="overview-grid" id="overviewGrid"></div>
       </div>
 
@@ -933,6 +934,7 @@
 
 </div>
 
+<script src="/tour.js"></script>
 <script>
 const TAB_NAMES = ["overview", "shifts", "staff", "hiring", "training", "payroll", "comms"];
 let currentTab = "overview";
@@ -1454,6 +1456,7 @@ function setLang(code) {
   renderLangSwitch("landingLangSwitch");
   renderLangSwitch("appLangSwitch");
   applyStaticTranslations();
+  if (window.OSRTour) OSRTour.relang();
   if (typeof authMode !== "undefined") {
     document.getElementById("authSubmitBtn").textContent = authMode === "signup" ? t("landing.createAccount") : t("landing.loginTab");
   }
@@ -2123,6 +2126,7 @@ function shiftHours(start, end) {
 function renderOverview() {
   const el = document.getElementById("overviewGrid");
   if (!el) return;
+  if (window.OSRTour) OSRTour.refreshChecklist();
   const S = k => t("snap." + k);
   const selIso = ovDate || ovToday();
   const dayShifts = ovShifts();
@@ -3303,6 +3307,10 @@ function enterApp() {
   renderChatThread();
   if (!started) {
     started = true;
+    if (window.OSRTour) OSRTour.init({
+      tour: "manager", page: "mi", helpMount: "#topbarRight",
+      views: { overview: () => switchTab("overview"), staff: () => switchTab("staff") },
+    });
     loadAll();
     // keep the screen current: every 15 s while visible, and right away when the app comes back to the foreground
     setInterval(() => { if (!document.hidden && !editingStaffId) loadAll(); }, 15000); // not while a staff row is being edited

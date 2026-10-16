@@ -453,7 +453,7 @@
         <div class="sub" data-i18n="header.sub">Business data that keeps the app up to date — separate from day-to-day operations.</div>
       </div>
     </div>
-    <div style="display:flex;gap:10px;align-items:center"><div class="i18n-switch"></div><a class="back-link" href="/" data-i18n="header.back">← Back to main app</a></div>
+    <div id="hdrRight" style="display:flex;gap:10px;align-items:center"><div class="i18n-switch"></div><a class="back-link" href="/" data-i18n="header.back">← Back to main app</a></div>
   </header>
 
   <nav class="sections">
@@ -631,6 +631,7 @@
   </main>
 </div>
 
+<script src="/tour.js"></script>
 <script>
 I18N.add({
   en: {
@@ -2156,10 +2157,16 @@ function renderScheduleGrid() {
   document.getElementById("restaurantHeading").textContent = tr("headingOf", me.data.restaurant.name);
   window.__restaurantName = me.data.restaurant.name;
   document.title = me.data.restaurant.name + " — Back Office";
-  loadStaff().then(() => showSection("schedule"));
+  const wanted = new URLSearchParams(location.search).get("section");
+  loadStaff().then(() => showSection(["schedule", "punch", "sales", "revenue", "staff"].includes(wanted) ? wanted : "schedule"));
+  if (window.OSRTour) OSRTour.init({
+    tour: "manager", page: "bo", canStart: false, helpMount: "#hdrRight",
+    views: { schedule: () => showSection("schedule"), sales: () => showSection("sales"), punch: () => showSection("punch") },
+  });
 })();
 
 I18N.onChange(() => {
+  if (window.OSRTour) OSRTour.relang();
   const h = document.getElementById("restaurantHeading");
   h.textContent = window.__restaurantName ? tr("headingOf", window.__restaurantName) : tr("heading");
   renderStaffTable();

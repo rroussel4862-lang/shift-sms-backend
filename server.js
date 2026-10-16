@@ -220,6 +220,25 @@ async function initDb() {
   // Each restaurant defines its own services (breakfast / lunch / dinner / ...). Sales per service live in a JSON map
   // {serviceId: amount}; the old lunch/dinner columns are migrated into it once and no longer written.
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS services JSONB;`);
+  // "Getting started" walk-through progress, one row per person and tour (manager / staff). Managers who existed before the
+  // tour shipped are marked done the first time the table is created, so they are not surprised by it.
+  const { rows: tourExists } = await pool.query(`SELECT to_regclass('public.tour_progress') IS NOT NULL AS t`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tour_progress (
+      subject TEXT NOT NULL,
+      tour TEXT NOT NULL,
+      status TEXT NOT NULL,
+      step INTEGER NOT NULL DEFAULT 0,
+      updated_at BIGINT NOT NULL,
+      PRIMARY KEY (subject, tour)
+    );
+  `);
+  if (!tourExists[0].t) {
+    await pool.query(
+      `INSERT INTO tour_progress (subject, tour, status, step, updated_at) SELECT 'user:' || id, 'manager', 'done', 0, $1::bigint FROM users ON CONFLICT DO NOTHING`,
+      [Date.now()]
+    );
+  }
   await pool.query(`ALTER TABLE sales_projections ADD COLUMN IF NOT EXISTS service_amounts JSONB;`);
   await pool.query(`ALTER TABLE actual_sales ADD COLUMN IF NOT EXISTS service_amounts JSONB;`);
   // Food / beverage split PER SERVICE: {serviceId: {food, bev}}. The day's food_amount / bev_amount / amount stay the sums of it.
@@ -2252,6 +2271,65 @@ app.delete("/api/schedule/:id", requireAuth, async (req, res) => {
 });
 
 // ---------- projected sales (manual daily entry) ----------
+
+// ---------- "Getting started" walk-through (bubble tour + checklist) ----------
+
+const TOUR_STATUSES = ["active", "done", "skipped"];
+const TOUR_MAX_STEP = 40;
+
+async function readTour(subject, tour, defaultStatus) {
+  const { rows } = await pool.query("SELECT status, step FROM tour_progress WHERE subject = $1 AND tour = $2", [subject, tour]);
+  return rows[0] ? { status: rows[0].status, step: rows[0].step } : { status: defaultStatus, step: 0 };
+}
+async function writeTour(subject, tour, body) {
+  const status = String((body && body.status) || "");
+  if (!TOUR_STATUSES.includes(status)) return { error: "status must be active, done or skipped" };
+  let step = Number(body && body.step);
+  if (!Number.isInteger(step) || step < 0 || step > TOUR_MAX_STEP) step = 0;
+  await pool.query(
+    `INSERT INTO tour_progress (subject, tour, status, step, updated_at) VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (subject, tour) DO UPDATE SET status = EXCLUDED.status, step = EXCLUDED.step, updated_at = EXCLUDED.updated_at`,
+    [subject, tour, status, step, Date.now()]
+  );
+  return { tour: { status, step } };
+}
+// A manager (or an owner opening one of their restaurants) — one tour each, per restaurant for owners.
+function managerTourSubject(req) {
+  return req.ownerId ? `owner:${req.ownerId}:${req.restaurantId}` : `user:${req.userId}`;
+}
+
+// The setup checklist is worked out from what actually exists, so it ticks itself off.
+async function setupChecklist(restaurantId) {
+  const one = async (sql) => (await pool.query(sql, [restaurantId])).rows[0].ok;
+  const items = [
+    { key: "staff", done: await one("SELECT EXISTS(SELECT 1 FROM staff WHERE restaurant_id = $1) AS ok") },
+    { key: "login", done: await one("SELECT EXISTS(SELECT 1 FROM staff WHERE restaurant_id = $1 AND (password_hash IS NOT NULL OR claim_token IS NOT NULL)) AS ok") },
+    { key: "services", done: await one("SELECT (services IS NOT NULL) AS ok FROM restaurants WHERE id = $1") },
+    { key: "schedule", done: await one("SELECT EXISTS(SELECT 1 FROM schedule_shifts WHERE restaurant_id = $1) AS ok") },
+    { key: "sales", done: await one("SELECT EXISTS(SELECT 1 FROM actual_sales WHERE restaurant_id = $1 AND amount IS NOT NULL) AS ok") },
+    { key: "post", done: await one("SELECT EXISTS(SELECT 1 FROM schedule_published WHERE restaurant_id = $1) AS ok") },
+  ];
+  return { items, allDone: items.every((i) => i.done) };
+}
+
+app.get("/api/tour", requireAuth, async (req, res) => {
+  // New restaurants start the tour; an owner just peeking at a restaurant does not get it forced on them.
+  const tour = await readTour(managerTourSubject(req), "manager", req.ownerId ? "done" : "new");
+  res.json({ tour, checklist: await setupChecklist(req.restaurantId) });
+});
+app.put("/api/tour", requireAuth, async (req, res) => {
+  const r = await writeTour(managerTourSubject(req), "manager", req.body);
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json({ tour: r.tour });
+});
+app.get("/api/staff-auth/tour", requireStaffAuth, async (req, res) => {
+  res.json({ tour: await readTour(`staff:${req.staffId}`, "staff", "new") });
+});
+app.put("/api/staff-auth/tour", requireStaffAuth, async (req, res) => {
+  const r = await writeTour(`staff:${req.staffId}`, "staff", req.body);
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json({ tour: r.tour });
+});
 
 // ---------- services (breakfast / lunch / dinner ... per restaurant) ----------
 // A service starts at `from` (HH:MM) and runs until the next service starts. A shift belongs to the last service whose
