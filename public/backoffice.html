@@ -407,6 +407,30 @@
   #floatHead { display: none; position: fixed; top: 0; z-index: 40; overflow: hidden; background: var(--grid-alt); box-shadow: 0 6px 14px rgba(0,0,0,.25); border-radius: 0 0 10px 10px; pointer-events: none; }
   #floatHead table.schedule-grid { table-layout: fixed; border-radius: 0; border: 0; min-width: 0; margin: 0; }
   #floatHead th { box-sizing: border-box; background: var(--grid-alt); color: var(--grid-text); text-align: center; }
+
+  /* ---------- sales block: big, bold, high-contrast (this is the part of the grid the business runs on) ---------- */
+  table.schedule-grid tr.sales-ai td.row-label, table.schedule-grid tr.sales-fc td.row-label, table.schedule-grid tr.sales-ac td.row-label,
+  table.schedule-grid tr.sales-ly td.row-label, table.schedule-grid tr.index-row td.row-label {
+    font-size: 15px; font-weight: 800; letter-spacing: .04em; line-height: 1.25; opacity: 1;
+  }
+  table.schedule-grid tr.sales-ai td.row-label { color: #3F1D66; }
+  table.schedule-grid tr.sales-fc td.row-label { color: #0F3A6E; }
+  table.schedule-grid tr.sales-ac td.row-label { color: #0F4A28; }
+  table.schedule-grid tr.sales-ly td.row-label { color: #6B4200; }
+  table.schedule-grid tr.index-row td.row-label { color: var(--grid-text); }
+  table.schedule-grid tr.sales-ai td { font-style: normal; font-size: 19px; font-weight: 800; color: #3F1D66; opacity: 1; }
+  table.schedule-grid tr.sales-ai td.row-label { font-size: 15px; }
+  table.schedule-grid tr.sales-fc input, table.schedule-grid tr.sales-ly input { font-size: 18px; font-weight: 800; color: #0F2F57; padding: 8px; }
+  table.schedule-grid tr.sales-ly input { color: #5A3700; }
+  table.schedule-grid tr.sales-ac input { font-size: 18px; font-weight: 800; color: #0F4A28; padding: 8px; opacity: 1 !important; }
+  table.schedule-grid tr.sales-fc input::placeholder, table.schedule-grid tr.sales-ly input::placeholder { color: #5C6E85; font-weight: 600; opacity: 1; }
+  table.schedule-grid tr.sales-ac input::placeholder { color: #4D6B58; font-weight: 600; opacity: 1; }
+  table.schedule-grid tr.sales-fc-total td:not(.row-label), table.schedule-grid tr.sales-ac-total td:not(.row-label) { font-size: 22px; font-weight: 800; }
+  table.schedule-grid tr.sales-fc-total td:not(.row-label) { color: #0F2F57; }
+  table.schedule-grid tr.sales-ac-total td:not(.row-label) { color: #0F4A28; }
+  table.schedule-grid tr.sales-fc td.day-total, table.schedule-grid tr.sales-ac td.day-total, table.schedule-grid tr.sales-ly td.day-total, table.schedule-grid tr.sales-ai td.day-total { font-size: 19px; font-weight: 800; }
+  table.schedule-grid tr.index-row td { font-size: 17px; font-weight: 800; }
+  table.schedule-grid tr.sales-ai button.ai-gen { font-size: 12.5px; font-weight: 700; color: #3F1D66; border-color: #8E63B8; background: #fff; }
 </style>
 </head>
 <body>
