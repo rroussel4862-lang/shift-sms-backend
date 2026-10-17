@@ -1726,6 +1726,18 @@ function swapWhenText(sh) {
   return `${sh.date} ${sh.startTime}-${sh.endTime}`;
 }
 
+// Two people agreed on a give/swap: text every manager (staff with the Manager role) so it doesn't sit unseen.
+function textManagersAboutSwap(swap, restaurantId) {
+  if (!swap) return;
+  const what = swap.kind === "swap" && swap.swapShift
+    ? `${swap.fromName} (${swapWhenText(swap.shift)}) ↔ ${swap.toName || "?"} (${swapWhenText(swap.swapShift)})`
+    : `${swap.fromName} gives ${swapWhenText(swap.shift)} to ${swap.toName || "?"}`;
+  const body = `Shift ${swap.kind === "swap" ? "swap" : "give-away"} waiting for your approval: ${what}. Approve or deny it in Open Shift Rail > Scheduling.`;
+  pool.query(`SELECT phone FROM staff WHERE restaurant_id = $1 AND roles @> '["Manager"]'::jsonb`, [restaurantId])
+    .then(({ rows }) => Promise.all(rows.map((m) => sendSms(m.phone, body, restaurantId))))
+    .catch((e) => console.error("swap manager SMS failed:", e.message));
+}
+
 app.post("/api/staff-auth/swaps", requireStaffAuth, async (req, res) => {
   const { shiftId, kind, note } = req.body || {};
   if (kind !== "give" && kind !== "swap") return res.status(400).json({ error: "kind must be 'give' or 'swap'" });
@@ -1805,7 +1817,9 @@ app.post("/api/staff-auth/swaps/:id/accept", requireStaffAuth, async (req, res) 
   );
   if (rowCount === 0) return res.status(409).json({ error: "Someone else just accepted this" });
   logActivity({ restaurantId: req.restaurantId, eventType: "shift_swap_accepted", detail: `${swap.fromName} → ${swap.kind} ${swapWhenText(swap.shift)}` });
-  res.json(await loadSwap(swap.id, req.restaurantId));
+  const updated = await loadSwap(swap.id, req.restaurantId);
+  textManagersAboutSwap(updated, req.restaurantId);
+  res.json(updated);
 });
 
 app.post("/api/staff-auth/swaps/:id/cancel", requireStaffAuth, async (req, res) => {
