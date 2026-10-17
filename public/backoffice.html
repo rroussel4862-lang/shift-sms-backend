@@ -788,7 +788,7 @@ const houseShort = () => tr(houseView === "foh" ? "house.foh" : "house.boh");
 let staff = [];
 const ROLES = ["Manager", "Server", "Bartender", "Busser", "Host", "Line Cook", "Dishwasher", "Prep Cook", "Expo"];
 const FOH_ROLES = ["Manager", "Server", "Bartender", "Busser", "Host"]; // grid order: manager first
-const BOH_ROLES = ["Line Cook", "Dishwasher", "Prep Cook", "Expo"];
+const BOH_ROLES = ["Manager", "Line Cook", "Prep Cook", "Dishwasher", "Expo"]; // manager band first, like FOH
 const ROLE_COLORS = {
   "Manager": "#B08A1E",
   "Line Cook": "#C1623A",
@@ -796,8 +796,8 @@ const ROLE_COLORS = {
   "Host": "#8C6FA0",
   "Bartender": "#4A9B95",
   "Busser": "#5C8C6B",
-  "Dishwasher": "#8A8375",
-  "Prep Cook": "#B8954A",
+  "Dishwasher": "#5B63A8",
+  "Prep Cook": "#8A9A3B",
   "Expo": "#B5456B",
 };
 function roleColor(role) {
