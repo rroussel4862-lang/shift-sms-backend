@@ -182,6 +182,27 @@ async function initDb() {
       ON CONFLICT DO NOTHING
     `, [Date.now()]);
   }
+  // Front of House and Back of House are posted separately. Every week that was already posted counts as posted for BOTH houses,
+  // so nothing disappears from anyone's portal when this ships. (Runs once: the "house" column doesn't exist yet the first time.)
+  {
+    const { rows: hasHouse } = await pool.query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'schedule_published' AND column_name = 'house'`);
+    if (!hasHouse.length) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(`ALTER TABLE schedule_published ADD COLUMN house TEXT NOT NULL DEFAULT 'foh'`);
+        await client.query(`ALTER TABLE schedule_published DROP CONSTRAINT IF EXISTS schedule_published_pkey`);
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS schedule_published_house_uq ON schedule_published (restaurant_id, week_start, house)`);
+        await client.query(`INSERT INTO schedule_published (restaurant_id, week_start, published_at, house) SELECT restaurant_id, week_start, published_at, 'boh' FROM schedule_published WHERE house = 'foh' ON CONFLICT DO NOTHING`);
+        await client.query("COMMIT");
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+      }
+    }
+  }
   await pool.query(`CREATE INDEX IF NOT EXISTS schedule_shifts_restaurant_idx ON schedule_shifts (restaurant_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS schedule_shifts_date_idx ON schedule_shifts (shift_date);`);
 
@@ -1441,12 +1462,27 @@ app.get("/api/staff-auth/me", requireStaffAuth, async (req, res) => {
 // ---------- staff portal: schedule, availability, open shifts (staff, authenticated) ----------
 
 // A future week is hidden from staff until the manager publishes it (the current and past weeks are always visible).
+// Front of House and Back of House are posted separately: a shift belongs to BOH when its role is a kitchen role. A shift with no
+// kitchen/floor role (Manager, or none) follows the person: BOH only if all their roles are kitchen roles, otherwise FOH.
+function shiftHouse(role, personRoles) {
+  if (BOH_ROLES.includes(role)) return "boh";
+  if (FOH_ROLES.includes(role)) return "foh";
+  const mine = personRoles || [];
+  return mine.some((r) => BOH_ROLES.includes(r)) && !mine.some((r) => FOH_ROLES.includes(r)) ? "boh" : "foh";
+}
+const parseHouse = (v) => (v === undefined || v === null || v === "" ? "foh" : v === "foh" || v === "boh" ? v : null);
+
 async function onlyPublishedForStaff(restaurantId, shifts) {
   const thisMonday = mondayOfIso(ownerToday());
   if (!shifts.some((sh) => mondayOfIso(sh.date) > thisMonday)) return shifts;
-  const { rows } = await pool.query("SELECT week_start FROM schedule_published WHERE restaurant_id = $1", [restaurantId]);
-  const published = new Set(rows.map((r) => r.week_start));
-  return shifts.filter((sh) => { const wk = mondayOfIso(sh.date); return wk <= thisMonday || published.has(wk); });
+  const { rows } = await pool.query("SELECT week_start, house FROM schedule_published WHERE restaurant_id = $1", [restaurantId]);
+  const published = new Set(rows.map((r) => `${r.house}|${r.week_start}`));
+  const { rows: people } = await pool.query("SELECT id, roles FROM staff WHERE restaurant_id = $1 AND id = ANY($2)", [restaurantId, [...new Set(shifts.map((sh) => sh.staffId))]]);
+  const rolesOf = Object.fromEntries(people.map((p) => [p.id, p.roles]));
+  return shifts.filter((sh) => {
+    const wk = mondayOfIso(sh.date);
+    return wk <= thisMonday || published.has(`${shiftHouse(sh.role, rolesOf[sh.staffId])}|${wk}`);
+  });
 }
 
 app.get("/api/staff-auth/schedule", requireStaffAuth, async (req, res) => {
