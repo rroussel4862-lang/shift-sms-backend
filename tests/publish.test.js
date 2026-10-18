@@ -34,7 +34,7 @@ const smsCount = async (phone) => (await pool.query("SELECT COUNT(*)::int AS n F
 const waitFor = async (fn, ms = 3000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await new Promise((r) => setTimeout(r, 100)); } return false; };
 
 describe("draft weeks stay hidden from staff until published", () => {
-  test("a future week is hidden, the manager still sees it, posting it reveals it (and sends no text)", async () => {
+  test("a future week is hidden, the manager still sees it, posting it reveals it and texts the staff who work it", async () => {
     const mk = await A.agent.post("/api/schedule").send({ staffId: ann.id, date: NEXT_MON, startTime: "17:00", endTime: "23:00", role: "Server" });
     expect(mk.status).toBe(201);
     expect(await staffSees(NEXT_MON, addDays(NEXT_MON, 6))).toHaveLength(0);
@@ -48,9 +48,13 @@ describe("draft weeks stay hidden from staff until published", () => {
     expect(pub.status).toBe(200);
     expect(pub.body).toMatchObject({ published: true, visibleToStaff: true });
     expect(await staffSees(NEXT_MON, addDays(NEXT_MON, 6))).toHaveLength(1);
+    expect(pub.body.texted).toBe(1); // Ann works that week, so she gets a text
+    expect(await waitFor(async () => (await smsCount(ann.phone)) === before + 1)).toBe(true);
+    const again = await A.agent.post("/api/schedule/publish").send({ weekStart: NEXT_MON });
+    expect(again.status).toBe(200); // posting twice is harmless...
+    expect(again.body.texted).toBe(0); // ...and doesn't text again
     await new Promise((r) => setTimeout(r, 500));
-    expect(await smsCount(ann.phone)).toBe(before); // staff find it in the portal, no text
-    expect((await A.agent.post("/api/schedule/publish").send({ weekStart: NEXT_MON })).status).toBe(200); // posting twice is harmless
+    expect(await smsCount(ann.phone)).toBe(before + 1);
   });
 
   test("back to draft hides it again", async () => {

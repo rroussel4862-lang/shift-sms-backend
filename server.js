@@ -2086,17 +2086,49 @@ app.get("/api/schedule/publish", requireAuth, async (req, res) => {
   res.json({ weekStart, published: rows.length > 0, alwaysLive, visibleToStaff: alwaysLive || rows.length > 0 });
 });
 
-// Post a week: staff can see it in their portal from now on. No text message is sent.
+// Post a week: staff can see it in their portal from now on, and everyone who works that week gets a text.
+// (Posting a week that is already posted doesn't text again.)
 app.post("/api/schedule/publish", requireAuth, async (req, res) => {
   const weekStart = String((req.body && req.body.weekStart) || "");
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
-  await pool.query(
+  const ins = await pool.query(
     "INSERT INTO schedule_published (restaurant_id, week_start, published_at) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
     [req.restaurantId, weekStart, Date.now()]
   );
   logActivity({ restaurantId: req.restaurantId, eventType: "schedule_published", detail: `week of ${weekStart}` });
-  res.json({ weekStart, published: true, visibleToStaff: true });
+  let texted = 0;
+  if (ins.rowCount === 1) texted = await textSchedulePosted(req, weekStart);
+  res.json({ weekStart, published: true, visibleToStaff: true, texted });
 });
+
+async function textSchedulePosted(req, weekStart) {
+  try {
+    const { rows: who } = await pool.query(
+      `SELECT staff_id, COUNT(*)::int AS n FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3 GROUP BY staff_id`,
+      [req.restaurantId, weekStart, addDaysIso(weekStart, 6)]
+    );
+    if (!who.length) return 0;
+    const { rows: r } = await pool.query("SELECT name FROM restaurants WHERE id = $1", [req.restaurantId]);
+    const restaurantName = r[0] ? r[0].name : "your restaurant";
+    const baseUrl = PUBLIC_URL || `${req.protocol}://${req.get("host")}`;
+    const link = `${baseUrl}/staff-portal.html`;
+    const range = (loc) => {
+      const f = (iso) => new Date(iso + "T12:00:00Z").toLocaleDateString(loc, { month: "short", day: "numeric", timeZone: "UTC" });
+      return `${f(weekStart)} – ${f(addDaysIso(weekStart, 6))}`;
+    };
+    const frRange = range("fr-CA"), enRange = range("en-CA");
+    // fire and forget: the manager shouldn't wait on 15 texts
+    Promise.all(who.map((w) => notifyStaff(
+      req.restaurantId, w.staff_id,
+      `${restaurantName} : votre horaire du ${frRange} est publié (${w.n} quart${w.n === 1 ? "" : "s"}). Consultez-le : ${link}`,
+      `${restaurantName}: your schedule for ${enRange} is posted (${w.n} shift${w.n === 1 ? "" : "s"}). View it: ${link}`
+    ))).catch((e) => console.error("schedule-posted texts failed:", e.message));
+    return who.length;
+  } catch (e) {
+    console.error("Couldn't text the posted schedule:", e.message);
+    return 0;
+  }
+}
 
 // Take a future week back to draft (staff stop seeing it). The current and past weeks can't be hidden.
 app.delete("/api/schedule/publish/:weekStart", requireAuth, async (req, res) => {
