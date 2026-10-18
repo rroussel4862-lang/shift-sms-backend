@@ -321,6 +321,7 @@ async function initDb() {
     );
   `);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS board_seen_at BIGINT;`);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS schedule_seen_at BIGINT;`);
   await pool.query(`ALTER TABLE board_posts ADD COLUMN IF NOT EXISTS translations JSONB;`);
 
   // Manually entered weekly sales for past years (keyed by that week's Monday) so this year can be compared to last year
@@ -3395,6 +3396,31 @@ app.get("/api/staff-auth/board", requireStaffAuth, async (req, res) => {
 
 app.post("/api/staff-auth/board/seen", requireStaffAuth, async (req, res) => {
   await pool.query("UPDATE staff SET board_seen_at = $1 WHERE id = $2 AND restaurant_id = $3", [Date.now(), req.staffId, req.restaurantId]);
+  res.json({ ok: true });
+});
+
+// "New schedule posted": weeks the manager published since this person last tapped "Got it", limited to weeks they actually work in.
+app.get("/api/staff-auth/schedule-news", requireStaffAuth, async (req, res) => {
+  const { rows: me } = await pool.query("SELECT schedule_seen_at FROM staff WHERE id = $1 AND restaurant_id = $2", [req.staffId, req.restaurantId]);
+  if (!me.length) return res.status(404).json({ error: "not found" });
+  const seenAt = me[0].schedule_seen_at !== null ? Number(me[0].schedule_seen_at) : 0;
+  const { rows: pubs } = await pool.query(
+    "SELECT week_start, published_at FROM schedule_published WHERE restaurant_id = $1 AND published_at > $2 AND week_start >= $3 ORDER BY week_start",
+    [req.restaurantId, seenAt, mondayOfIso(ownerToday())]
+  );
+  const weeks = [];
+  for (const p of pubs) {
+    const { rows: c } = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM schedule_shifts WHERE restaurant_id = $1 AND staff_id = $2 AND shift_date >= $3 AND shift_date <= $4",
+      [req.restaurantId, req.staffId, p.week_start, addDaysIso(p.week_start, 6)]
+    );
+    if (c[0].n > 0) weeks.push({ weekStart: p.week_start, shiftCount: c[0].n, publishedAt: Number(p.published_at) });
+  }
+  res.json({ weeks });
+});
+
+app.post("/api/staff-auth/schedule-news/seen", requireStaffAuth, async (req, res) => {
+  await pool.query("UPDATE staff SET schedule_seen_at = $1 WHERE id = $2 AND restaurant_id = $3", [Date.now(), req.staffId, req.restaurantId]);
   res.json({ ok: true });
 });
 

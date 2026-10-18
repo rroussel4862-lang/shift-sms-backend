@@ -143,7 +143,7 @@
   <div id="banner"></div>
 
   <div class="tabs">
-    <button class="tab-btn active" id="tabBtnSchedule" onclick="switchStaffTab('schedule')" data-i18n="tabs.schedule">My Schedule</button>
+    <button class="tab-btn active" id="tabBtnSchedule" onclick="switchStaffTab('schedule')"><span data-i18n="tabs.schedule">My Schedule</span><span class="tab-badge" id="scheduleBadge"></span></button>
     <button class="tab-btn" id="tabBtnAvailability" onclick="switchStaffTab('availability')" data-i18n="tabs.availability">Availability</button>
     <button class="tab-btn" id="tabBtnOpen" onclick="switchStaffTab('open')"><span data-i18n="tabs.open">Open Shifts</span><span class="tab-badge" id="openBadge"></span></button>
     <button class="tab-btn" id="tabBtnBoard" onclick="switchStaffTab('board')"><span data-i18n="tabs.board">Board</span><span class="tab-badge" id="boardBadge"></span></button>
@@ -152,6 +152,7 @@
 
   <main>
     <div class="tab-panel active" id="panelSchedule">
+      <div id="schedNews"></div>
       <div class="card">
         <h2 data-i18n="schedule.h2">Upcoming shifts</h2>
         <div id="myScheduleList"><p class="empty" data-i18n="schedule.loading">Loading…</p></div>
@@ -227,6 +228,7 @@ I18N.add({
     "tabs.schedule": "My Schedule", "tabs.availability": "Availability", "tabs.open": "Open Shifts",
     "schedule.h2": "Upcoming shifts", "schedule.loading": "Loading…",
     "schedule.count": n => `${n} upcoming shift${n === 1 ? "" : "s"}`,
+    "news.title": "📅 New schedule posted", "news.week": (range, n) => `${range} — you're working ${n} shift${n === 1 ? "" : "s"}`, "news.ok": "Got it",
     "schedule.empty": "No shifts scheduled yet — check back soon.", "schedule.shift": "Shift",
     "to.h2": "One-time unavailability", "to.help": "Can't work a specific day? Add it here. Your manager approves it before it counts in the schedule.", "to.allDay": "All day", "to.notePh": "Reason (optional)", "to.add": "Add", "to.empty": "Nothing coming up.", "to.pending": "Waiting for approval", "to.approved": "Approved", "to.declined": "Declined", "to.remove": "Remove", "to.sent": "Sent to your manager for approval", "to.pickDate": "Pick a date first.", "to.hours": "from", "to.until": "until", "avail.h2": "Your weekly availability", "avail.help": "Let your manager know which days you're generally free to work.",
     "avail.onlyFrom": "Only available from", "avail.anyTimeHint": "Leave both empty if you can work any time. Use these boxes for hours; the note is for anything else.", "avail.free": "Free", "avail.busy": "Busy", "avail.from": "Busy from", "avail.to": "until", "avail.allDayHint": "Leave both empty if you are busy all day.", "avail.notePh": "Note for your manager (optional)", "avail.save": "Save availability", "avail.saved": "Sent to your manager for approval", "avail.pending": "Waiting for your manager's approval. Your current availability stays in effect until then.", "avail.approved": "Your manager approved your availability.", "avail.declined": "Your last request was declined, so your previous availability still applies.",
@@ -263,6 +265,7 @@ I18N.add({
     "tabs.schedule": "Mon horaire", "tabs.availability": "Disponibilités", "tabs.open": "Quarts ouverts",
     "schedule.h2": "Prochains quarts", "schedule.loading": "Chargement…",
     "schedule.count": n => `${n} quart${n === 1 ? "" : "s"} à venir`,
+    "news.title": "📅 Nouvel horaire publié", "news.week": (range, n) => `${range} — vous travaillez ${n} quart${n === 1 ? "" : "s"}`, "news.ok": "Compris",
     "schedule.empty": "Aucun quart prévu pour l'instant — repassez bientôt.", "schedule.shift": "Quart",
     "to.h2": "Indisponibilité ponctuelle", "to.help": "Vous ne pouvez pas travailler un jour précis ? Ajoutez-le ici. Votre gestionnaire l'approuve avant qu'il ne compte dans l'horaire.", "to.allDay": "Toute la journée", "to.notePh": "Raison (facultatif)", "to.add": "Ajouter", "to.empty": "Rien à venir.", "to.pending": "En attente d'approbation", "to.approved": "Approuvé", "to.declined": "Refusé", "to.remove": "Retirer", "to.sent": "Envoyé à votre gestionnaire pour approbation", "to.pickDate": "Choisissez d'abord une date.", "to.hours": "de", "to.until": "jusqu'à", "avail.h2": "Vos disponibilités de la semaine", "avail.help": "Indiquez à votre gestionnaire les jours où vous êtes généralement libre de travailler.",
     "avail.onlyFrom": "Disponible seulement de", "avail.anyTimeHint": "Laissez vide si vous pouvez travailler à toute heure. Utilisez ces cases pour les heures; la note sert au reste.","avail.free": "Libre", "avail.busy": "Occupé", "avail.from": "Occupé de", "avail.to": "jusqu'à", "avail.allDayHint": "Laissez vide si vous êtes occupé toute la journée.", "avail.notePh": "Note pour votre gestionnaire (facultatif)", "avail.save": "Enregistrer mes disponibilités", "avail.saved": "Envoyé à votre gestionnaire pour approbation", "avail.pending": "En attente de l'approbation de votre gestionnaire. Vos disponibilités actuelles restent en vigueur d'ici là.", "avail.approved": "Votre gestionnaire a approuvé vos disponibilités.", "avail.declined": "Votre dernière demande a été refusée; vos disponibilités précédentes s'appliquent toujours.",
@@ -299,6 +302,7 @@ I18N.add({
     "tabs.schedule": "Mi horario", "tabs.availability": "Disponibilidad", "tabs.open": "Turnos abiertos",
     "schedule.h2": "Próximos turnos", "schedule.loading": "Cargando…",
     "schedule.count": n => `${n} turno${n === 1 ? "" : "s"} próximo${n === 1 ? "" : "s"}`,
+    "news.title": "📅 Nuevo horario publicado", "news.week": (range, n) => `${range} — trabajas ${n} turno${n === 1 ? "" : "s"}`, "news.ok": "Entendido",
     "schedule.empty": "Aún no hay turnos programados — vuelve pronto.", "schedule.shift": "Turno",
     "to.h2": "No disponibilidad puntual", "to.help": "¿No puedes trabajar un día concreto? Agrégalo aquí. Tu gerente lo aprueba antes de que cuente en el horario.", "to.allDay": "Todo el día", "to.notePh": "Motivo (opcional)", "to.add": "Agregar", "to.empty": "Nada próximo.", "to.pending": "Esperando aprobación", "to.approved": "Aprobado", "to.declined": "Rechazado", "to.remove": "Quitar", "to.sent": "Enviado a tu gerente para aprobación", "to.pickDate": "Elige primero una fecha.", "to.hours": "desde", "to.until": "hasta", "avail.h2": "Tu disponibilidad semanal", "avail.help": "Dile a tu gerente qué días sueles estar libre para trabajar.",
     "avail.onlyFrom": "Solo disponible desde", "avail.anyTimeHint": "Déjalo vacío si puedes trabajar a cualquier hora. Usa estas casillas para las horas; la nota es para lo demás.", "avail.free": "Libre", "avail.busy": "Ocupado", "avail.from": "Ocupado desde", "avail.to": "hasta", "avail.allDayHint": "Déjalo vacío si estás ocupado todo el día.", "avail.notePh": "Nota para tu gerente (opcional)", "avail.save": "Guardar disponibilidad", "avail.saved": "Enviado a tu gerente para aprobación", "avail.pending": "Esperando la aprobación de tu gerente. Tu disponibilidad actual sigue vigente hasta entonces.", "avail.approved": "Tu gerente aprobó tu disponibilidad.", "avail.declined": "Tu última solicitud fue rechazada; sigue vigente tu disponibilidad anterior.",
@@ -387,6 +391,7 @@ function switchStaffTab(name) {
     document.getElementById("tabBtn" + cap).classList.toggle("active", name === n);
   });
   currentStaffTab = name;
+  renderScheduleNews();
   renderSwaps();
   if (name === "board") openBoard(); else boardNewIds = new Set();
   if (name === "training") loadTraining();
@@ -406,11 +411,40 @@ async function enterApp(name) {
     });
   }
   loadSchedule();
+  loadScheduleNews();
   loadAvailability();
   loadOpenShifts();
   loadBoard();
   loadTraining();
-  if (!window.__boardTimer) window.__boardTimer = setInterval(() => { loadBoard(); loadSwaps(); if (availKey(myAvailability) === availBaseline) loadAvailability(); }, 30000);
+  if (!window.__boardTimer) window.__boardTimer = setInterval(() => { loadBoard(); loadSwaps(); loadScheduleNews(); if (availKey(myAvailability) === availBaseline) loadAvailability(); }, 30000);
+}
+
+// ---- "New schedule posted" notice: stays until the person taps Got it ----
+let schedNews = [];
+async function loadScheduleNews() {
+  const r = await api("/api/staff-auth/schedule-news");
+  if (!r.ok) return;
+  schedNews = r.data.weeks || [];
+  renderScheduleNews();
+}
+function renderScheduleNews() {
+  const box = document.getElementById("schedNews");
+  const badge = document.getElementById("scheduleBadge");
+  if (badge) badge.textContent = schedNews.length > 0 && currentStaffTab !== "schedule" ? String(schedNews.length) : "";
+  if (!box) return;
+  if (schedNews.length === 0) { box.innerHTML = ""; return; }
+  const fmt = d => new Date(d + "T12:00:00").toLocaleDateString(I18N.lang === "fr" ? "fr-CA" : I18N.lang === "es" ? "es-US" : "en-CA", { month: "short", day: "numeric" });
+  const range = w => { const e = new Date(w.weekStart + "T12:00:00"); e.setDate(e.getDate() + 6); return `${fmt(w.weekStart)} – ${fmt(e.toISOString().slice(0, 10))}`; };
+  box.innerHTML = `<div class="card" style="border-left:5px solid var(--amber);margin-bottom:14px">
+      <h2 style="margin-bottom:6px">${escapeHtml(tr("news.title"))}</h2>
+      ${schedNews.map(w => `<div style="margin:4px 0">${escapeHtml(tr("news.week", range(w), w.shiftCount))}</div>`).join("")}
+      <div class="swap-actions" style="margin-top:10px"><button class="solid" onclick="dismissScheduleNews()">${escapeHtml(tr("news.ok"))}</button></div>
+    </div>`;
+}
+async function dismissScheduleNews() {
+  schedNews = [];
+  renderScheduleNews();
+  await api("/api/staff-auth/schedule-news/seen", { method: "POST" });
 }
 
 let mySchedule = [];
