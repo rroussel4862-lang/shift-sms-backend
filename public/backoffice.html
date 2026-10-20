@@ -958,9 +958,15 @@ async function api(path, options) {
   }
 }
 
+// Remember where the manager was (section, Front/Back of House, week) so a refresh puts them back there. Per browser tab.
+const loc = {
+  get(k) { try { return sessionStorage.getItem("osr-bo-" + k); } catch (e) { return null; } },
+  set(k, v) { try { sessionStorage.setItem("osr-bo-" + k, v); } catch (e) {} },
+};
 let scheduleLoaded = false;
 let currentSection = "staff";
 function showSection(name) {
+  loc.set("section", name);
   ["staff", "schedule", "punch", "sales", "revenue"].forEach(n => {
     const cap = n.charAt(0).toUpperCase() + n.slice(1);
     document.getElementById("section" + cap).classList.toggle("active", name === n);
@@ -1558,6 +1564,7 @@ async function copyLastWeek() {
 }
 
 async function loadSchedule() {
+  loc.set("week", toISODate(weekStart));
   const endDate = new Date(weekStart);
   endDate.setDate(endDate.getDate() + 6);
   document.getElementById("weekLabel").textContent = `${formatShort(weekStart)} – ${formatShort(endDate)}, ${endDate.getFullYear()}`;
@@ -1596,6 +1603,7 @@ async function loadSchedule() {
 
 function setHouseView(view) {
   houseView = view;
+  loc.set("house", view);
   aiProposal = null; aiApplied = null; renderAiSched();
   document.getElementById("houseBtnFoh").classList.toggle("active", view === "foh");
   document.getElementById("houseBtnBoh").classList.toggle("active", view === "boh");
@@ -2173,7 +2181,17 @@ function renderScheduleGrid() {
   window.__restaurantName = me.data.restaurant.name;
   document.title = me.data.restaurant.name + " — Back Office";
   const wanted = new URLSearchParams(location.search).get("section");
-  loadStaff().then(() => showSection(["schedule", "punch", "sales", "revenue", "staff"].includes(wanted) ? wanted : "schedule"));
+  const sections = ["schedule", "punch", "sales", "revenue", "staff"];
+  // an explicit ?section= (the walk-through uses it) wins; otherwise go back to where the manager was before the refresh
+  const start = sections.includes(wanted) ? wanted : sections.includes(loc.get("section")) ? loc.get("section") : "schedule";
+  if (loc.get("house") === "boh") {
+    houseView = "boh";
+    document.getElementById("houseBtnFoh").classList.remove("active");
+    document.getElementById("houseBtnBoh").classList.add("active");
+  }
+  const savedWeek = loc.get("week");
+  if (savedWeek && /^\d{4}-\d{2}-\d{2}$/.test(savedWeek)) weekStart = getMonday(new Date(savedWeek + "T12:00:00"));
+  loadStaff().then(() => showSection(start));
   if (window.OSRTour) OSRTour.init({
     tour: "manager", page: "bo", canStart: false, helpMount: "#hdrRight",
     views: { schedule: () => showSection("schedule"), sales: () => showSection("sales"), punch: () => showSection("punch") },

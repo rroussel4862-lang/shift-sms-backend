@@ -941,6 +941,7 @@ const TAB_NAMES = ["overview", "shifts", "staff", "hiring", "training", "payroll
 let currentTab = "overview";
 function switchTab(name) {
   currentTab = name;
+  try { sessionStorage.setItem("osr-mi-tab", name); } catch (e) {} // so a refresh puts the manager back on this tab
   TAB_NAMES.forEach(n => {
     document.getElementById("panel" + n.charAt(0).toUpperCase() + n.slice(1)).classList.toggle("active", name === n);
     document.getElementById("tabBtn" + n.charAt(0).toUpperCase() + n.slice(1)).classList.toggle("active", name === n);
@@ -3303,6 +3304,7 @@ function enterApp() {
   document.getElementById("landing").style.display = "none";
   document.getElementById("appShell").style.display = "block";
   document.getElementById("sidebarRestaurantName").textContent = restaurantName || "Open Shift Rail";
+  try { const saved = sessionStorage.getItem("osr-mi-tab"); if (saved && saved !== currentTab && TAB_NAMES.includes(saved)) switchTab(saved); } catch (e) {}
   document.getElementById("topbarNewTitle").textContent = t("nav." + currentTab);
   if (restaurantName) document.title = restaurantName + " — Open Shift Rail";
   document.getElementById("restaurantAddress").value = restaurantAddress || "";

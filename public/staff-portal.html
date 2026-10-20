@@ -391,6 +391,7 @@ function switchStaffTab(name) {
     document.getElementById("tabBtn" + cap).classList.toggle("active", name === n);
   });
   currentStaffTab = name;
+  try { sessionStorage.setItem("osr-si-tab", name); } catch (e) {} // a refresh keeps the person on this tab
   renderScheduleNews();
   renderSwaps();
   if (name === "board") openBoard(); else boardNewIds = new Set();
@@ -410,6 +411,7 @@ async function enterApp(name) {
       views: { schedule: () => switchStaffTab("schedule"), availability: () => switchStaffTab("availability"), open: () => switchStaffTab("open"), board: () => switchStaffTab("board") },
     });
   }
+  try { const saved = sessionStorage.getItem("osr-si-tab"); if (saved && saved !== currentStaffTab && ["schedule", "availability", "open", "board", "training"].includes(saved)) switchStaffTab(saved); } catch (e) {}
   loadSchedule();
   loadScheduleNews();
   loadAvailability();
