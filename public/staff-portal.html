@@ -493,6 +493,7 @@ function renderSchedule() {
           <div class="stamp">${escapeHtml(s.role ? roleLabel(s.role) : tr("schedule.shift"))}</div>
           <h3>${formatDate(s.date)}</h3>
           <div class="meta">${formatTime(s.startTime)} – ${formatTime(s.endTime)}</div>
+          ${s.station ? `<div class="meta" style="margin-top:4px;font-weight:700;color:var(--amber)">📍 ${escapeHtml(s.station)}</div>` : ""}
           ${extra}
         </div>`;
   }).join("");

@@ -266,6 +266,7 @@
   .chip-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
   .shift-chip .times { font-family: 'IBM Plex Mono', monospace; word-break: break-word; }
   .shift-chip .role-tag { color: var(--role-color, var(--grid-dim)); font-size: 10.5px; font-weight: 600; margin-top: 2px; }
+  .shift-chip .station-tag { display: inline-block; margin-top: 3px; padding: 1px 7px; border-radius: 9px; background: var(--role-color, var(--grid-dim)); color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; }
   .shift-chip .chip-actions { display: flex; gap: 3px; flex-shrink: 0; }
   .shift-chip .chip-btn {
     background: none; border: none; color: var(--grid-dim);
@@ -349,6 +350,7 @@
   .shift-chip { font-size: 14px; padding: 9px 10px; margin-bottom: 7px; border-left-width: 5px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
   .shift-chip .times { font-size: 14.5px; font-weight: 600; }
   .shift-chip .role-tag { font-size: 12.5px; margin-top: 3px; }
+  .shift-chip .station-tag { font-size: 12.5px; padding: 2px 9px; }
   .shift-chip .chip-btn { font-size: 16px; padding: 3px 5px; }
   .add-shift-btn, .paste-btn { font-size: 13px; padding: 9px; }
   .shift-form input, .shift-form select { font-size: 14px; padding: 7px 8px; }
@@ -678,7 +680,7 @@ I18N.add({
     "sched.skip.unavailable": "marked unavailable", "sched.availShort": "Available", "sched.availFrom": "Available from", "sched.availUntil": "Available until", "sched.unavailAll": "Unavailable · all day", "sched.unavailShort": "Unavailable", "sched.unavailStart": "start", "sched.unavailEnd": "close", "sched.skip.overlap": "already has a shift then", "sched.skip.bad_time": "invalid times", "sched.skip.bad_date": "date outside this week", "sched.skip.unknown_staff": "unknown staff member",
     "sched.noStaff": h => `No staff tagged with ${h} roles yet. Add roles in the Staff tab.`,
     "sched.hoursWeek": h => `${h} hours this week`, "sched.costWeek": h => `${h} labor cost this week`,
-    "sched.rolePh": "Role (optional)", "sched.addShift": "+ Add", "sched.paste": "Paste here", "common.edit": "Edit", "common.cancel": "Cancel", "common.save": "Save", "common.copy": "Copy", "common.delete": "Delete",
+    "sched.rolePh": "Role (optional)", "sched.stationPh": "Station (optional)", "sched.addShift": "+ Add", "sched.paste": "Paste here", "common.edit": "Edit", "common.cancel": "Cancel", "common.save": "Save", "common.copy": "Copy", "common.delete": "Delete",
     "house.foh": "FOH", "house.boh": "BOH",
     "days.0": "Mon", "days.1": "Tue", "days.2": "Wed", "days.3": "Thu", "days.4": "Fri", "days.5": "Sat", "days.6": "Sun",
     "role.Manager": "Manager", "role.Line Cook": "Line Cook", "role.Server": "Server", "role.Host": "Host", "role.Bartender": "Bartender", "role.Busser": "Busser", "role.Dishwasher": "Dishwasher", "role.Prep Cook": "Prep Cook", "role.Expo": "Expo",
@@ -726,7 +728,7 @@ I18N.add({
     "sched.skip.unavailable": "marqué indisponible", "sched.availShort": "Disponible", "sched.availFrom": "Disponible dès", "sched.availUntil": "Disponible jusqu'à", "sched.unavailAll": "Indisponible · toute la journée", "sched.unavailShort": "Indisponible", "sched.unavailStart": "début", "sched.unavailEnd": "fermeture", "sched.skip.overlap": "a déjà un quart à ce moment", "sched.skip.bad_time": "heures invalides", "sched.skip.bad_date": "date hors de cette semaine", "sched.skip.unknown_staff": "employé inconnu",
     "sched.noStaff": h => `Aucun employé n'a de poste en ${h} pour l'instant. Ajoutez des postes dans l'onglet Personnel.`,
     "sched.hoursWeek": h => `Heures ${h} cette semaine`, "sched.costWeek": h => `Coût de main-d'œuvre ${h} cette semaine`,
-    "sched.rolePh": "Poste (facultatif)", "sched.addShift": "+ Ajouter", "sched.paste": "Coller ici", "common.edit": "Modifier", "common.cancel": "Annuler", "common.save": "Enregistrer", "common.copy": "Copier", "common.delete": "Supprimer",
+    "sched.rolePh": "Poste (facultatif)", "sched.stationPh": "Station (facultatif)", "sched.addShift": "+ Ajouter", "sched.paste": "Coller ici", "common.edit": "Modifier", "common.cancel": "Annuler", "common.save": "Enregistrer", "common.copy": "Copier", "common.delete": "Supprimer",
     "house.foh": "Salle", "house.boh": "Cuisine",
     "days.0": "Lun", "days.1": "Mar", "days.2": "Mer", "days.3": "Jeu", "days.4": "Ven", "days.5": "Sam", "days.6": "Dim",
     "role.Manager": "Gérant(e)", "role.Line Cook": "Cuisinier de ligne", "role.Server": "Serveur/Serveuse", "role.Host": "Hôte/Hôtesse", "role.Bartender": "Barman/Barmaid", "role.Busser": "Aide-serveur", "role.Dishwasher": "Plongeur/Plongeuse", "role.Prep Cook": "Cuisinier de préparation", "role.Expo": "Expéditeur",
@@ -774,7 +776,7 @@ I18N.add({
     "sched.skip.unavailable": "marcado como no disponible", "sched.availShort": "Disponible", "sched.availFrom": "Disponible desde", "sched.availUntil": "Disponible hasta", "sched.unavailAll": "No disponible · todo el día", "sched.unavailShort": "No disponible", "sched.unavailStart": "inicio", "sched.unavailEnd": "cierre", "sched.skip.overlap": "ya tiene un turno a esa hora", "sched.skip.bad_time": "horas no válidas", "sched.skip.bad_date": "fecha fuera de esta semana", "sched.skip.unknown_staff": "empleado desconocido",
     "sched.noStaff": h => `Aún no hay personal con puestos de ${h}. Agrega puestos en la pestaña Personal.`,
     "sched.hoursWeek": h => `Horas de ${h} esta semana`, "sched.costWeek": h => `Costo laboral de ${h} esta semana`,
-    "sched.rolePh": "Puesto (opcional)", "sched.addShift": "+ Agregar", "sched.paste": "Pegar aquí", "common.edit": "Editar", "common.cancel": "Cancelar", "common.save": "Guardar", "common.copy": "Copiar", "common.delete": "Eliminar",
+    "sched.rolePh": "Puesto (opcional)", "sched.stationPh": "Estación (opcional)", "sched.addShift": "+ Agregar", "sched.paste": "Pegar aquí", "common.edit": "Editar", "common.cancel": "Cancelar", "common.save": "Guardar", "common.copy": "Copiar", "common.delete": "Eliminar",
     "house.foh": "Salón", "house.boh": "Cocina",
     "days.0": "Lun", "days.1": "Mar", "days.2": "Mié", "days.3": "Jue", "days.4": "Vie", "days.5": "Sáb", "days.6": "Dom",
     "role.Manager": "Gerente", "role.Line Cook": "Cocinero de línea", "role.Server": "Mesero/a", "role.Host": "Anfitrión/a", "role.Bartender": "Bartender", "role.Busser": "Ayudante de mesero", "role.Dishwasher": "Lavaplatos", "role.Prep Cook": "Cocinero de preparación", "role.Expo": "Expo",
@@ -789,6 +791,9 @@ let staff = [];
 const ROLES = ["Manager", "Server", "Bartender", "Busser", "Host", "Line Cook", "Dishwasher", "Prep Cook", "Expo"];
 const FOH_ROLES = ["Manager", "Server", "Bartender", "Busser", "Host"]; // grid order: manager first
 const BOH_ROLES = ["Manager", "Line Cook", "Prep Cook", "Dishwasher", "Expo"]; // manager band first, like FOH
+const STATIONS = ["Grill", "Dishwasher", "Fryer and Pans", "Garde-Manger"]; // kitchen stations, same names in every language
+const stationSelect = (id, current) => houseView !== "boh" ? "" : `<select id="${id}"><option value="">${tr("sched.stationPh")}</option>${STATIONS.map(x => `<option value="${escapeHtml(x)}"${x === (current || "") ? " selected" : ""}>${escapeHtml(x)}</option>`).join("")}</select>`;
+const stationTag = st => st ? `<div class="station-tag">${escapeHtml(st)}</div>` : "";
 const ROLE_COLORS = {
   "Manager": "#B08A1E",
   "Line Cook": "#C1623A",
@@ -1539,7 +1544,7 @@ async function copyLastWeek() {
   const ids = new Set(visibleStaffForView().map(p => p.id));
   const shifts = r.data.filter(sh => ids.has(sh.staffId)).map(sh => {
     const d = new Date(sh.date + "T00:00:00"); d.setDate(d.getDate() + 7);
-    return { staffId: sh.staffId, date: toISODate(d), startTime: sh.scheduledStart || sh.startTime, endTime: sh.scheduledEnd || sh.endTime, role: sh.role };
+    return { staffId: sh.staffId, date: toISODate(d), startTime: sh.scheduledStart || sh.startTime, endTime: sh.scheduledEnd || sh.endTime, role: sh.role, station: sh.station || "" };
   });
   if (shifts.length === 0) return showBanner(tr("copy.none"), "warn");
   if (!confirm(tr("copy.confirm", shifts.length, formatShort(prev)))) return;
@@ -1655,11 +1660,11 @@ function serviceDayCost(svcId, dateStr, groups) {
 
 function copyShiftFromChip(btn) {
   const chip = btn.closest(".shift-chip");
-  copyShift(chip.dataset.start, chip.dataset.end, chip.dataset.role);
+  copyShift(chip.dataset.start, chip.dataset.end, chip.dataset.role, chip.dataset.station);
 }
 
-function copyShift(startTime, endTime, role) {
-  copiedShift = { startTime, endTime, role };
+function copyShift(startTime, endTime, role, station) {
+  copiedShift = { startTime, endTime, role, station: station || "" };
   document.getElementById("copyBar").classList.add("active");
   renderScheduleGrid();
 }
@@ -1672,7 +1677,7 @@ function cancelCopy() {
 
 function pasteShift(staffId, dateStr, groupRole) {
   if (!copiedShift) return;
-  draftShifts.push({ key: "d" + (++draftSeq), staffId, date: dateStr, startTime: copiedShift.startTime, endTime: copiedShift.endTime, role: groupRole || copiedShift.role });
+  draftShifts.push({ key: "d" + (++draftSeq), staffId, date: dateStr, startTime: copiedShift.startTime, endTime: copiedShift.endTime, role: groupRole || copiedShift.role, station: copiedShift.station || "" });
   renderScheduleGrid();
 }
 
@@ -1701,7 +1706,7 @@ async function saveDrafts() {
   for (const d of draftShifts.slice()) {
     const result = await api("/api/schedule", {
       method: "POST",
-      body: JSON.stringify({ staffId: d.staffId, date: d.date, startTime: d.startTime, endTime: d.endTime, role: d.role }),
+      body: JSON.stringify({ staffId: d.staffId, date: d.date, startTime: d.startTime, endTime: d.endTime, role: d.role, station: d.station || "" }),
     });
     if (!result.ok) { failed.push(d); lastError = result.error; }
   }
@@ -1839,6 +1844,7 @@ function renderDayCell(staffMember, dateStr, groupRole) {
         <option value="">${tr("sched.rolePh")}</option>
         ${ROLES.map(r => `<option value="${r}"${r === (s.role || "") ? " selected" : ""}>${escapeHtml(roleLabel(r))}</option>`).join("")}
       </select>
+      ${stationSelect("editStation", s.station)}
       <div class="form-actions">
         <button style="background:var(--green);color:#fff" onclick="saveShiftEdit('${s.id}')">${tr("common.save")}</button>
         <button style="background:var(--rail);color:var(--text-bright)" onclick="cancelShiftEdit()">${tr("common.cancel")}</button>
@@ -1846,7 +1852,7 @@ function renderDayCell(staffMember, dateStr, groupRole) {
     </div>` : `
     <div class="shift-chip" draggable="true" style="--role-color:${roleColor(s.role)}"
       ondragstart="onDragStart(event,'${s.id}')" ondragend="onDragEnd(event)"
-      data-start="${s.startTime}" data-end="${s.endTime}" data-role="${escapeHtml(s.role || '')}"${s.scheduledStart ? ` title="${escapeHtml(tr("punch.chipTitle", formatTime(s.scheduledStart), formatTime(s.scheduledEnd || s.endTime)))}"` : ""}>
+      data-start="${s.startTime}" data-end="${s.endTime}" data-role="${escapeHtml(s.role || '')}" data-station="${escapeHtml(s.station || '')}"${s.scheduledStart ? ` title="${escapeHtml(tr("punch.chipTitle", formatTime(s.scheduledStart), formatTime(s.scheduledEnd || s.endTime)))}"` : ""}>
       <div class="chip-top">
         <div class="times">${formatTime(s.startTime)}–${formatTime(s.endTime)}${s.scheduledStart ? " ⏱" : ""}</div>
         <div class="chip-actions">
@@ -1856,6 +1862,7 @@ function renderDayCell(staffMember, dateStr, groupRole) {
         </div>
       </div>
       ${s.role ? `<div class="role-tag">${escapeHtml(roleLabel(s.role))}</div>` : ""}
+      ${stationTag(s.station)}
     </div>
   `).join("");
 
@@ -1866,6 +1873,7 @@ function renderDayCell(staffMember, dateStr, groupRole) {
         <div class="chip-actions"><button class="chip-btn" onclick="removeDraft('${d.key}')" title="${escapeHtml(tr("common.delete"))}">✕</button></div>
       </div>
       ${d.role ? `<div class="role-tag">${escapeHtml(roleLabel(d.role))}</div>` : ""}
+      ${stationTag(d.station)}
     </div>`).join("");
 
   if (isAdding) {
@@ -1877,6 +1885,7 @@ function renderDayCell(staffMember, dateStr, groupRole) {
           <option value="">${tr("sched.rolePh")}</option>
           ${ROLES.map(r => `<option value="${r}"${r === groupRole ? " selected" : ""}>${escapeHtml(roleLabel(r))}</option>`).join("")}
         </select>
+        ${stationSelect(`shiftStationSel-${staffMember.id}-${dateStr}`, "")}
         <div class="form-actions">
           <button style="background:var(--green);color:#fff" onclick="submitAddShift('${staffMember.id}','${dateStr}')">${tr("common.save")}</button>
           <button style="background:var(--rail);color:var(--text-bright)" onclick="cancelAddShift()">${tr("common.cancel")}</button>
@@ -1898,8 +1907,11 @@ async function saveShiftEdit(id) {
   const startTime = document.getElementById("editStart").value;
   const endTime = document.getElementById("editEnd").value;
   const role = document.getElementById("editRole").value;
+  const stEl = document.getElementById("editStation");
   if (!startTime || !endTime) return showBanner(tr("msg.needTimes"), "warn");
-  const result = await api(`/api/schedule/${id}`, { method: "PATCH", body: JSON.stringify({ startTime, endTime, role }) });
+  const body = { startTime, endTime, role };
+  if (stEl) body.station = stEl.value;
+  const result = await api(`/api/schedule/${id}`, { method: "PATCH", body: JSON.stringify(body) });
   if (!result.ok) return showBanner(result.error, "warn");
   editingShiftId = null;
   loadSchedule();
@@ -1919,10 +1931,11 @@ async function submitAddShift(staffId, dateStr) {
   const startInput = document.getElementById(`shiftStart-${staffId}-${dateStr}`);
   const endInput = document.getElementById(`shiftEnd-${staffId}-${dateStr}`);
   const roleInput = document.getElementById(`shiftRoleSel-${staffId}-${dateStr}`);
+  const stationInput = document.getElementById(`shiftStationSel-${staffId}-${dateStr}`);
   if (!startInput.value || !endInput.value) return showBanner(tr("msg.needTimes"), "warn");
   const result = await api("/api/schedule", {
     method: "POST",
-    body: JSON.stringify({ staffId, date: dateStr, startTime: startInput.value, endTime: endInput.value, role: roleInput.value }),
+    body: JSON.stringify({ staffId, date: dateStr, startTime: startInput.value, endTime: endInput.value, role: roleInput.value, station: stationInput ? stationInput.value : "" }),
   });
   if (result.ok) {
     addingCell = null;

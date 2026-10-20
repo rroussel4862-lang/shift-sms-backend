@@ -163,6 +163,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE schedule_shifts ADD COLUMN IF NOT EXISTS punch_out TEXT;`);
   await pool.query(`ALTER TABLE schedule_shifts ADD COLUMN IF NOT EXISTS scheduled_start TEXT;`);
   await pool.query(`ALTER TABLE schedule_shifts ADD COLUMN IF NOT EXISTS scheduled_end TEXT;`);
+  await pool.query(`ALTER TABLE schedule_shifts ADD COLUMN IF NOT EXISTS station TEXT;`); // kitchen station for the shift (Grill, ...), optional
   // Publishing: a FUTURE week stays hidden from staff until the manager publishes it. The current and past weeks are always live.
   // The first time this table is created, every week that already has shifts is marked published so nothing vanishes from staff.
   const { rows: pubExists } = await pool.query(`SELECT to_regclass('schedule_published') AS t`);
@@ -613,8 +614,13 @@ function scheduleShiftRowToJson(row) {
     punchOut: row.punch_out || "",
     scheduledStart: row.scheduled_start || "",
     scheduledEnd: row.scheduled_end || "",
+    station: row.station || "",
   };
 }
+
+// Kitchen stations a shift can be assigned to (the same names in every language). Anything else is ignored.
+const STATIONS = ["Grill", "Dishwasher", "Fryer and Pans", "Garde-Manger"];
+const cleanStation = (v) => (STATIONS.includes(v) ? v : null);
 function signToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { algorithm: "HS256", expiresIn: "30d" });
 }
@@ -2117,32 +2123,40 @@ const isMondayIso = (d) => isIsoDate(d) && new Date(d + "T00:00:00Z").getUTCDay(
 app.get("/api/schedule/publish", requireAuth, async (req, res) => {
   const weekStart = String(req.query.weekStart || "");
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
-  const { rows } = await pool.query("SELECT published_at FROM schedule_published WHERE restaurant_id = $1 AND week_start = $2", [req.restaurantId, weekStart]);
+  const house = parseHouse(req.query.house);
+  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
+  const { rows } = await pool.query("SELECT published_at FROM schedule_published WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [req.restaurantId, weekStart, house]);
   const alwaysLive = weekStart <= mondayOfIso(ownerToday());
-  res.json({ weekStart, published: rows.length > 0, alwaysLive, visibleToStaff: alwaysLive || rows.length > 0 });
+  res.json({ weekStart, house, published: rows.length > 0, alwaysLive, visibleToStaff: alwaysLive || rows.length > 0 });
 });
 
-// Post a week: staff can see it in their portal from now on, and everyone who works that week gets a text.
-// (Posting a week that is already posted doesn't text again.)
+// Post a week for one house (Front of House or Back of House): that house's staff can see it in their portal from now on,
+// and everyone in that house who works that week gets a text. (Posting a week that is already posted doesn't text again.)
 app.post("/api/schedule/publish", requireAuth, async (req, res) => {
   const weekStart = String((req.body && req.body.weekStart) || "");
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
+  const house = parseHouse(req.body && req.body.house);
+  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
   const ins = await pool.query(
-    "INSERT INTO schedule_published (restaurant_id, week_start, published_at) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
-    [req.restaurantId, weekStart, Date.now()]
+    "INSERT INTO schedule_published (restaurant_id, week_start, published_at, house) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING",
+    [req.restaurantId, weekStart, Date.now(), house]
   );
-  logActivity({ restaurantId: req.restaurantId, eventType: "schedule_published", detail: `week of ${weekStart}` });
+  logActivity({ restaurantId: req.restaurantId, eventType: "schedule_published", detail: `week of ${weekStart} (${house.toUpperCase()})` });
   let texted = 0;
-  if (ins.rowCount === 1) texted = await textSchedulePosted(req, weekStart);
-  res.json({ weekStart, published: true, visibleToStaff: true, texted });
+  if (ins.rowCount === 1) texted = await textSchedulePosted(req, weekStart, house);
+  res.json({ weekStart, house, published: true, visibleToStaff: true, texted });
 });
 
-async function textSchedulePosted(req, weekStart) {
+async function textSchedulePosted(req, weekStart, house) {
   try {
-    const { rows: who } = await pool.query(
-      `SELECT staff_id, COUNT(*)::int AS n FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3 GROUP BY staff_id`,
+    const { rows: shiftRows } = await pool.query(
+      `SELECT s.staff_id, s.role, st.roles AS person_roles FROM schedule_shifts s JOIN staff st ON st.id = s.staff_id
+       WHERE s.restaurant_id = $1 AND s.shift_date >= $2 AND s.shift_date <= $3`,
       [req.restaurantId, weekStart, addDaysIso(weekStart, 6)]
     );
+    const counts = new Map();
+    shiftRows.filter((r) => shiftHouse(r.role, r.person_roles) === house).forEach((r) => counts.set(r.staff_id, (counts.get(r.staff_id) || 0) + 1));
+    const who = [...counts].map(([staff_id, n]) => ({ staff_id, n }));
     if (!who.length) return 0;
     const { rows: r } = await pool.query("SELECT name FROM restaurants WHERE id = $1", [req.restaurantId]);
     const restaurantName = r[0] ? r[0].name : "your restaurant";
@@ -2170,24 +2184,27 @@ async function textSchedulePosted(req, weekStart) {
 app.delete("/api/schedule/publish/:weekStart", requireAuth, async (req, res) => {
   const weekStart = req.params.weekStart;
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
+  const house = parseHouse(req.query.house);
+  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
   if (weekStart <= mondayOfIso(ownerToday())) return res.status(400).json({ error: "The current week is always visible to staff." });
-  await pool.query("DELETE FROM schedule_published WHERE restaurant_id = $1 AND week_start = $2", [req.restaurantId, weekStart]);
-  res.json({ weekStart, published: false, visibleToStaff: false });
+  await pool.query("DELETE FROM schedule_published WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [req.restaurantId, weekStart, house]);
+  res.json({ weekStart, house, published: false, visibleToStaff: false });
 });
 
 app.post("/api/schedule", requireAuth, async (req, res) => {
-  const { staffId, date, startTime, endTime, role } = req.body || {};
+  const { staffId, date, startTime, endTime, role, station } = req.body || {};
   if (!staffId) return res.status(400).json({ error: "staffId is required" });
   if (!date) return res.status(400).json({ error: "date is required" });
   if (!startTime || !endTime) return res.status(400).json({ error: "startTime and endTime are required" });
+  if (station && !STATIONS.includes(station)) return res.status(400).json({ error: `station must be one of: ${STATIONS.join(", ")}` });
 
   const { rows: staffRows } = await pool.query("SELECT id FROM staff WHERE id = $1 AND restaurant_id = $2", [staffId, req.restaurantId]);
   if (staffRows.length === 0) return res.status(404).json({ error: "staff not found" });
 
   const newId = id();
   const { rows } = await pool.query(
-    "INSERT INTO schedule_shifts (id, restaurant_id, staff_id, shift_date, start_time, end_time, role, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
-    [newId, req.restaurantId, staffId, date, startTime, endTime, (role || "").trim() || null, Date.now()]
+    "INSERT INTO schedule_shifts (id, restaurant_id, staff_id, shift_date, start_time, end_time, role, created_at, station) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
+    [newId, req.restaurantId, staffId, date, startTime, endTime, (role || "").trim() || null, Date.now(), cleanStation(station)]
   );
   res.status(201).json(scheduleShiftRowToJson(rows[0]));
 });
@@ -2283,7 +2300,7 @@ function checkScheduleCandidates(candidates, { staffById, existing, availability
     (taken[k] = taken[k] || []).push(range);
     const roles = person.roles || [];
     const role = roles.includes(c.role) ? c.role : (roles[0] || "");
-    ok.push({ staffId: c.staffId, staffName: person.name, date: c.date, startTime: c.startTime, endTime: c.endTime, role });
+    ok.push({ staffId: c.staffId, staffName: person.name, date: c.date, startTime: c.startTime, endTime: c.endTime, role, station: cleanStation(c.station) });
   }
   return { ok, skipped };
 }
@@ -2326,7 +2343,7 @@ app.post("/api/schedule/bulk", requireAuth, async (req, res) => {
   );
   const existing = existingRows.map(scheduleShiftRowToJson);
   const { ok, skipped } = checkScheduleCandidates(
-    list.map((c) => ({ staffId: c && c.staffId, date: c && c.date, startTime: c && c.startTime, endTime: c && c.endTime, role: c && c.role })),
+    list.map((c) => ({ staffId: c && c.staffId, date: c && c.date, startTime: c && c.startTime, endTime: c && c.endTime, role: c && c.role, station: c && c.station })),
     { staffById, existing, availabilityByStaff: null }
   );
   const client = await pool.connect();
@@ -2335,8 +2352,8 @@ app.post("/api/schedule/bulk", requireAuth, async (req, res) => {
     await client.query("BEGIN");
     for (const sh of ok) {
       const { rows } = await client.query(
-        "INSERT INTO schedule_shifts (id, restaurant_id, staff_id, shift_date, start_time, end_time, role, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
-        [id(), req.restaurantId, sh.staffId, sh.date, sh.startTime, sh.endTime, sh.role || null, Date.now()]
+        "INSERT INTO schedule_shifts (id, restaurant_id, staff_id, shift_date, start_time, end_time, role, created_at, station) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
+        [id(), req.restaurantId, sh.staffId, sh.date, sh.startTime, sh.endTime, sh.role || null, Date.now(), sh.station || null]
       );
       created.push(scheduleShiftRowToJson(rows[0]));
     }
@@ -2362,8 +2379,10 @@ app.patch("/api/schedule/:id", requireAuth, async (req, res) => {
   const { rows: existing } = await pool.query("SELECT * FROM schedule_shifts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
   if (existing.length === 0) return res.status(404).json({ error: "shift not found" });
 
-  const { startTime, endTime, role, date, staffId } = req.body || {};
+  const { startTime, endTime, role, date, staffId, station } = req.body || {};
+  if (station && !STATIONS.includes(station)) return res.status(400).json({ error: `station must be one of: ${STATIONS.join(", ")}` });
   const updates = {
+    station: existing[0].station || null,
     start_time: existing[0].start_time,
     end_time: existing[0].end_time,
     role: existing[0].role,
@@ -2375,10 +2394,11 @@ app.patch("/api/schedule/:id", requireAuth, async (req, res) => {
   if (role !== undefined) updates.role = role.trim() || null;
   if (date !== undefined) updates.shift_date = date;
   if (staffId !== undefined) updates.staff_id = staffId;
+  if (station !== undefined) updates.station = cleanStation(station);
 
   const { rows } = await pool.query(
-    "UPDATE schedule_shifts SET staff_id=$1, shift_date=$2, start_time=$3, end_time=$4, role=$5 WHERE id=$6 AND restaurant_id=$7 RETURNING *",
-    [updates.staff_id, updates.shift_date, updates.start_time, updates.end_time, updates.role, req.params.id, req.restaurantId]
+    "UPDATE schedule_shifts SET staff_id=$1, shift_date=$2, start_time=$3, end_time=$4, role=$5, station=$6 WHERE id=$7 AND restaurant_id=$8 RETURNING *",
+    [updates.staff_id, updates.shift_date, updates.start_time, updates.end_time, updates.role, updates.station, req.params.id, req.restaurantId]
   );
   res.json(scheduleShiftRowToJson(rows[0]));
 });
@@ -3467,24 +3487,29 @@ app.post("/api/staff-auth/board/seen", requireStaffAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-// "New schedule posted": weeks the manager published since this person last tapped "Got it", limited to weeks they actually work in.
+// "New schedule posted": weeks the manager published (for the house this person works in) since they last tapped "Got it".
 app.get("/api/staff-auth/schedule-news", requireStaffAuth, async (req, res) => {
-  const { rows: me } = await pool.query("SELECT schedule_seen_at FROM staff WHERE id = $1 AND restaurant_id = $2", [req.staffId, req.restaurantId]);
+  const { rows: me } = await pool.query("SELECT schedule_seen_at, roles FROM staff WHERE id = $1 AND restaurant_id = $2", [req.staffId, req.restaurantId]);
   if (!me.length) return res.status(404).json({ error: "not found" });
   const seenAt = me[0].schedule_seen_at !== null ? Number(me[0].schedule_seen_at) : 0;
   const { rows: pubs } = await pool.query(
-    "SELECT week_start, published_at FROM schedule_published WHERE restaurant_id = $1 AND published_at > $2 AND week_start >= $3 ORDER BY week_start",
+    "SELECT week_start, house, published_at FROM schedule_published WHERE restaurant_id = $1 AND published_at > $2 AND week_start >= $3 ORDER BY week_start",
     [req.restaurantId, seenAt, mondayOfIso(ownerToday())]
   );
-  const weeks = [];
+  const byWeek = new Map();
   for (const p of pubs) {
-    const { rows: c } = await pool.query(
-      "SELECT COUNT(*)::int AS n FROM schedule_shifts WHERE restaurant_id = $1 AND staff_id = $2 AND shift_date >= $3 AND shift_date <= $4",
+    const { rows: mine } = await pool.query(
+      "SELECT role FROM schedule_shifts WHERE restaurant_id = $1 AND staff_id = $2 AND shift_date >= $3 AND shift_date <= $4",
       [req.restaurantId, req.staffId, p.week_start, addDaysIso(p.week_start, 6)]
     );
-    if (c[0].n > 0) weeks.push({ weekStart: p.week_start, shiftCount: c[0].n, publishedAt: Number(p.published_at) });
+    const n = mine.filter((m) => shiftHouse(m.role, me[0].roles) === p.house).length;
+    if (n === 0) continue;
+    const cur = byWeek.get(p.week_start) || { weekStart: p.week_start, shiftCount: 0, publishedAt: 0 };
+    cur.shiftCount += n;
+    cur.publishedAt = Math.max(cur.publishedAt, Number(p.published_at));
+    byWeek.set(p.week_start, cur);
   }
-  res.json({ weeks });
+  res.json({ weeks: [...byWeek.values()] });
 });
 
 app.post("/api/staff-auth/schedule-news/seen", requireStaffAuth, async (req, res) => {
