@@ -239,7 +239,7 @@ I18N.add({
     "swap.openStatus": "Posted to your coworkers — waiting for someone to take it",
     "swap.pendingGive": n => `${n} will take it — waiting for manager approval`, "swap.pendingSwap": n => `${n} offered a trade — waiting for manager approval`,
     "swap.inTrade": "Offered in a swap — waiting for manager approval", "swap.cancel": "Cancel request",
-    "swap.posted": "Posted. Your coworkers can see it now.", "swap.cancelled": "Request cancelled",
+    "swap.posted": "Posted. Your coworkers can see it now.", "swap.remove": "Remove ticket", "swap.cancelled": "Request cancelled",
     "swap.h2": "Shifts coworkers want to hand off", "swap.empty": "No coworker requests right now.",
     "swap.stampGive": "Give", "swap.stampSwap": "Swap", "swap.from": n => `From ${n}`,
     "swap.take": "Take this shift", "swap.offer": "Offer a trade", "swap.pickMine": "Trade one of my shifts…", "swap.noneToTrade": "You have no shifts of your own to trade right now.",
@@ -276,7 +276,7 @@ I18N.add({
     "swap.openStatus": "Publié pour vos collègues — en attente d'un preneur",
     "swap.pendingGive": n => `${n} le prend — en attente de l'approbation du gestionnaire`, "swap.pendingSwap": n => `${n} propose un échange — en attente de l'approbation du gestionnaire`,
     "swap.inTrade": "Proposé dans un échange — en attente de l'approbation du gestionnaire", "swap.cancel": "Annuler la demande",
-    "swap.posted": "Publié. Vos collègues peuvent le voir.", "swap.cancelled": "Demande annulée",
+    "swap.posted": "Publié. Vos collègues peuvent le voir.", "swap.remove": "Retirer le billet", "swap.cancelled": "Demande annulée",
     "swap.h2": "Quarts que des collègues veulent céder", "swap.empty": "Aucune demande de collègue pour l'instant.",
     "swap.stampGive": "Cession", "swap.stampSwap": "Échange", "swap.from": n => `De ${n}`,
     "swap.take": "Prendre ce quart", "swap.offer": "Proposer un échange", "swap.pickMine": "Échanger un de mes quarts…", "swap.noneToTrade": "Vous n'avez aucun quart à échanger pour le moment.",
@@ -313,7 +313,7 @@ I18N.add({
     "swap.openStatus": "Publicado para tus compañeros — esperando a que alguien lo tome",
     "swap.pendingGive": n => `${n} lo tomará — esperando aprobación del gerente`, "swap.pendingSwap": n => `${n} ofreció un cambio — esperando aprobación del gerente`,
     "swap.inTrade": "Ofrecido en un cambio — esperando aprobación del gerente", "swap.cancel": "Cancelar solicitud",
-    "swap.posted": "Publicado. Tus compañeros ya pueden verlo.", "swap.cancelled": "Solicitud cancelada",
+    "swap.posted": "Publicado. Tus compañeros ya pueden verlo.", "swap.remove": "Quitar el boleto", "swap.cancelled": "Solicitud cancelada",
     "swap.h2": "Turnos que tus compañeros quieren ceder", "swap.empty": "No hay solicitudes de compañeros por ahora.",
     "swap.stampGive": "Ceder", "swap.stampSwap": "Cambio", "swap.from": n => `De ${n}`,
     "swap.take": "Tomar este turno", "swap.offer": "Ofrecer un cambio", "swap.pickMine": "Cambiar uno de mis turnos…", "swap.noneToTrade": "No tienes turnos propios para cambiar por ahora.",
@@ -551,7 +551,8 @@ function renderSwaps() {
     } else if (w.status === "approved" || w.status === "denied") {
       parts.push(`<div class="ticket"><div class="stamp">${tr(w.status === "approved" ? "swap.approved" : "swap.denied")}</div>
         <h3>${escapeHtml(w.shift.role ? roleLabel(w.shift.role) : tr("schedule.shift"))}</h3>
-        <div class="meta">${swapWhen(w.shift)}</div></div>`);
+        <div class="meta">${swapWhen(w.shift)}</div>
+        <div class="swap-actions"><button onclick="dismissSwap('${w.id}')">${tr("swap.remove")}</button></div></div>`);
     }
   });
   swapData.available.forEach(w => {
@@ -582,6 +583,13 @@ async function acceptSwap(swapId) {
   const result = await api(`/api/staff-auth/swaps/${swapId}/accept`, { method: "POST", body: JSON.stringify(body) });
   if (!result.ok) { showBanner(result.error, "warn"); return loadSwaps(); }
   showBanner(tr("swap.sent"), "success");
+  await loadSwaps();
+}
+async function dismissSwap(swapId) {
+  swapData.mine = swapData.mine.filter(w => w.id !== swapId); // gone right away
+  renderSwaps();
+  const result = await api(`/api/staff-auth/swaps/${swapId}/dismiss`, { method: "POST" });
+  if (!result.ok) showBanner(result.error, "warn");
   await loadSwaps();
 }
 async function withdrawSwap(swapId) {

@@ -411,6 +411,9 @@ async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS shift_swaps_restaurant_idx ON shift_swaps (restaurant_id, status);`);
+  await pool.query(`ALTER TABLE shift_swaps ADD COLUMN IF NOT EXISTS from_hidden BOOLEAN NOT NULL DEFAULT false;`); // the person who offered cleared this finished ticket
+  await pool.query(`ALTER TABLE shift_swaps ADD COLUMN IF NOT EXISTS to_hidden BOOLEAN NOT NULL DEFAULT false;`);   // the person who took it did
+  await pool.query(`ALTER TABLE shift_swaps ADD COLUMN IF NOT EXISTS manager_hidden BOOLEAN NOT NULL DEFAULT false;`); // a manager cleared this finished ticket from their list
 
   // ---------- restaurant owners (own one or more restaurants; read-only snapshot across all of them) ----------
   await pool.query(`
@@ -1809,8 +1812,9 @@ app.get("/api/staff-auth/swaps", requireStaffAuth, async (req, res) => {
   const floor = swapTodayFloor();
   const { rows } = await pool.query(
     `${SWAP_SELECT} WHERE w.restaurant_id = $1 AND s.shift_date >= $2 AND (w.status IN ('open','pending') OR (w.status IN ('approved','denied') AND w.resolved_at > $3))
+       AND NOT (w.from_staff_id = $4 AND w.from_hidden) AND NOT (w.to_staff_id = $4 AND w.to_hidden)
      ORDER BY s.shift_date ASC, s.start_time ASC`,
-    [req.restaurantId, floor, Date.now() - 14 * 24 * 3600 * 1000]
+    [req.restaurantId, floor, Date.now() - 14 * 24 * 3600 * 1000, req.staffId]
   );
   const all = rows.map(swapRowToJson);
   const mine = all.filter((w) => w.fromStaffId === req.staffId || w.toStaffId === req.staffId);
@@ -1873,6 +1877,16 @@ app.post("/api/staff-auth/swaps/:id/cancel", requireStaffAuth, async (req, res) 
   res.json({ ok: true });
 });
 
+// Once the manager has decided, either person can clear the finished ticket from their own list (the other person's list and the manager's are untouched).
+app.post("/api/staff-auth/swaps/:id/dismiss", requireStaffAuth, async (req, res) => {
+  const swap = await loadSwap(req.params.id, req.restaurantId);
+  if (!swap || (swap.fromStaffId !== req.staffId && swap.toStaffId !== req.staffId)) return res.status(404).json({ error: "request not found" });
+  if (swap.status !== "approved" && swap.status !== "denied") return res.status(400).json({ error: "Only a finished request can be removed" });
+  const col = swap.fromStaffId === req.staffId ? "from_hidden" : "to_hidden";
+  await pool.query(`UPDATE shift_swaps SET ${col} = true WHERE id = $1 AND restaurant_id = $2`, [swap.id, req.restaurantId]);
+  res.json({ ok: true });
+});
+
 // The person who accepted can back out while the manager hasn't decided; the request goes back on the board.
 app.post("/api/staff-auth/swaps/:id/withdraw", requireStaffAuth, async (req, res) => {
   const swap = await loadSwap(req.params.id, req.restaurantId);
@@ -1884,7 +1898,7 @@ app.post("/api/staff-auth/swaps/:id/withdraw", requireStaffAuth, async (req, res
 
 app.get("/api/swaps", requireAuth, async (req, res) => {
   const { rows } = await pool.query(
-    `${SWAP_SELECT} WHERE w.restaurant_id = $1 AND (w.status IN ('open','pending') OR (w.status IN ('approved','denied') AND w.resolved_at > $2))
+    `${SWAP_SELECT} WHERE w.restaurant_id = $1 AND NOT w.manager_hidden AND (w.status IN ('open','pending') OR (w.status IN ('approved','denied') AND w.resolved_at > $2))
      ORDER BY CASE w.status WHEN 'pending' THEN 0 WHEN 'open' THEN 1 ELSE 2 END, s.shift_date ASC, s.start_time ASC LIMIT 100`,
     [req.restaurantId, Date.now() - 7 * 24 * 3600 * 1000]
   );
@@ -1948,6 +1962,24 @@ app.post("/api/swaps/:id/deny", requireAuth, async (req, res) => {
     textSwapParty(swap.toStaffId, req.restaurantId, `The shift change for ${swapWhenText(swap.shift)} wasn't approved.`);
   }
   res.json(await loadSwap(swap.id, req.restaurantId));
+});
+
+// Remove a ticket from the board. A live one (open or waiting for approval) is cancelled and disappears for staff too, with no decision made;
+// a finished one (approved or denied) is only cleared from the manager's list, so staff keep their record of what was decided.
+app.delete("/api/swaps/:id", requireAuth, async (req, res) => {
+  const swap = await loadSwap(req.params.id, req.restaurantId);
+  if (!swap) return res.status(404).json({ error: "request not found" });
+  if (swap.status === "open" || swap.status === "pending") {
+    await pool.query("UPDATE shift_swaps SET status = 'cancelled', resolved_at = $1, manager_hidden = true WHERE id = $2 AND restaurant_id = $3", [Date.now(), swap.id, req.restaurantId]);
+    logActivity({ restaurantId: req.restaurantId, eventType: "shift_swap_removed", detail: `${swap.fromName} ${swapWhenText(swap.shift)}` });
+    if (swap.status === "pending") {
+      textSwapParty(swap.fromStaffId, req.restaurantId, `Your shift change request for ${swapWhenText(swap.shift)} was removed by a manager — you're still on the schedule.`);
+      textSwapParty(swap.toStaffId, req.restaurantId, `The shift change request for ${swapWhenText(swap.shift)} was removed by a manager.`);
+    }
+  } else {
+    await pool.query("UPDATE shift_swaps SET manager_hidden = true WHERE id = $1 AND restaurant_id = $2", [swap.id, req.restaurantId]);
+  }
+  res.status(204).end();
 });
 
 // ---------- hiring: postings (manager, authenticated) ----------

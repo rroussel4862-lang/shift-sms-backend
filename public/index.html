@@ -1028,7 +1028,7 @@ const T = {
       swapCard: "Shift swap requests", swapNone: "No swap or give-away requests.", swapOverview: n => `${n} swap request${n === 1 ? "" : "s"} to approve`,
       swapGive: "Give-away", swapSwap: "Swap", swapPending: "Needs your approval", swapOpen: "Waiting for a taker", swapApproved: "Approved", swapDenied: "Denied",
       swapGiveLine: (from, to) => `${from} gives this shift to ${to}`, swapSwapLine: (from, to) => `${from} and ${to} trade shifts`, swapOpenLine: from => `${from} wants to give this shift away`, swapOpenSwapLine: from => `${from} wants to trade this shift`,
-      swapInReturn: "In exchange, they take:", swapApprove: "Approve", swapDeny: "Deny", swapRemove: "Remove", swapApprovedBanner: "Approved — both people were texted.", swapDeniedBanner: "Request closed.",
+      swapInReturn: "In exchange, they take:", swapApprove: "Approve", swapDeny: "Deny", swapRemove: "Remove", swapRemoveConfirm: "Remove this request without approving or denying it? Both people are told it was removed.", swapRemovedBanner: "Request removed", swapApprovedBanner: "Approved — both people were texted.", swapDeniedBanner: "Request closed.",
       eyebrow: "Scheduling", h2: "Shifts & staffing", desc: "When someone doesn't show, post it here — every matching staff member gets a real text within seconds.",
       postCard: "Post an open shift", position: "Position", when: "When", whenPh: "e.g. Today, 5pm–close",
       note: "Note (optional)", notePh: "e.g. Jordan called out sick", sendBtn: "Send to staff now",
@@ -1183,7 +1183,7 @@ const T = {
       swapCard: "Demandes d'échange de quarts", swapNone: "Aucune demande d'échange ou de cession.", swapOverview: n => `${n} demande${n === 1 ? "" : "s"} d'échange à approuver`,
       swapGive: "Cession", swapSwap: "Échange", swapPending: "À approuver", swapOpen: "En attente d'un preneur", swapApproved: "Approuvé", swapDenied: "Refusé",
       swapGiveLine: (from, to) => `${from} cède ce quart à ${to}`, swapSwapLine: (from, to) => `${from} et ${to} échangent leurs quarts`, swapOpenLine: from => `${from} veut céder ce quart`, swapOpenSwapLine: from => `${from} veut échanger ce quart`,
-      swapInReturn: "En échange, la personne prend :", swapApprove: "Approuver", swapDeny: "Refuser", swapRemove: "Retirer", swapApprovedBanner: "Approuvé — les deux personnes ont reçu un texto.", swapDeniedBanner: "Demande fermée.",
+      swapInReturn: "En échange, la personne prend :", swapApprove: "Approuver", swapDeny: "Refuser", swapRemove: "Retirer", swapRemoveConfirm: "Retirer cette demande sans l'approuver ni la refuser ? Les deux personnes sont avisées qu'elle a été retirée.", swapRemovedBanner: "Demande retirée", swapApprovedBanner: "Approuvé — les deux personnes ont reçu un texto.", swapDeniedBanner: "Demande fermée.",
       eyebrow: "Horaire", h2: "Quarts et personnel", desc: "Quand quelqu'un ne se présente pas, publiez-le ici — chaque employé correspondant reçoit un vrai texto en quelques secondes.",
       postCard: "Publier un quart ouvert", position: "Poste", when: "Quand", whenPh: "ex. Aujourd'hui, 17h–fermeture",
       note: "Note (optionnel)", notePh: "ex. Jordan a appelé pour maladie", sendBtn: "Envoyer au personnel maintenant",
@@ -1338,7 +1338,7 @@ const T = {
       swapCard: "Solicitudes de cambio de turnos", swapNone: "No hay solicitudes de cambio ni de cesión.", swapOverview: n => `${n} solicitud${n === 1 ? "" : "es"} de cambio por aprobar`,
       swapGive: "Cesión", swapSwap: "Cambio", swapPending: "Requiere tu aprobación", swapOpen: "Esperando a alguien", swapApproved: "Aprobado", swapDenied: "Rechazado",
       swapGiveLine: (from, to) => `${from} cede este turno a ${to}`, swapSwapLine: (from, to) => `${from} y ${to} intercambian turnos`, swapOpenLine: from => `${from} quiere ceder este turno`, swapOpenSwapLine: from => `${from} quiere cambiar este turno`,
-      swapInReturn: "A cambio, esa persona toma:", swapApprove: "Aprobar", swapDeny: "Rechazar", swapRemove: "Quitar", swapApprovedBanner: "Aprobado — se envió un texto a ambas personas.", swapDeniedBanner: "Solicitud cerrada.",
+      swapInReturn: "A cambio, esa persona toma:", swapApprove: "Aprobar", swapDeny: "Rechazar", swapRemove: "Quitar", swapRemoveConfirm: "¿Quitar esta solicitud sin aprobarla ni rechazarla? Las dos personas son avisadas de que se quitó.", swapRemovedBanner: "Solicitud quitada", swapApprovedBanner: "Aprobado — se envió un texto a ambas personas.", swapDeniedBanner: "Solicitud cerrada.",
       eyebrow: "Horario", h2: "Turnos y personal", desc: "Cuando alguien no se presenta, publícalo aquí — cada empleado correspondiente recibe un mensaje de texto real en segundos.",
       postCard: "Publicar un turno abierto", position: "Puesto", when: "Cuándo", whenPh: "ej. Hoy, 5pm–cierre",
       note: "Nota (opcional)", notePh: "ej. Jordan llamó por enfermedad", sendBtn: "Enviar al personal ahora",
@@ -2289,9 +2289,10 @@ function renderSwapRequests() {
     const line = w.status === "open"
       ? (w.kind === "swap" ? t("scheduling.swapOpenSwapLine", escapeHtml(w.fromName)) : t("scheduling.swapOpenLine", escapeHtml(w.fromName)))
       : (w.kind === "swap" ? t("scheduling.swapSwapLine", escapeHtml(w.fromName), escapeHtml(w.toName || "")) : t("scheduling.swapGiveLine", escapeHtml(w.fromName), escapeHtml(w.toName || "")));
+    const removeBtn = `<button class="remove-btn" onclick="removeSwap('${w.id}','${w.status}')">${t("scheduling.swapRemove")}</button>`;
     const actions = w.status === "pending"
-      ? `<div class="responder-row"><span></span><span><button class="assign-btn" onclick="approveSwap('${w.id}')">${t("scheduling.swapApprove")}</button> <button class="assign-btn" style="background:transparent;color:inherit;border:1px solid currentColor" onclick="denySwap('${w.id}')">${t("scheduling.swapDeny")}</button></span></div>`
-      : w.status === "open" ? `<button class="remove-btn" onclick="denySwap('${w.id}')">${t("scheduling.swapRemove")}</button>` : "";
+      ? `<div class="responder-row"><span></span><span><button class="assign-btn" onclick="approveSwap('${w.id}')">${t("scheduling.swapApprove")}</button> <button class="assign-btn" style="background:transparent;color:inherit;border:1px solid currentColor" onclick="denySwap('${w.id}')">${t("scheduling.swapDeny")}</button></span></div>${removeBtn}`
+      : removeBtn;
     return `
       <div class="ticket">
         <div class="stamp ${w.status === "approved" ? "filled" : ""}">${stamp}</div>
@@ -2307,6 +2308,13 @@ function renderSwapRequests() {
 async function approveSwap(id) {
   const r = await api(`/api/swaps/${id}/approve`, { method: "POST" });
   if (r.ok) showBanner(t("scheduling.swapApprovedBanner"), "success"); else showBanner(r.error, "warn");
+  loadAll();
+}
+async function removeSwap(id, status) {
+  if (status === "pending" && !confirm(t("scheduling.swapRemoveConfirm"))) return;
+  const r = await api(`/api/swaps/${id}`, { method: "DELETE" });
+  if (r.ok) { swapRequests = swapRequests.filter(w => w.id !== id); renderSwapRequests(); showBanner(t("scheduling.swapRemovedBanner"), "success"); }
+  else showBanner(r.error, "warn");
   loadAll();
 }
 async function denySwap(id) {

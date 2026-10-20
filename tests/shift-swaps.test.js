@@ -167,3 +167,58 @@ describe("conflicts, denial and cancelling", () => {
     expect(await owner(dan, sh)).toBe(dan.id);
   });
 });
+
+describe("the manager can remove tickets from the board", () => {
+  test("removing a live ticket cancels it for everyone; removing a finished one only clears the manager's list", async () => {
+    const s1 = await addShift(A, ann, future(8), "17:00", "23:00");
+    const open = (await ann.agent.post("/api/staff-auth/swaps").send({ shiftId: s1, kind: "give" })).body;
+    expect((await B.agent.delete(`/api/swaps/${open.id}`)).status).toBe(404); // another restaurant can't touch it
+    expect((await A.agent.delete(`/api/swaps/${open.id}`)).status).toBe(204);
+    expect((await A.agent.get("/api/swaps")).body.map((w) => w.id)).not.toContain(open.id);
+    expect((await bob.agent.get("/api/staff-auth/swaps")).body.available.map((w) => w.id)).not.toContain(open.id);
+    expect((await ann.agent.get("/api/staff-auth/swaps")).body.mine.map((w) => w.id)).not.toContain(open.id);
+
+    // a ticket waiting for approval can be removed too, and the shift stays with its owner
+    const s2 = await addShift(A, ann, future(9), "17:00", "23:00");
+    const pending = (await ann.agent.post("/api/staff-auth/swaps").send({ shiftId: s2, kind: "give" })).body;
+    expect((await bob.agent.post(`/api/staff-auth/swaps/${pending.id}/accept`).send({})).status).toBe(200);
+    expect((await A.agent.delete(`/api/swaps/${pending.id}`)).status).toBe(204);
+    expect(await owner(ann, s2)).toBe(ann.id);
+    expect((await A.agent.get("/api/swaps")).body.map((w) => w.id)).not.toContain(pending.id);
+
+    // an approved ticket is cleared from the manager's list but the swap itself stays done
+    const s3 = await addShift(A, ann, future(10), "17:00", "23:00");
+    const done = (await ann.agent.post("/api/staff-auth/swaps").send({ shiftId: s3, kind: "give" })).body;
+    await bob.agent.post(`/api/staff-auth/swaps/${done.id}/accept`).send({});
+    expect((await A.agent.post(`/api/swaps/${done.id}/approve`)).status).toBe(200);
+    expect((await A.agent.get("/api/swaps")).body.map((w) => w.id)).toContain(done.id);
+    expect((await A.agent.delete(`/api/swaps/${done.id}`)).status).toBe(204);
+    expect((await A.agent.get("/api/swaps")).body.map((w) => w.id)).not.toContain(done.id);
+    expect(await owner(bob, s3)).toBe(bob.id);
+    expect((await request(app).delete(`/api/swaps/${done.id}`)).status).toBe(401);
+  });
+});
+
+describe("staff can clear a finished ticket from their own list", () => {
+  test("only after the decision, only for the two people involved, and only for them", async () => {
+    const sh = await addShift(A, ann, future(12), "17:00", "23:00");
+    const t = (await ann.agent.post("/api/staff-auth/swaps").send({ shiftId: sh, kind: "give" })).body;
+    expect((await ann.agent.post(`/api/staff-auth/swaps/${t.id}/dismiss`)).status).toBe(400); // still open
+    await bob.agent.post(`/api/staff-auth/swaps/${t.id}/accept`).send({});
+    expect((await bob.agent.post(`/api/staff-auth/swaps/${t.id}/dismiss`)).status).toBe(400); // waiting for the manager
+    expect((await A.agent.post(`/api/swaps/${t.id}/approve`)).status).toBe(200);
+
+    expect((await dan.agent.post(`/api/staff-auth/swaps/${t.id}/dismiss`)).status).toBe(404); // not their ticket
+    expect((await request(app).post(`/api/staff-auth/swaps/${t.id}/dismiss`)).status).toBe(401);
+    const mine = async (who) => (await who.agent.get("/api/staff-auth/swaps")).body.mine.map((w) => w.id);
+    expect(await mine(ann)).toContain(t.id);
+    expect(await mine(bob)).toContain(t.id);
+
+    expect((await ann.agent.post(`/api/staff-auth/swaps/${t.id}/dismiss`)).status).toBe(200);
+    expect(await mine(ann)).not.toContain(t.id);
+    expect(await mine(bob)).toContain(t.id); // Bob still has his
+    expect((await A.agent.get("/api/swaps")).body.map((w) => w.id)).toContain(t.id); // and so does the manager
+    expect((await bob.agent.post(`/api/staff-auth/swaps/${t.id}/dismiss`)).status).toBe(200);
+    expect(await mine(bob)).not.toContain(t.id);
+  });
+});
