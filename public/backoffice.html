@@ -793,6 +793,9 @@ const FOH_ROLES = ["Manager", "Server", "Bartender", "Busser", "Host"]; // grid 
 const BOH_ROLES = ["Manager", "Line Cook", "Prep Cook", "Dishwasher", "Expo"]; // manager band first, like FOH
 const STATIONS = ["Grill", "Dishwasher", "Fryer and Pans", "Garde-Manger"]; // kitchen stations, same names in every language
 const stationSelect = (id, current) => houseView !== "boh" ? "" : `<select id="${id}"><option value="">${tr("sched.stationPh")}</option>${STATIONS.map(x => `<option value="${escapeHtml(x)}"${x === (current || "") ? " selected" : ""}>${escapeHtml(x)}</option>`).join("")}</select>`;
+const STATION_COLORS = { "Grill": "#B71C2E", "Dishwasher": "#2F7DB5", "Fryer and Pans": "#D69A12", "Garde-Manger": "#3C9A5F" };
+// a shift with a station takes the station's color (card edge, role label and pill); without one it keeps its role color
+const shiftColor = (role, station) => STATION_COLORS[station] || roleColor(role);
 const stationTag = st => st ? `<div class="station-tag">${escapeHtml(st)}</div>` : "";
 const ROLE_COLORS = {
   "Manager": "#B08A1E",
@@ -1845,7 +1848,7 @@ function renderDayCell(staffMember, dateStr, groupRole) {
 
   let html = unavailBox(staffMember.id, dateStr);
   html += shiftsForCell.map(s => s.id === editingShiftId ? `
-    <div class="shift-form edit-form" style="--role-color:${roleColor(s.role)}">
+    <div class="shift-form edit-form" style="--role-color:${shiftColor(s.role, s.station)}">
       <input type="time" id="editStart" value="${s.startTime}" />
       <input type="time" id="editEnd" value="${s.endTime}" />
       <select id="editRole">
@@ -1858,7 +1861,7 @@ function renderDayCell(staffMember, dateStr, groupRole) {
         <button style="background:var(--rail);color:var(--text-bright)" onclick="cancelShiftEdit()">${tr("common.cancel")}</button>
       </div>
     </div>` : `
-    <div class="shift-chip" draggable="true" style="--role-color:${roleColor(s.role)}"
+    <div class="shift-chip" draggable="true" style="--role-color:${shiftColor(s.role, s.station)}"
       ondragstart="onDragStart(event,'${s.id}')" ondragend="onDragEnd(event)"
       data-start="${s.startTime}" data-end="${s.endTime}" data-role="${escapeHtml(s.role || '')}" data-station="${escapeHtml(s.station || '')}"${s.scheduledStart ? ` title="${escapeHtml(tr("punch.chipTitle", formatTime(s.scheduledStart), formatTime(s.scheduledEnd || s.endTime)))}"` : ""}>
       <div class="chip-top">
@@ -1875,7 +1878,7 @@ function renderDayCell(staffMember, dateStr, groupRole) {
   `).join("");
 
   html += draftShifts.filter(d => d.staffId === staffMember.id && d.date === dateStr && d.role === groupRole).map(d => `
-    <div class="shift-chip draft" style="--role-color:${roleColor(d.role)}">
+    <div class="shift-chip draft" style="--role-color:${shiftColor(d.role, d.station)}">
       <div class="chip-top">
         <div class="times">${formatTime(d.startTime)}–${formatTime(d.endTime)}</div>
         <div class="chip-actions"><button class="chip-btn" onclick="removeDraft('${d.key}')" title="${escapeHtml(tr("common.delete"))}">✕</button></div>
