@@ -543,6 +543,7 @@
   .ov-arrow { width: 44px; height: 34px; border: 1px solid rgba(35,38,31,.25); border-radius: 6px; background: none; color: inherit; font-size: 20px; cursor: pointer; flex-shrink: 0; }
   .ov-today { border: 1px solid var(--ink); background: none; color: inherit; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
   .snap-h.sm { margin-top: 14px; }
+  .house-head { display: flex; justify-content: space-between; font-family: 'Oswald', sans-serif; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; margin: 12px 0 2px; padding: 3px 8px; background: rgba(35,38,31,.08); border-radius: 3px; }
   .snap-mgr { display: flex; justify-content: space-between; align-items: baseline; font-size: 18px; padding: 6px 0; border-bottom: 1px dashed rgba(35,38,31,.2); }
   .snap-mgr .num { font-size: 14px; opacity: .75; }
   .snap-warn { background: #f3d9cf; color: #8a2f17; padding: 8px 12px; border-radius: 4px; font-size: 14px; }
@@ -1033,7 +1034,7 @@ const T = {
       postCard: "Post an open shift", position: "Position", when: "When", whenPh: "e.g. Today, 5pm–close",
       note: "Note (optional)", notePh: "e.g. Jordan called out sick", sendBtn: "Send to staff now",
       todayCard: "Who's scheduled today", todayTotal: n => `${n} staff scheduled`, todayEmpty: "No one is scheduled today.", todayEmptyHint: "Build the weekly schedule in the Back Office.", openBackOffice: "Open Back Office",
-      svcLunch: "Lunch / Brunch", svcDinner: "Dinner",
+      svcLunch: "Lunch / Brunch", svcDinner: "Dinner", houseFoh: "Front of house (FOH)", houseBoh: "Back of house (BOH)",
       todayPositionCount: n => `${n} ${n === 1 ? "person" : "people"}`, todayUnknownPosition: "No position",
       openShiftsCard: "Open shifts", noOpenShifts: "No open shifts.", filledCard: "Recently filled", nothingFilled: "Nothing filled yet.",
       openStamp: "Open", filledStamp: "Filled", asap: "ASAP", postedAgo: t => `posted ${t}`,
@@ -1188,7 +1189,7 @@ const T = {
       postCard: "Publier un quart ouvert", position: "Poste", when: "Quand", whenPh: "ex. Aujourd'hui, 17h–fermeture",
       note: "Note (optionnel)", notePh: "ex. Jordan a appelé pour maladie", sendBtn: "Envoyer au personnel maintenant",
       todayCard: "Qui travaille aujourd'hui", todayTotal: n => `${n} employé${n === 1 ? "" : "s"} à l'horaire`, todayEmpty: "Personne n'est à l'horaire aujourd'hui.", todayEmptyHint: "Préparez l'horaire de la semaine dans l'arrière-boutique.", openBackOffice: "Ouvrir l'arrière-boutique",
-      svcLunch: "Dîner / Brunch", svcDinner: "Souper",
+      svcLunch: "Dîner / Brunch", svcDinner: "Souper", houseFoh: "Salle (FOH)", houseBoh: "Cuisine (BOH)",
       todayPositionCount: n => `${n} personne${n === 1 ? "" : "s"}`, todayUnknownPosition: "Sans poste",
       openShiftsCard: "Quarts ouverts", noOpenShifts: "Aucun quart ouvert.", filledCard: "Récemment comblés", nothingFilled: "Rien de comblé pour l'instant.",
       openStamp: "Ouvert", filledStamp: "Comblé", asap: "Dès que possible", postedAgo: t => `publié ${t}`,
@@ -1343,7 +1344,7 @@ const T = {
       postCard: "Publicar un turno abierto", position: "Puesto", when: "Cuándo", whenPh: "ej. Hoy, 5pm–cierre",
       note: "Nota (opcional)", notePh: "ej. Jordan llamó por enfermedad", sendBtn: "Enviar al personal ahora",
       todayCard: "Quién trabaja hoy", todayTotal: n => `${n} empleado${n === 1 ? "" : "s"} en el horario`, todayEmpty: "Nadie está programado hoy.", todayEmptyHint: "Arma el horario semanal en la Oficina.", openBackOffice: "Abrir Oficina",
-      svcLunch: "Almuerzo / Brunch", svcDinner: "Cena",
+      svcLunch: "Almuerzo / Brunch", svcDinner: "Cena", houseFoh: "Sala (FOH)", houseBoh: "Cocina (BOH)",
       todayPositionCount: n => `${n} persona${n === 1 ? "" : "s"}`, todayUnknownPosition: "Sin puesto",
       openShiftsCard: "Turnos abiertos", noOpenShifts: "No hay turnos abiertos.", filledCard: "Cubiertos recientemente", nothingFilled: "Nada cubierto todavía.",
       openStamp: "Abierto", filledStamp: "Cubierto", asap: "Lo antes posible", postedAgo: t => `publicado ${t}`,
@@ -1840,11 +1841,18 @@ function todayBreakdown(shiftList, activeIds) {
     const wrap = inner => collapse
       ? `<details class="svc-det" ${snapOpenSvc.has(svc) ? "open" : ""} ontoggle="this.open ? snapOpenSvc.add('${svc}') : snapOpenSvc.delete('${svc}')"><summary>${head}</summary>${inner}</details>`
       : head + inner;
-    const groups = new Map();
-    list.forEach(e => { const k = e.role || ""; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); });
-    return wrap(sortKeys([...groups.keys()]).map(k => {
-      const rows = groups.get(k).sort((a, b) => (a.times[0].start || "").localeCompare(b.times[0].start || ""));
-      return `
+    const BOH = ["Line Cook", "Prep Cook", "Dishwasher", "Expo"], FOH = ["Server", "Host", "Bartender", "Busser"];
+    const houseOf = e => BOH.includes(e.role) ? "boh" : FOH.includes(e.role) ? "foh"
+      : ((e.person.roles || []).some(r => BOH.includes(r)) && !(e.person.roles || []).some(r => FOH.includes(r)) ? "boh" : "foh"); // managers follow their person
+    const houseHtml = (house, label) => {
+      const sub = list.filter(e => houseOf(e) === house);
+      if (!sub.length) return "";
+      const groups = new Map();
+      sub.forEach(e => { const k = e.role || ""; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); });
+      const n = new Set(sub.map(e => e.person.id)).size;
+      return `<div class="house-head"><span>${escapeHtml(label)}</span><span>${escapeHtml(t("scheduling.todayTotal", n))}</span></div>` + sortKeys([...groups.keys()]).map(k => {
+        const rows = groups.get(k).sort((a, b) => (a.times[0].start || "").localeCompare(b.times[0].start || ""));
+        return `
       <div class="today-group">
         <div class="today-group-head"><span>${escapeHtml(k ? roleLabel(k) : t("scheduling.todayUnknownPosition"))}</span><span>${t("scheduling.todayPositionCount", rows.length)}</span></div>
         ${rows.map(e => `
@@ -1853,7 +1861,9 @@ function todayBreakdown(shiftList, activeIds) {
             <span class="num" style="opacity:0.75;font-size:12px">${e.times.map(x => `${fmtClock(x.start)}–${fmtClock(x.end)}`).join(", ")}</span>
           </div>`).join("")}
       </div>`;
-    }).join(""));
+      }).join("");
+    };
+    return wrap(houseHtml("foh", t("scheduling.houseFoh")) + houseHtml("boh", t("scheduling.houseBoh")));
   };
   const body = SERVICE_LIST.map((sv, i) => serviceBlock(sv.id, svcLabel(sv), SVC_COLORS[i % SVC_COLORS.length])).join("");
   // overview: a service with no staff scheduled and no forecast/actual sales that day is left out entirely
