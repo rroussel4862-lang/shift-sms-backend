@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open Shift Rail — Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #f4efe4; --ink: #23261f; --panel: #fffdf7; --line: #d9d1bd; --accent: #E2A33B; --accent-ink: #5b3d05; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1d1f1a; --ink: #f1ecdd; --panel: #272a23; --line: #3b3f35; --accent: #E2A33B; --accent-ink: #fff4d9; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', system-ui, sans-serif; line-height: 1.5; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 28px 16px 48px; }
+  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 36px; }
+  .mark { font-family: 'Oswald', sans-serif; letter-spacing: .12em; font-size: 15px; border: 2px solid var(--ink); padding: 4px 10px; }
+  .lang { display: flex; gap: 6px; }
+  .lang button { background: transparent; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  .lang button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  h1 { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: clamp(30px, 6vw, 46px); line-height: 1.1; margin: 0 0 12px; letter-spacing: .01em; }
+  .lead { font-size: 17px; max-width: 620px; opacity: .85; margin: 0 0 30px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 22px; display: flex; flex-direction: column; gap: 10px; }
+  .card h2 { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 22px; margin: 0; letter-spacing: .03em; text-transform: uppercase; }
+  .card p { margin: 0; opacity: .8; font-size: 15px; flex: 1; }
+  .go { margin-top: 8px; background: var(--accent); color: #2a1c02; border: 0; border-radius: 8px; padding: 13px 16px; font: 600 15px 'Inter', sans-serif; cursor: pointer; }
+  .go:disabled { opacity: .6; cursor: wait; }
+  .go:focus-visible, .lang button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .note { margin-top: 26px; font-size: 13px; opacity: .7; }
+  .err { color: #b3261e; margin-top: 14px; min-height: 20px; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="mark">OSR</div>
+    <div class="lang" id="lang"></div>
+  </div>
+  <h1 id="title"></h1>
+  <p class="lead" id="lead"></p>
+  <div class="cards">
+    <div class="card">
+      <h2 id="mTitle"></h2>
+      <p id="mText"></p>
+      <button class="go" id="mGo" onclick="enter('manager')"></button>
+    </div>
+    <div class="card">
+      <h2 id="sTitle"></h2>
+      <p id="sText"></p>
+      <button class="go" id="sGo" onclick="enter('staff')"></button>
+    </div>
+  </div>
+  <div class="err" id="err" role="alert"></div>
+  <div class="note" id="note"></div>
+</div>
+<script>
+const T = {
+  en: { title: "Try Open Shift Rail", lead: "Explore a made-up restaurant with a full team, a posted schedule, shift swaps, sales and more. Nothing here is real, and no texts are ever sent.",
+        mTitle: "Manager view", mText: "Schedule the team, approve swaps and time off, post to the message board, follow sales and labor.", mGo: "Open as a manager",
+        sTitle: "Staff view", sText: "See what a server sees on their phone: shifts, open shifts to pick up, swaps, availability and team news.", sGo: "Open as a staff member",
+        note: "Everything resets every night, so feel free to click around.", err: "The demo isn't available right now. Please try again in a moment.", wait: "Opening…" },
+  fr: { title: "Essayez Open Shift Rail", lead: "Explorez un restaurant fictif avec une équipe complète, un horaire publié, des échanges de quarts, des ventes et plus encore. Rien n'est réel et aucun texto n'est envoyé.",
+        mTitle: "Vue gestionnaire", mText: "Planifiez l'équipe, approuvez les échanges et les absences, publiez sur le babillard, suivez les ventes et la main-d'œuvre.", mGo: "Ouvrir comme gestionnaire",
+        sTitle: "Vue employé", sText: "Voyez ce que voit un serveur sur son téléphone : quarts, quarts à prendre, échanges, disponibilités et nouvelles de l'équipe.", sGo: "Ouvrir comme employé",
+        note: "Tout est réinitialisé chaque nuit : cliquez partout sans crainte.", err: "La démo n'est pas disponible pour le moment. Réessayez dans un instant.", wait: "Ouverture…" },
+  es: { title: "Prueba Open Shift Rail", lead: "Explora un restaurante ficticio con un equipo completo, un horario publicado, cambios de turno, ventas y más. Nada es real y nunca se envían mensajes de texto.",
+        mTitle: "Vista de gerente", mText: "Programa al equipo, aprueba cambios y ausencias, publica en el tablero, sigue las ventas y la mano de obra.", mGo: "Abrir como gerente",
+        sTitle: "Vista de empleado", sText: "Mira lo que ve un mesero en su teléfono: turnos, turnos disponibles, cambios, disponibilidad y noticias del equipo.", sGo: "Abrir como empleado",
+        note: "Todo se reinicia cada noche, así que haz clic con confianza.", err: "La demo no está disponible ahora. Inténtalo de nuevo en un momento.", wait: "Abriendo…" },
+};
+let lang = "en";
+try { lang = localStorage.getItem("osr-lang") || (/^fr/i.test(navigator.language) ? "fr" : /^es/i.test(navigator.language) ? "es" : "en"); } catch (e) {}
+if (!T[lang]) lang = "en";
+function paint() {
+  const t = T[lang];
+  document.documentElement.lang = lang;
+  ["title", "lead", "mTitle", "mText", "mGo", "sTitle", "sText", "sGo", "note"].forEach(k => { document.getElementById(k).textContent = t[k]; });
+  document.getElementById("lang").innerHTML = ["en", "fr", "es"].map(c => `<button class="${c === lang ? "on" : ""}" onclick="setLang('${c}')">${c.toUpperCase()}</button>`).join("");
+}
+function setLang(c) { lang = c; try { localStorage.setItem("osr-lang", c); } catch (e) {} paint(); }
+async function enter(role) {
+  const t = T[lang], btn = document.getElementById(role === "staff" ? "sGo" : "mGo");
+  document.getElementById("err").textContent = "";
+  document.querySelectorAll(".go").forEach(b => b.disabled = true);
+  btn.textContent = t.wait;
+  try {
+    try { localStorage.setItem("osr-lang", lang); } catch (e) {}
+    const res = await fetch("/api/demo/enter", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.next) throw new Error(body.error || "failed");
+    location.href = body.next;
+  } catch (e) {
+    document.getElementById("err").textContent = t.err;
+    document.querySelectorAll(".go").forEach(b => b.disabled = false);
+    paint();
+  }
+}
+paint();
+</script>
+</body>
+</html>
