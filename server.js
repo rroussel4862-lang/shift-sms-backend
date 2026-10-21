@@ -61,6 +61,14 @@ if (String(JWT_SECRET).length < 32 && process.env.NODE_ENV !== "test") {
   console.warn("WARNING: JWT_SECRET is shorter than 32 characters — use a long random string (anyone who learns it can forge logins).");
 }
 
+const demo = require("./demo");
+// Ids of demo restaurants (made-up restaurants shown to prospects): they never send real texts, never log to the live activity feed and never search the web.
+const demoIds = new Set([demo.DEMO_RESTAURANT_ID]);
+async function loadDemoIds() {
+  const { rows } = await pool.query("SELECT id FROM restaurants WHERE is_demo = true");
+  rows.forEach((r) => demoIds.add(r.id));
+}
+
 const smsClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 const pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
@@ -74,6 +82,8 @@ async function initDb() {
   `);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS address TEXT;`);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS twilio_phone_number TEXT UNIQUE;`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT false;`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS demo_seeded_on TEXT;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -488,6 +498,7 @@ async function initDb() {
       PRIMARY KEY (day, restaurant_id, event_type, level)
     );
   `);
+  await loadDemoIds();
 }
 
 // ---------- helpers ----------
@@ -499,6 +510,7 @@ function id() {
 // Lightweight activity/event logging for the platform-owner dashboard.
 // Never throws — a logging failure should never break the actual request.
 async function logActivity({ restaurantId = null, eventType, level = "info", detail = "", durationMs = null }) {
+  if (restaurantId && demoIds.has(restaurantId)) return; // the demo restaurant stays out of the live feed
   try {
     await pool.query(
       "INSERT INTO activity_log (id, restaurant_id, event_type, level, detail, duration_ms, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)",
@@ -527,6 +539,7 @@ function bilingual(fr, en) {
 }
 
 async function sendSms(to, body, restaurantId = null) {
+  if (restaurantId && demoIds.has(restaurantId)) return { to, ok: true, demo: true }; // demo restaurant: pretend, never text anyone
   const startedAt = Date.now();
   let fromNumber = TWILIO_PHONE_NUMBER;
   if (restaurantId) {
@@ -812,7 +825,7 @@ const signupLimiter = rateLimit({
 // repeated requests — can't run up unbounded costs or affect other restaurants.
 const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 30,
+  max: (req) => (demoIds.has(req.restaurantId) ? 8 : 30), // the demo is open to prospects, so it gets a smaller AI allowance
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.restaurantId || req.ip,
@@ -925,6 +938,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
     restaurant: { id: rows[0].restaurant_id, name: rows[0].restaurant_name, address: rows[0].restaurant_address || "" },
     email: rows[0].email,
     name: rows[0].user_name || "",
+    demo: demoIds.has(rows[0].restaurant_id),
   });
 });
 
@@ -1480,7 +1494,7 @@ app.get("/api/staff-auth/me", requireStaffAuth, async (req, res) => {
     [req.staffId]
   );
   if (rows.length === 0) return res.status(401).json({ error: "not logged in" });
-  res.json({ ...staffRowToJson(rows[0]), restaurantName: rows[0].restaurant_name });
+  res.json({ ...staffRowToJson(rows[0]), restaurantName: rows[0].restaurant_name, demo: demoIds.has(rows[0].restaurant_id) });
 });
 
 // ---------- staff portal: schedule, availability, open shifts (staff, authenticated) ----------
@@ -3293,6 +3307,7 @@ async function fetchNearbyEvents(place, day, restaurantId = null) {
 }
 
 async function refreshEvents(restaurantId, day, place) {
+  if (demoIds.has(restaurantId)) return; // the demo's nearby events are seeded; never pay for a web search for it
   const key = `${restaurantId}|${day}`;
   if (eventsInFlight.has(key)) return eventsInFlight.get(key);
   const work = (async () => {
@@ -3383,7 +3398,8 @@ app.get("/api/day-snapshot", requireAuth, async (req, res) => {
     const evAge = ctx.events_at ? Date.now() - Number(ctx.events_at) : Infinity;
     let evFresh = ctx.events_error ? evAge < EVENTS_RETRY_MS : evAge < EVENTS_TTL_MS;
     // "Try again" from the card: re-run the lookup now, but not more than once a minute.
-    if (req.query.refreshEvents === "1" && evAge > 60 * 1000) evFresh = false;
+    if (req.query.refreshEvents === "1" && evAge > 60 * 1000 && !demoIds.has(rid)) evFresh = false;
+    if (demoIds.has(rid) && ctx.events) evFresh = true;
     if (evFresh) {
       if (ctx.events_error) out.eventsStatus = ctx.events_error;
       else { out.events = ctx.events || []; out.eventsStatus = "ok"; }
@@ -4206,7 +4222,7 @@ app.get("/api/platform-auth/me", requirePlatformAuth, async (req, res) => {
 app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
   const { rows } = await pool.query(`
     SELECT
-      r.id, r.name, r.created_at, r.twilio_phone_number,
+      r.id, r.name, r.created_at, r.twilio_phone_number, r.is_demo,
       (SELECT COUNT(*) FROM staff s WHERE s.restaurant_id = r.id) AS staff_count,
       (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id) AS shift_count,
       (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id AND sh.status = 'open') AS open_shift_count,
@@ -4222,6 +4238,7 @@ app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
     name: r.name,
     createdAt: Number(r.created_at),
     twilioPhoneNumber: r.twilio_phone_number || "",
+    isDemo: !!r.is_demo,
     staffCount: Number(r.staff_count),
     shiftCount: Number(r.shift_count),
     openShiftCount: Number(r.open_shift_count),
@@ -4253,6 +4270,61 @@ app.get("/api/platform/ai-usage", requirePlatformAuth, async (req, res) => {
   list.forEach((r) => { r.byFeature.sort((a, b) => b.costUsd - a.costUsd); r.costPerDayUsd = r.costUsd / days; });
   const totalUsd = list.reduce((s, r) => s + r.costUsd, 0);
   res.json({ days, totalUsd, perDayUsd: totalUsd / days, restaurants: list });
+});
+
+// ---------- demo restaurant ----------
+
+let demoSeeding = null;
+function seedDemoNow() {
+  if (!demoSeeding) {
+    demoSeeding = demo.seedDemo(pool, { today: ownerToday(), addDaysIso, mondayOfIso })
+      .then(async (r) => { demoIds.add(demo.DEMO_RESTAURANT_ID); return r; })
+      .finally(() => { demoSeeding = null; });
+  }
+  return demoSeeding;
+}
+// Rebuild the demo when it has never been built or when it was built on an earlier day (so "today" and "this week" are always right).
+async function ensureFreshDemo() {
+  const { rows } = await pool.query("SELECT demo_seeded_on FROM restaurants WHERE id = $1", [demo.DEMO_RESTAURANT_ID]);
+  if (!rows[0] || rows[0].demo_seeded_on !== ownerToday()) return seedDemoNow();
+  return null;
+}
+
+const demoEnterLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many demo visits from this connection. Please try again later." },
+});
+
+// Anyone can open the demo as its manager or as one of its staff. The session only ever reaches the demo restaurant.
+app.post("/api/demo/enter", demoEnterLimiter, async (req, res) => {
+  const role = req.body && req.body.role === "staff" ? "staff" : "manager";
+  try {
+    await ensureFreshDemo();
+    if (role === "manager") {
+      res.cookie("token", signToken({ userId: demo.DEMO_USER_ID, restaurantId: demo.DEMO_RESTAURANT_ID }), COOKIE_OPTS);
+      res.cookie("staff_token", "", { ...COOKIE_OPTS, maxAge: 0 });
+      return res.json({ ok: true, next: "/index.html" });
+    }
+    res.cookie("staff_token", signToken({ staffId: demo.DEMO_STAFF_VIEW_ID, restaurantId: demo.DEMO_RESTAURANT_ID }), COOKIE_OPTS);
+    res.json({ ok: true, next: "/staff-portal.html" });
+  } catch (e) {
+    console.error("Demo entry failed:", e.message);
+    res.status(500).json({ error: "The demo isn't available right now. Please try again in a moment." });
+  }
+});
+
+app.post("/api/platform/demo/reset", requirePlatformAuth, async (req, res) => {
+  try {
+    const r = await seedDemoNow();
+    logActivity({ eventType: "demo_reset", detail: `demo rebuilt: ${r.staff} staff, ${r.shifts} shifts` });
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    console.error("Demo reset failed:", e.message);
+    res.status(500).json({ error: "Could not rebuild the demo: " + e.message });
+  }
 });
 
 // Permanently deletes a restaurant and everything under it (staff, shifts, schedule, sales, logins). The exact
@@ -4523,6 +4595,10 @@ if (require.main === module) {
       const runArchive = () => archiveOldActivity().then((n) => { if (n) console.log(`Archived ${n} old activity rows into daily totals`); }).catch((e) => console.error("Activity archive failed:", e.message));
       runArchive();
       setInterval(runArchive, 24 * 60 * 60 * 1000).unref();
+      // the demo restaurant: build it now if it's missing or from an earlier day, and check again every half hour
+      const keepDemoFresh = () => ensureFreshDemo().catch((e) => console.error("Demo refresh failed:", e.message));
+      keepDemoFresh();
+      setInterval(keepDemoFresh, 30 * 60 * 1000).unref();
       app.listen(PORT, () => {
         console.log(`Shift SMS backend running on port ${PORT}`);
         console.log(`Database: connected · multi-tenant auth: enabled`);
@@ -4783,4 +4859,4 @@ app.get("/api/owner/overview", requireOwnerAuth, async (req, res) => {
   });
 });
 
-module.exports = { app, pool, initDb, makeErrorCode, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates, cleanAvailability };
+module.exports = { app, pool, initDb, seedDemoNow, ensureFreshDemo, demoIds, makeErrorCode, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates, cleanAvailability };

@@ -208,6 +208,7 @@
   </main>
 </div>
 
+<script src="/demo-banner.js"></script>
 <script src="/tour-texts.js"></script>
 <script src="/tour.js"></script>
 <script>
@@ -859,6 +860,7 @@ I18N.apply();
   const result = await api("/api/staff-auth/me");
   if (result.ok) {
     window.__myStaffId = result.data.id;
+    if (result.data.demo && window.showDemoBanner) showDemoBanner();
     enterApp(result.data.name);
   }
 })();

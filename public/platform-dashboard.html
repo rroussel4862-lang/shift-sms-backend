@@ -130,7 +130,11 @@
         <div class="sub" id="headerSub"></div>
       </div>
     </div>
-    <button id="logoutBtn" onclick="logout()">Log out</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <a href="/demo.html" target="_blank" style="color:var(--text-dim);font-size:12px;margin-right:6px">Demo page</a>
+      <button id="demoResetBtn" onclick="resetDemo()">Reset demo</button>
+      <button id="logoutBtn" onclick="logout()">Log out</button>
+    </div>
   </header>
 
   <main>
@@ -323,6 +327,16 @@ async function loadAiUsage() {
         <td>${r.byFeature[0] ? escapeHtml(r.byFeature[0].feature) + " (" + usd(r.byFeature[0].costUsd) + ")" : "—"}</td></tr>`).join("");
 }
 
+async function resetDemo() {
+  if (!confirm("Rebuild the demo restaurant from scratch? Anyone using it right now keeps their session but sees fresh data.")) return;
+  const btn = document.getElementById("demoResetBtn");
+  btn.disabled = true; btn.textContent = "Rebuilding…";
+  const r = await api("/api/platform/demo/reset", { method: "POST" });
+  btn.disabled = false; btn.textContent = r.ok ? "Demo rebuilt ✓" : "Reset demo";
+  if (!r.ok) alert(r.error || "Could not rebuild the demo.");
+  else { setTimeout(() => { btn.textContent = "Reset demo"; }, 3000); loadRestaurants(); }
+}
+
 function timeAgo(ts) {
   if (!ts) return "—";
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -354,7 +368,7 @@ async function loadRestaurants() {
     ? `<tr><td colspan="9" class="empty">No restaurants signed up yet.</td></tr>`
     : restaurants.map(r => `
         <tr onclick="document.getElementById('filterRestaurant').value='${r.id}'; loadActivity();">
-          <td class="restaurant-name">${escapeHtml(r.name)}</td>
+          <td class="restaurant-name">${escapeHtml(r.name)}${r.isDemo ? ' <span style="color:var(--amber);font-size:11px">DEMO</span>' : ""}</td>
           <td onclick="event.stopPropagation()">
             <div style="display:flex;gap:4px;align-items:center">
               <input type="text" class="num" id="twilioNum-${r.id}" value="${escapeHtml(r.twilioPhoneNumber)}" placeholder="shared default" style="width:130px;background:var(--bg);border:1px solid var(--rail);color:var(--text-bright);border-radius:4px;padding:5px 7px;font-size:12px" />

@@ -109,3 +109,11 @@ Set in Render → the service → **Environment**. Never put values in GitHub.
 5. Limit what a manager can do versus an owner (roles and permissions), and an audit trail of who changed what.
 6. Review the AI features for what customer data is sent to the AI provider (waiting on your decision after the client meeting).
 7. Written privacy policy, terms and incident-response plan from your lawyer.
+
+## The demo restaurant
+
+- Address to share with prospects: `https://openshiftrail.com/demo.html` (English, French and Spanish). One click opens the manager view or the staff view.
+- It is a made-up restaurant ("Bistro Démo", flagged `is_demo`). It is rebuilt automatically every night, and the platform dashboard has a **Reset demo** button.
+- Safe by design: it never sends a real text, never writes to the live activity feed, never runs the AI web search, and a visitor's session only reaches the demo restaurant. Its AI "Ask" allowance is 8 per hour.
+- Demo staff use `@demo.invalid` emails and 555 phone numbers. No one knows their passwords; the demo is only entered through the demo page.
+- If the demo ever looks wrong, press **Reset demo** in the platform dashboard.

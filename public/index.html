@@ -935,6 +935,7 @@
 
 </div>
 
+<script src="/demo-banner.js"></script>
 <script src="/tour-texts.js"></script>
 <script src="/tour.js"></script>
 <script>
@@ -3286,6 +3287,7 @@ async function submitAuth() {
     }
     if (result.data.redirect) { window.location.href = result.data.redirect; return; } // an owner with several restaurants
     viaOwner = !!result.data.viaOwner;
+    if (result.data.demo && window.showDemoBanner) showDemoBanner();
     document.getElementById("ownerBackLink").style.display = "none";
     restaurantName = result.data.restaurant.name;
     restaurantAddress = result.data.restaurant.address || "";
@@ -3359,6 +3361,7 @@ function enterApp() {
     restaurantName = result.data.restaurant.name;
     restaurantAddress = result.data.restaurant.address || "";
     viaOwner = !!result.data.viaOwner;
+    if (result.data.demo && window.showDemoBanner) showDemoBanner();
     document.getElementById("ownerBackLink").style.display = viaOwner && result.data.canSwitch ? "inline-block" : "none";
     enterApp();
   }
