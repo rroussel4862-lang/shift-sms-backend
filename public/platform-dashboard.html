@@ -153,6 +153,25 @@
       </div>
     </div>
 
+    <div class="section" id="aiSection">
+      <h2>AI cost</h2>
+      <div class="filter-row" style="margin-bottom:8px">
+        <select id="aiDays" onchange="loadAiUsage()">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+        <span id="aiTotal" style="align-self:center;color:var(--text-bright);font-size:13px"></span>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Restaurant</th><th>AI calls</th><th>Tokens in / out</th><th>Web searches</th><th>Est. cost (USD)</th><th>Per day</th><th>Biggest feature</th></tr></thead>
+          <tbody id="aiBody"></tbody>
+        </table>
+      </div>
+      <div style="color:var(--text-dim);font-size:11.5px;margin-top:6px">An estimate from token counts. Check it against the Usage page in the Anthropic Console; if it's off, set AI_PRICE_INPUT and AI_PRICE_OUTPUT (dollars per million tokens) on Render.</div>
+    </div>
+
     <div class="section" id="ownersSection">
       <h2>Owners &amp; managers</h2>
       <div id="credBox"></div>
@@ -284,8 +303,24 @@ function enterApp(email) {
 }
 
 async function loadAll() {
-  await Promise.all([loadRestaurants(), loadHealth(), loadActivity(), loadHistory()]);
+  await Promise.all([loadRestaurants(), loadHealth(), loadActivity(), loadHistory(), loadAiUsage()]);
   await loadOwners();
+}
+
+const usd = n => "$" + (n < 1 ? n.toFixed(3) : n.toFixed(2));
+async function loadAiUsage() {
+  const days = document.getElementById("aiDays").value;
+  const result = await api("/api/platform/ai-usage?days=" + days);
+  if (!result.ok) return;
+  const d = result.data;
+  document.getElementById("aiTotal").textContent = `Total ${usd(d.totalUsd)} · about ${usd(d.perDayUsd)} a day · about ${usd(d.perDayUsd * 30)} a month at this pace`;
+  document.getElementById("aiBody").innerHTML = d.restaurants.length === 0
+    ? `<tr><td colspan="7" class="empty">No AI calls in this period.</td></tr>`
+    : d.restaurants.map(r => `<tr>
+        <td class="restaurant-name">${escapeHtml(r.name)}</td><td>${r.calls}</td>
+        <td>${r.inputTokens.toLocaleString()} / ${r.outputTokens.toLocaleString()}</td><td>${r.searches}</td>
+        <td>${usd(r.costUsd)}</td><td>${usd(r.costPerDayUsd)}</td>
+        <td>${r.byFeature[0] ? escapeHtml(r.byFeature[0].feature) + " (" + usd(r.byFeature[0].costUsd) + ")" : "—"}</td></tr>`).join("");
 }
 
 function timeAgo(ts) {

@@ -456,6 +456,21 @@ async function initDb() {
       created_at BIGINT NOT NULL
     );
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_usage (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT REFERENCES restaurants(id) ON DELETE SET NULL,
+      feature TEXT NOT NULL,
+      model TEXT,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      searches INTEGER NOT NULL DEFAULT 0,
+      cost_usd NUMERIC(12,6) NOT NULL DEFAULT 0,
+      created_at BIGINT NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_usage_restaurant_idx ON ai_usage (restaurant_id, created_at DESC);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ai_usage_created_idx ON ai_usage (created_at DESC);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS activity_log_restaurant_idx ON activity_log (restaurant_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS activity_log_created_idx ON activity_log (created_at DESC);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS activity_log_type_idx ON activity_log (event_type);`);
@@ -3074,6 +3089,7 @@ app.post("/api/ai/sales-forecast", requireAuth, aiLimiter, async (req, res) => {
       lastYearSameWeekTotal: lyWeek[0] ? Number(lyWeek[0].amount) : null,
     };
     const { text, durationMs } = await callClaude({
+      restaurantId: rid, feature: "sales-forecast",
       system: "You forecast a restaurant's total daily sales (dollars) for the seven dates of one week. Use only the data given. For each day start from perDay.suggestedBaseline (it blends the recent same-weekday average with last year's figure scaled by how this year has been running against last year). Adjust it only for a clear reason in the data (a visible weekday pattern, an upward or downward trend in recentDailySales); the days must reflect their own weekday — do not return last year's number unchanged, and do not return the same value for every day. If a day has no baseline and no reasonable basis, return null — never guess wildly. Round to the nearest 10 dollars. Reply with ONLY a JSON object: {\"days\":[{\"date\":\"YYYY-MM-DD\",\"amount\":number|null}]} covering the seven dates.",
       user: JSON.stringify(facts),
       maxTokens: 800,
@@ -3249,7 +3265,7 @@ function cleanEvents(raw) {
     }));
 }
 
-async function fetchNearbyEvents(place, day) {
+async function fetchNearbyEvents(place, day, restaurantId = null) {
   if (!ANTHROPIC_API_KEY) { const e = new Error("not_configured"); e.code = "not_configured"; throw e; }
   const system = "You help a restaurant manager anticipate how many customers will come in (customer attendance — not road or vehicle traffic). Search the web for events happening on the given date in the given city that could bring more or fewer guests to restaurants (concerts, sports games, festivals, conferences, parades, big markets, holidays). Ignore road closures and traffic conditions. Only list events you actually found in search results for that exact date; never guess or invent. Reply with ONLY a JSON object: {\"events\":[{\"name\":\"\",\"when\":\"e.g. 7:30 PM\",\"where\":\"venue or area\",\"impact\":\"high|medium|low\",\"note\":\"one short line on how it may affect customer attendance\"}]}. Use an empty array if nothing relevant was found. At most 5 events, most impactful first.";
   const messages = [{ role: "user", content: `Date: ${day}. City: ${place}.` }];
@@ -3266,6 +3282,7 @@ async function fetchNearbyEvents(place, day) {
         tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
       }),
     }, 90000);
+    recordAiUsage(restaurantId, "events", data);
     if (data.stop_reason === "pause_turn") { messages.push({ role: "assistant", content: data.content }); continue; }
     const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
     const parsed = extractJsonObject(text);
@@ -3280,7 +3297,7 @@ async function refreshEvents(restaurantId, day, place) {
   if (eventsInFlight.has(key)) return eventsInFlight.get(key);
   const work = (async () => {
     let events = null, error = null;
-    try { events = await fetchNearbyEvents(place, day); }
+    try { events = await fetchNearbyEvents(place, day, restaurantId); }
     catch (e) { error = e.code === "not_configured" ? "not_configured" : "failed"; if (!e.code) console.error("Events lookup failed:", e.message); }
     await pool.query(
       `INSERT INTO day_context (restaurant_id, day, events, events_at, events_error) VALUES ($1,$2,$3,$4,$5)
@@ -3742,6 +3759,7 @@ ${contextBlock}`;
     }
 
     const aiData = await aiRes.json();
+    recordAiUsage(req.restaurantId, "ask", aiData);
     const textBlock = (aiData.content || []).find((b) => b.type === "text");
     let answer = textBlock ? textBlock.text : "I couldn't generate a response for that.";
     if (aiData.stop_reason === "max_tokens") answer = answer.trimEnd() + "\n\n[…answer cut short — ask me to continue or narrow the question.]";
@@ -3779,8 +3797,31 @@ ${contextBlock}`;
   }
 });
 
+// AI cost tracking: every Anthropic answer is logged per restaurant with its token counts and an estimated cost.
+// Prices are USD per million tokens and can be corrected with AI_PRICE_INPUT / AI_PRICE_OUTPUT (the defaults are an estimate,
+// so compare the dashboard total with the Anthropic console's usage page). A web search costs about AI_PRICE_SEARCH dollars.
+function aiCostUsd(usage) {
+  const inP = Number(process.env.AI_PRICE_INPUT) || 3, outP = Number(process.env.AI_PRICE_OUTPUT) || 15;
+  const searchP = process.env.AI_PRICE_SEARCH !== undefined && process.env.AI_PRICE_SEARCH !== "" ? Number(process.env.AI_PRICE_SEARCH) : 0.01;
+  const u = usage || {};
+  const input = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) * 1.25 + (u.cache_read_input_tokens || 0) * 0.1;
+  const searches = (u.server_tool_use && u.server_tool_use.web_search_requests) || 0;
+  return (input * inP + (u.output_tokens || 0) * outP) / 1e6 + searches * searchP;
+}
+function recordAiUsage(restaurantId, feature, data) {
+  try {
+    const u = (data && data.usage) || {};
+    const searches = (u.server_tool_use && u.server_tool_use.web_search_requests) || 0;
+    pool.query(
+      "INSERT INTO ai_usage (id, restaurant_id, feature, model, input_tokens, output_tokens, searches, cost_usd, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+      [id(), restaurantId || null, feature, (data && data.model) || process.env.ANTHROPIC_MODEL || null,
+       (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0), u.output_tokens || 0, searches, aiCostUsd(u).toFixed(6), Date.now()]
+    ).catch((e) => console.error("AI usage log failed:", e.message));
+  } catch (e) { console.error("AI usage log failed:", e.message); }
+}
+
 // One place that talks to Anthropic for the board helpers. Throws an Error with .status for the caller to map.
-async function callClaude({ system, user, maxTokens = 700 }) {
+async function callClaude({ system, user, maxTokens = 700, restaurantId = null, feature = "other" }) {
   const startedAt = Date.now();
   const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -3802,6 +3843,7 @@ async function callClaude({ system, user, maxTokens = 700 }) {
     throw err;
   }
   const data = await aiRes.json();
+  recordAiUsage(restaurantId, feature, data);
   const block = (data.content || []).find((b) => b.type === "text");
   return { text: block ? block.text : "", durationMs };
 }
@@ -3838,6 +3880,7 @@ app.post("/api/ai/board-draft", requireAuth, aiLimiter, async (req, res) => {
   const langName = { en: "English", fr: "French", es: "Spanish" }[langCode];
   try {
     const { text, durationMs } = await callClaude({
+      restaurantId: req.restaurantId, feature: "board-draft",
       system: `Today is ${todayLine()} (restaurant time). Use it to turn words like "tomorrow" or "this Friday" into the actual day and date. You help a restaurant manager write announcements for the team message board that every staff member reads on their phone. Turn the manager's rough note into a clear, friendly, direct announcement in ${langName}. Keep every fact the manager gave (dates, times, names, numbers) and do not invent any new ones. Short sentences, no emojis, no hashtags, at most ${Math.min(BOARD_BODY_MAX, 900)} characters in the body. Reply with ONLY a JSON object: {"title": "<short title, max 60 characters>", "body": "<the announcement>"}.`,
       user: idea,
     });
@@ -3865,6 +3908,7 @@ app.post("/api/ai/board-translate", requireAuth, aiLimiter, async (req, res) => 
   if (title.length > BOARD_TITLE_MAX || body.length > BOARD_BODY_MAX) return res.status(400).json({ error: "post is too long" });
   try {
     const { text, durationMs } = await callClaude({
+      restaurantId: req.restaurantId, feature: "board-translate",
       system: `You translate restaurant team announcements. Translate the post into English (en), Canadian French (fr) and Spanish (es). Keep the meaning, tone, names, dates, times and numbers exactly; a language the post is already in is returned unchanged. Reply with ONLY a JSON object: {"en":{"title":"","body":""},"fr":{"title":"","body":""},"es":{"title":"","body":""}}. If the title is empty, keep it empty.`,
       user: JSON.stringify({ title, body }),
       maxTokens: 1800,
@@ -4032,7 +4076,7 @@ Reply with ONLY a JSON object: {"summary":"<one or two sentences, in ${LANG_NAME
 DATA:
 ${JSON.stringify(context)}`;
 
-  const { text, durationMs } = await callClaude({ system, user: prompt, maxTokens: 6000 });
+  const { text, durationMs } = await callClaude({ system, user: prompt, maxTokens: 6000, restaurantId, feature: "schedule" });
   const parsed = extractJsonObject(text);
   if (!parsed || !Array.isArray(parsed.shifts)) {
     logActivity({ restaurantId, eventType: "ai_failed", level: "error", detail: "schedule: unparseable reply", durationMs });
@@ -4185,6 +4229,30 @@ app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
     lastActivityAt: r.last_activity_at ? Number(r.last_activity_at) : null,
     activityLast7d: Number(r.activity_last_7d),
   })));
+});
+
+// What the AI features have cost, per restaurant, over the last N days (an estimate; see aiCostUsd).
+app.get("/api/platform/ai-usage", requirePlatformAuth, async (req, res) => {
+  const days = Math.min(365, Math.max(1, parseInt(req.query.days, 10) || 30));
+  const since = Date.now() - days * 24 * 3600 * 1000;
+  const { rows } = await pool.query(
+    `SELECT u.restaurant_id, r.name, u.feature, COUNT(*) AS calls, COALESCE(SUM(u.input_tokens),0) AS input_tokens,
+            COALESCE(SUM(u.output_tokens),0) AS output_tokens, COALESCE(SUM(u.searches),0) AS searches, COALESCE(SUM(u.cost_usd),0) AS cost
+     FROM ai_usage u LEFT JOIN restaurants r ON r.id = u.restaurant_id
+     WHERE u.created_at >= $1 GROUP BY u.restaurant_id, r.name, u.feature`, [since]);
+  const byRestaurant = new Map();
+  for (const x of rows) {
+    const key = x.restaurant_id || "none";
+    const cur = byRestaurant.get(key) || { id: x.restaurant_id, name: x.name || (x.restaurant_id ? "(deleted restaurant)" : "(no restaurant)"), calls: 0, inputTokens: 0, outputTokens: 0, searches: 0, costUsd: 0, byFeature: [] };
+    cur.calls += Number(x.calls); cur.inputTokens += Number(x.input_tokens); cur.outputTokens += Number(x.output_tokens);
+    cur.searches += Number(x.searches); cur.costUsd += Number(x.cost);
+    cur.byFeature.push({ feature: x.feature, calls: Number(x.calls), costUsd: Number(x.cost) });
+    byRestaurant.set(key, cur);
+  }
+  const list = [...byRestaurant.values()].sort((a, b) => b.costUsd - a.costUsd);
+  list.forEach((r) => { r.byFeature.sort((a, b) => b.costUsd - a.costUsd); r.costPerDayUsd = r.costUsd / days; });
+  const totalUsd = list.reduce((s, r) => s + r.costUsd, 0);
+  res.json({ days, totalUsd, perDayUsd: totalUsd / days, restaurants: list });
 });
 
 // Permanently deletes a restaurant and everything under it (staff, shifts, schedule, sales, logins). The exact
