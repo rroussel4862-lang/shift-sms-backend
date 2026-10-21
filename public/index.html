@@ -732,7 +732,7 @@
       <span class="dot"></span><span data-i18n="nav.comms">Comms</span>
     </button>
     <button class="nav-stub" id="tabBtnShifts" style="--dot-color:var(--scheduling)" onclick="switchTab('shifts')">
-      <span class="dot"></span><span data-i18n="nav.shifts">Scheduling</span>
+      <span class="dot"></span><span data-i18n="nav.shifts">Scheduling</span><span class="nav-badge" id="shiftsBadge" style="display:none;background:var(--scheduling)"></span>
     </button>
     <button class="nav-stub" id="tabBtnStaff" style="--dot-color:var(--staffcolor)" onclick="switchTab('staff')">
       <span class="dot"></span><span data-i18n="nav.staff">Staff</span><span class="nav-badge" id="staffBadge" style="display:none"></span>
@@ -1736,7 +1736,7 @@ async function loadAll() {
   const bd = await api("/api/board");
   if (bd.ok) boardPosts = bd.data;
   const sw = await api("/api/swaps");
-  if (sw.ok) swapRequests = sw.data;
+  if (sw.ok) { swapRequests = sw.data; updateSwapBadge(); }
   const todayIso = isoLocal(new Date());
   const td = await api(`/api/schedule?start=${todayIso}&end=${todayIso}`);
   if (td.ok) todayShifts = td.data;
@@ -2290,7 +2290,14 @@ function renderOverview() {
 /* ============================== Shift swaps ============================== */
 function swapDate(d) { return new Date(d + "T00:00:00").toLocaleDateString(localeForLang(), { weekday: "short", month: "short", day: "numeric" }); }
 function swapShiftLine(sh) { return `${escapeHtml(swapDate(sh.date))} · ${fmtClock(sh.startTime)} – ${fmtClock(sh.endTime)}${sh.role ? " · " + escapeHtml(roleLabel(sh.role)) : ""}`; }
+// Small number on the Scheduling tab: swap / give-away tickets waiting for a manager's decision.
+function updateSwapBadge() {
+  const n = (swapRequests || []).filter(w => w.status === "pending").length;
+  const badge = document.getElementById("shiftsBadge");
+  if (badge) { badge.style.display = n ? "inline-block" : "none"; badge.textContent = n; }
+}
 function renderSwapRequests() {
+  updateSwapBadge();
   const el = document.getElementById("swapRequests");
   if (!el) return;
   if (swapRequests.length === 0) { el.innerHTML = `<p class="empty">${t("scheduling.swapNone")}</p>`; return; }
