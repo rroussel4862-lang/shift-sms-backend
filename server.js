@@ -366,7 +366,9 @@ async function initDb() {
   `);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS board_seen_at BIGINT;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS schedule_seen_at BIGINT;`);
-  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS archived_at BIGINT;`); // removed from the app but kept for shift and payroll history
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS archived_at BIGINT;`);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS hide_from_schedule BOOLEAN NOT NULL DEFAULT FALSE;`); // has a role (e.g. manager login) but is never scheduled
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS manager_owner_id TEXT;`); // the manager login (owners row) given to this person // removed from the app but kept for shift and payroll history
   await pool.query(`ALTER TABLE board_posts ADD COLUMN IF NOT EXISTS translations JSONB;`);
 
   // Manually entered weekly sales for past years (keyed by that week's Monday) so this year can be compared to last year
@@ -604,6 +606,8 @@ function staffRowToJson(row) {
     phone: row.phone,
     roles: row.roles,
     archived: !!row.archived_at,
+    hideFromSchedule: !!row.hide_from_schedule,
+    hasManagerAccess: !!row.manager_owner_id,
     hourlyRate: row.hourly_rate !== null && row.hourly_rate !== undefined ? Number(row.hourly_rate) : null,
     hireDate: row.hire_date || "",
     address: row.address || "",
@@ -680,18 +684,28 @@ const COOKIE_OPTS = {
   maxAge: 30 * 24 * 60 * 60 * 1000,
 };
 
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   const token = req.cookies && req.cookies.token;
   if (!token) return res.status(401).json({ error: "not logged in" });
+  let payload;
   try {
-    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
-    req.restaurantId = payload.restaurantId;
-    req.userId = payload.userId;
-    req.ownerId = payload.ownerId || null; // set when an owner is acting as manager of one of their restaurants
-    next();
+    payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
   } catch (e) {
     return res.status(401).json({ error: "session expired — please log in again" });
   }
+  if (payload.ownerId) {
+    // an owner/manager login is only good while that account still has this restaurant (so removing manager access cuts the session at once)
+    try {
+      const { rows } = await pool.query("SELECT 1 FROM owner_restaurants WHERE owner_id = $1 AND restaurant_id = $2", [payload.ownerId, payload.restaurantId]);
+      if (!rows.length) return res.status(401).json({ error: "not logged in" });
+    } catch (e) {
+      console.error("Owner session check failed:", e.message);
+    }
+  }
+  req.restaurantId = payload.restaurantId;
+  req.userId = payload.userId;
+  req.ownerId = payload.ownerId || null; // set when an owner is acting as manager of one of their restaurants
+  next();
 }
 
 async function requireStaffAuth(req, res, next) {
@@ -1159,8 +1173,9 @@ app.patch("/api/staff/:id", requireAuth, async (req, res) => {
   const { rows: existingRows } = await pool.query("SELECT * FROM staff WHERE id = $1 AND restaurant_id = $2 AND archived_at IS NULL", [req.params.id, req.restaurantId]);
   if (existingRows.length === 0) return res.status(404).json({ error: "staff not found" });
 
-  const { name, phone, roles, hourlyRate, hireDate, address } = req.body || {};
+  const { name, phone, roles, hourlyRate, hireDate, address, hideFromSchedule } = req.body || {};
   const updates = {
+    hide: existingRows[0].hide_from_schedule,
     name: existingRows[0].name,
     phone: existingRows[0].phone,
     roles: existingRows[0].roles,
@@ -1197,10 +1212,11 @@ app.patch("/api/staff/:id", requireAuth, async (req, res) => {
     updates.hire_date = hd || null;
   }
   if (address !== undefined) updates.address = String(address === null ? "" : address).trim() || null;
+  if (hideFromSchedule !== undefined) updates.hide = !!hideFromSchedule;
 
   const { rows } = await pool.query(
-    "UPDATE staff SET name=$1, phone=$2, roles=$3, hourly_rate=$4, hire_date=$5, address=$6 WHERE id=$7 AND restaurant_id=$8 RETURNING *",
-    [updates.name, updates.phone, JSON.stringify(updates.roles), updates.hourly_rate, updates.hire_date, updates.address, req.params.id, req.restaurantId]
+    "UPDATE staff SET name=$1, phone=$2, roles=$3, hourly_rate=$4, hire_date=$5, address=$6, hide_from_schedule=$9 WHERE id=$7 AND restaurant_id=$8 RETURNING *",
+    [updates.name, updates.phone, JSON.stringify(updates.roles), updates.hourly_rate, updates.hire_date, updates.address, req.params.id, req.restaurantId, updates.hide]
   );
   res.json(staffRowToJson(rows[0]));
 });
@@ -1216,11 +1232,58 @@ app.delete("/api/staff/:id", requireAuth, async (req, res) => {
     [req.restaurantId, rows[0].id, now]
   );
   await pool.query("DELETE FROM schedule_shifts WHERE restaurant_id = $1 AND staff_id = $2 AND shift_date >= $3", [req.restaurantId, rows[0].id, ownerToday()]);
+  await revokeManagerAccess(rows[0].id, req.restaurantId);
   await pool.query(
     "UPDATE staff SET archived_at = $3, email = NULL, password_hash = NULL, claim_token = NULL, claim_token_at = NULL WHERE id = $1 AND restaurant_id = $2",
     [rows[0].id, req.restaurantId, now]
   );
   logActivity({ restaurantId: req.restaurantId, eventType: "staff_removed", detail: `staff removed: ${rows[0].name}` });
+  res.status(204).end();
+});
+
+// ---- manager login for a staff member ----
+// Uses the same manager accounts the dashboard creates (owners, role 'manager'), so they sign in on the normal login page
+// and get the same screens. Only the restaurant's own account (or an owner) can hand this out, never another manager.
+async function canGrantManagerAccess(req) {
+  if (!req.ownerId) return true;
+  const { rows } = await pool.query("SELECT role FROM owners WHERE id = $1", [req.ownerId]);
+  return !!rows[0] && rows[0].role !== "manager";
+}
+async function revokeManagerAccess(staffId, restaurantId) {
+  const { rows } = await pool.query("SELECT manager_owner_id FROM staff WHERE id = $1 AND restaurant_id = $2", [staffId, restaurantId]);
+  const ownerId = rows[0] && rows[0].manager_owner_id;
+  if (!ownerId) return false;
+  await pool.query("DELETE FROM owners WHERE id = $1 AND role = 'manager'", [ownerId]);
+  await pool.query("UPDATE staff SET manager_owner_id = NULL WHERE id = $1 AND restaurant_id = $2", [staffId, restaurantId]);
+  return true;
+}
+
+app.post("/api/staff/:id/manager-access", requireAuth, async (req, res) => {
+  if (!(await canGrantManagerAccess(req))) return res.status(403).json({ error: "only the restaurant's main account or an owner can give manager access" });
+  const { rows } = await pool.query("SELECT * FROM staff WHERE id = $1 AND restaurant_id = $2 AND archived_at IS NULL", [req.params.id, req.restaurantId]);
+  const person = rows[0];
+  if (!person) return res.status(404).json({ error: "staff not found" });
+  if (person.manager_owner_id) return res.status(409).json({ error: "this person already has manager access" });
+  const email = String((req.body && req.body.email) || "").trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "a valid email is required" });
+  const { rows: dup } = await pool.query("SELECT 1 FROM owners WHERE email = $1 UNION SELECT 1 FROM users WHERE email = $1", [email]);
+  if (dup.length) return res.status(409).json({ error: "that email already has a manager or owner login" });
+  const ownerId = id();
+  const password = tempPassword();
+  await pool.query("INSERT INTO owners (id, name, email, password_hash, created_at, role) VALUES ($1,$2,$3,$4,$5,'manager')", [ownerId, person.name, email, await bcrypt.hash(password, 10), Date.now()]);
+  await pool.query("INSERT INTO owner_restaurants (owner_id, restaurant_id) VALUES ($1,$2)", [ownerId, req.restaurantId]);
+  await pool.query("UPDATE staff SET manager_owner_id = $1 WHERE id = $2 AND restaurant_id = $3", [ownerId, person.id, req.restaurantId]);
+  logActivity({ restaurantId: req.restaurantId, eventType: "manager_access_granted", detail: `manager access given to ${person.name} (${email})` });
+  res.status(201).json({ email, tempPassword: password });
+});
+
+app.delete("/api/staff/:id/manager-access", requireAuth, async (req, res) => {
+  if (!(await canGrantManagerAccess(req))) return res.status(403).json({ error: "only the restaurant's main account or an owner can remove manager access" });
+  const { rows } = await pool.query("SELECT name FROM staff WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  if (!rows[0]) return res.status(404).json({ error: "staff not found" });
+  if (await revokeManagerAccess(req.params.id, req.restaurantId)) {
+    logActivity({ restaurantId: req.restaurantId, eventType: "manager_access_removed", detail: `manager access removed from ${rows[0].name}` });
+  }
   res.status(204).end();
 });
 
@@ -1624,6 +1687,12 @@ app.put("/api/staff-auth/availability", requireStaffAuth, async (req, res) => {
     [id(), req.restaurantId, req.staffId, JSON.stringify(cleanAvailability(availability)), now]
   );
   logActivity({ restaurantId: req.restaurantId, eventType: "availability_requested", detail: "availability change submitted" });
+  pool.query("SELECT name FROM staff WHERE id = $1", [req.staffId]).then(({ rows }) => {
+    const who = (rows[0] && rows[0].name) || "A staff member";
+    return textManagers(req.restaurantId, bilingual(
+      `${who} a demandé un changement de disponibilités. Approuvez ou refusez dans Open Shift Rail > Employés.`,
+      `${who} asked to change their availability. Approve or deny it in Open Shift Rail > Staff.`));
+  }).catch(() => {});
   res.json(availJson(rows[0]));
 });
 
@@ -1702,6 +1771,13 @@ app.post("/api/staff-auth/time-off", requireStaffAuth, async (req, res) => {
     [id(), req.restaurantId, req.staffId, date, f || null, t || null, String(note || "").trim().slice(0, 200), Date.now()]
   );
   logActivity({ restaurantId: req.restaurantId, eventType: "time_off_requested", detail: `time off requested for ${date}` });
+  pool.query("SELECT name FROM staff WHERE id = $1", [req.staffId]).then(({ rows }) => {
+    const who = (rows[0] && rows[0].name) || "A staff member";
+    const hrs = f || t ? ` (${f || "…"}–${t || "…"})` : "";
+    return textManagers(req.restaurantId, bilingual(
+      `${who} demande congé le ${date}${hrs}. Approuvez ou refusez dans Open Shift Rail > Employés.`,
+      `${who} requested time off on ${date}${hrs}. Approve or deny it in Open Shift Rail > Staff.`));
+  }).catch(() => {});
   res.status(201).json(timeOffJson(rows[0]));
 });
 
@@ -1845,6 +1921,15 @@ function swapWhenText(sh) {
   return `${sh.date} ${sh.startTime}-${sh.endTime}`;
 }
 
+// Everyone who manages the restaurant: staff with the Manager role, plus anyone who was given a manager login.
+function textManagers(restaurantId, body) {
+  return pool.query(
+    `SELECT DISTINCT phone FROM staff WHERE restaurant_id = $1 AND archived_at IS NULL
+       AND (roles @> '["Manager"]'::jsonb OR manager_owner_id IS NOT NULL)`, [restaurantId])
+    .then(({ rows }) => Promise.all(rows.map((m) => sendSms(m.phone, body, restaurantId))))
+    .catch((e) => console.error("manager SMS failed:", e.message));
+}
+
 // Two people agreed on a give/swap: text every manager (staff with the Manager role) so it doesn't sit unseen.
 function textManagersAboutSwap(swap, restaurantId) {
   if (!swap) return;
@@ -1852,9 +1937,7 @@ function textManagersAboutSwap(swap, restaurantId) {
     ? `${swap.fromName} (${swapWhenText(swap.shift)}) ↔ ${swap.toName || "?"} (${swapWhenText(swap.swapShift)})`
     : `${swap.fromName} gives ${swapWhenText(swap.shift)} to ${swap.toName || "?"}`;
   const body = `Shift ${swap.kind === "swap" ? "swap" : "give-away"} waiting for your approval: ${what}. Approve or deny it in Open Shift Rail > Scheduling.`;
-  pool.query(`SELECT phone FROM staff WHERE restaurant_id = $1 AND archived_at IS NULL AND roles @> '["Manager"]'::jsonb`, [restaurantId])
-    .then(({ rows }) => Promise.all(rows.map((m) => sendSms(m.phone, body, restaurantId))))
-    .catch((e) => console.error("swap manager SMS failed:", e.message));
+  textManagers(restaurantId, body);
 }
 
 app.post("/api/staff-auth/swaps", requireStaffAuth, async (req, res) => {
@@ -4111,7 +4194,7 @@ async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds
   const wanted = Array.isArray(staffIds) ? new Set(staffIds.map(String)) : null;
 
   const { rows: allStaff } = await pool.query("SELECT * FROM staff WHERE restaurant_id = $1 AND archived_at IS NULL", [restaurantId]);
-  const pool_ = allStaff.filter((p) => !wanted || wanted.has(p.id));
+  const pool_ = allStaff.filter((p) => !p.hideFromSchedule && (!wanted || wanted.has(p.id)));
   if (pool_.length === 0) throw httpError(400, "There is no staff to schedule here yet.");
   const staffById = {};
   pool_.forEach((p) => { staffById[p.id] = { name: p.name, roles: p.roles || [], rate: p.hourly_rate !== null ? Number(p.hourly_rate) : 0 }; });

@@ -1061,7 +1061,7 @@ const T = {
       sendLogin: "Send login", loginSent: "Login sent", deleteConfirm: n => `Remove ${n} from the app? They lose their login and come off the schedule going forward. Their past shifts, hours and payroll history are kept.`, former: "Former employees", restore: "Restore", restoreNote: "Restored. They need a new login link to get back into the staff portal.", resendLogin: "Reset login", resendConfirm: "This person already has a login. Send a new setup link? They will choose a new email and password.", edit: "Edit", portalActive: "Staff portal: active", portalNotSetUp: "Staff portal: not set up",
       mostAvailable: "Most available", pointsNote: "3 pts / covered · 1 pt / responded",
       noRateSet: "no rate set", hiredOn: date => `hired ${date}`,
-      editAddress: "Address (optional)", editRate: "Hourly rate", editHireDate: "Hire date", save: "Save", cancel: "Cancel",
+      editAddress: "Address (optional)", hideSchedule: "Don't show on the schedule grid", mgrAccess: "Manager access", mgrOn: "Has a manager login", mgrOff: "No manager login", mgrGive: "Give manager access", mgrRemove: "Remove access", mgrEmailPrompt: "Email for this person's manager login:", mgrCreated: (e, pw) => `Manager login created.\n\nEmail: ${e}\nTemporary password: ${pw}\n\nWrite it down now — it won't be shown again. They sign in on the normal login page and can change it after.`, mgrRemoveConfirm: "Remove this person's manager login? They will be signed out right away.", editRate: "Hourly rate", editHireDate: "Hire date", save: "Save", cancel: "Cancel",
       bannerEnterName: "Enter a name first", bannerEnterPhone: "Enter a phone number first",
       bannerAdded: name => `Added ${name}`, bannerPhoneRequired: "Phone number can't be empty", bannerUpdated: "Staff updated",
       noStaffWithRole: role => `No staff with the "${role}" role.`, noStaffMatching: q => `No staff matching "${q}".`,
@@ -1216,7 +1216,7 @@ const T = {
       sendLogin: "Envoyer l'accès", loginSent: "Accès envoyé", deleteConfirm: n => `Retirer ${n} de l'application ? Cette personne perd son accès et est retirée de l'horaire à venir. Ses quarts passés, ses heures et son historique de paie sont conservés.`, former: "Anciens employés", restore: "Rétablir", restoreNote: "Rétabli. Cette personne a besoin d'un nouveau lien d'accès pour retourner au portail.", resendLogin: "Réinitialiser l'accès", resendConfirm: "Cette personne a déjà un accès. Envoyer un nouveau lien ? Elle choisira un nouveau courriel et mot de passe.", edit: "Modifier", portalActive: "Portail employé : actif", portalNotSetUp: "Portail employé : non configuré",
       mostAvailable: "Les plus disponibles", pointsNote: "3 pts / quart couvert · 1 pt / réponse",
       noRateSet: "aucun taux défini", hiredOn: date => `embauché le ${date}`,
-      editAddress: "Adresse (facultatif)", editRate: "Taux horaire", editHireDate: "Date d'embauche", save: "Enregistrer", cancel: "Annuler",
+      editAddress: "Adresse (facultatif)", hideSchedule: "Ne pas afficher dans la grille d'horaire", mgrAccess: "Accès gestionnaire", mgrOn: "A un accès gestionnaire", mgrOff: "Aucun accès gestionnaire", mgrGive: "Donner l'accès gestionnaire", mgrRemove: "Retirer l'accès", mgrEmailPrompt: "Courriel pour l'accès gestionnaire de cette personne :", mgrCreated: (e, pw) => `Accès gestionnaire créé.\n\nCourriel : ${e}\nMot de passe temporaire : ${pw}\n\nNotez-le maintenant — il ne sera plus affiché. La personne se connecte sur la page de connexion habituelle et peut ensuite le changer.`, mgrRemoveConfirm: "Retirer l'accès gestionnaire de cette personne ? Elle sera déconnectée immédiatement.", editRate: "Taux horaire", editHireDate: "Date d'embauche", save: "Enregistrer", cancel: "Annuler",
       bannerEnterName: "Entrez d'abord un nom", bannerEnterPhone: "Entrez d'abord un numéro de téléphone",
       bannerAdded: name => `${name} ajouté(e)`, bannerPhoneRequired: "Le numéro de téléphone ne peut pas être vide", bannerUpdated: "Employé mis à jour",
       noStaffWithRole: role => `Aucun employé avec le poste « ${role} ».`, noStaffMatching: q => `Aucun employé correspondant à « ${q} ».`,
@@ -1371,7 +1371,7 @@ const T = {
       sendLogin: "Enviar acceso", loginSent: "Acceso enviado", deleteConfirm: n => `¿Quitar a ${n} de la aplicación? Pierde su acceso y sale del horario futuro. Sus turnos pasados, horas e historial de nómina se conservan.`, former: "Empleados anteriores", restore: "Restablecer", restoreNote: "Restablecido. Necesita un nuevo enlace de acceso para volver al portal.", resendLogin: "Restablecer acceso", resendConfirm: "Esta persona ya tiene acceso. ¿Enviar un nuevo enlace? Elegirá un nuevo correo y contraseña.", edit: "Editar", portalActive: "Portal del personal: activo", portalNotSetUp: "Portal del personal: no configurado",
       mostAvailable: "Más disponibles", pointsNote: "3 pts / turno cubierto · 1 pt / respuesta",
       noRateSet: "sin tarifa definida", hiredOn: date => `contratado el ${date}`,
-      editAddress: "Dirección (opcional)", editRate: "Tarifa por hora", editHireDate: "Fecha de contratación", save: "Guardar", cancel: "Cancelar",
+      editAddress: "Dirección (opcional)", hideSchedule: "No mostrar en la cuadrícula del horario", mgrAccess: "Acceso de gerente", mgrOn: "Tiene acceso de gerente", mgrOff: "Sin acceso de gerente", mgrGive: "Dar acceso de gerente", mgrRemove: "Quitar acceso", mgrEmailPrompt: "Correo para el acceso de gerente de esta persona:", mgrCreated: (e, pw) => `Acceso de gerente creado.\n\nCorreo: ${e}\nContraseña temporal: ${pw}\n\nAnótela ahora: no se volverá a mostrar. Inicia sesión en la página de acceso habitual y puede cambiarla después.`, mgrRemoveConfirm: "¿Quitar el acceso de gerente de esta persona? Se cerrará su sesión de inmediato.", editRate: "Tarifa por hora", editHireDate: "Fecha de contratación", save: "Guardar", cancel: "Cancelar",
       bannerEnterName: "Ingresa un nombre primero", bannerEnterPhone: "Ingresa un número de teléfono primero",
       bannerAdded: name => `${name} agregado(a)`, bannerPhoneRequired: "El número de teléfono no puede estar vacío", bannerUpdated: "Personal actualizado",
       noStaffWithRole: role => `No hay personal con el puesto "${role}".`, noStaffMatching: q => `No hay personal que coincida con "${q}".`,
@@ -1992,6 +1992,16 @@ function render() {
                   <button type="button" class="role-pill${editDraftRoles.includes(r) ? " active" : ""}"
                     onclick="toggleEditRole(this,'${r}')">${escapeHtml(roleLabel(r))}</button>
                 `).join("")}
+              </div>
+              <label style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
+                <input type="checkbox" id="editHide-${p.id}" style="width:auto"${(document.getElementById(`editHide-${p.id}`) ? document.getElementById(`editHide-${p.id}`).checked : p.hideFromSchedule) ? " checked" : ""} />
+                ${t("staff.hideSchedule")}
+              </label>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
+                <span style="opacity:.8">${t("staff.mgrAccess")}: ${p.hasManagerAccess ? t("staff.mgrOn") : t("staff.mgrOff")}</span>
+                ${p.hasManagerAccess
+                  ? `<button type="button" class="secondary-btn" onclick="removeManagerAccess('${p.id}')">${t("staff.mgrRemove")}</button>`
+                  : `<button type="button" class="secondary-btn" onclick="giveManagerAccess('${p.id}')">${t("staff.mgrGive")}</button>`}
               </div>
               <div class="btn-row">
                 <button class="primary" onclick="saveEdit('${p.id}')">${t("staff.save")}</button>
@@ -3014,6 +3024,21 @@ function toggleEditRole(btn, r) {
   }
 }
 
+async function giveManagerAccess(id) {
+  const email = (prompt(t("staff.mgrEmailPrompt")) || "").trim();
+  if (!email) return;
+  const r = await api(`/api/staff/${id}/manager-access`, { method: "POST", body: JSON.stringify({ email }) });
+  if (!r.ok) return showBanner(r.error, "warn");
+  alert(t("staff.mgrCreated", r.data.email, r.data.tempPassword));
+  loadAll();
+}
+async function removeManagerAccess(id) {
+  if (!confirm(t("staff.mgrRemoveConfirm"))) return;
+  const r = await api(`/api/staff/${id}/manager-access`, { method: "DELETE" });
+  if (!r.ok) return showBanner(r.error, "warn");
+  loadAll();
+}
+
 async function saveEdit(id) {
   const nameInput = document.getElementById(`editName-${id}`);
   const name = nameInput ? nameInput.value.trim() : "";
@@ -3029,7 +3054,7 @@ async function saveEdit(id) {
   const hireDate = hireDateInput ? hireDateInput.value : "";
   const result = await api(`/api/staff/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ name, address, phone, roles: editDraftRoles, hourlyRate: hourlyRate || null, hireDate: hireDate || null }),
+    body: JSON.stringify({ name, address, phone, roles: editDraftRoles, hourlyRate: hourlyRate || null, hireDate: hireDate || null, hideFromSchedule: !!(document.getElementById(`editHide-${id}`) || {}).checked }),
   });
   if (result.ok) {
     showBanner(t("staff.bannerUpdated"), "success");

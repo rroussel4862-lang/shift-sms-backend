@@ -1232,7 +1232,7 @@ let aiApplied = null;    // { ids, count } — the last batch added, so it can b
 function visibleStaffForView() {
   const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
   // managers are scheduled by hand — the AI scheduler never fills their shifts
-  return staff.filter(p => (p.roles || []).some(r => r !== "Manager" && activeRoles.includes(r)));
+  return staff.filter(p => !p.hideFromSchedule && (p.roles || []).some(r => r !== "Manager" && activeRoles.includes(r)));
 }
 
 function renderAiSched() {
@@ -1807,7 +1807,7 @@ function byLastName(a, b) {
 function viewGroups() {
   const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
   return activeRoles
-    .map(role => ({ role, people: staffAll.filter(p => (p.roles || []).includes(role)
+    .map(role => ({ role, people: staffAll.filter(p => (p.roles || []).includes(role) && !p.hideFromSchedule
       && (!p.archived || scheduleShifts.some(s => s.staffId === p.id) || postedShifts.some(g => g.staffId === p.id))).sort(byLastName) }))
     .filter(g => g.people.length);
 }
