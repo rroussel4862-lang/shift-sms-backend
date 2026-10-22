@@ -848,6 +848,7 @@
       <div class="roles" id="staffRoleFilters"></div>
       <input type="text" id="staffNameSearch" placeholder="Search by name…" data-i18n-ph="staff.searchPh" style="display:none;margin-bottom:10px" oninput="staffNameQuery = this.value; render();" />
       <div id="staffList"><p class="empty" data-i18n="staff.noStaff">No staff yet.</p></div>
+      <div id="formerStaffList"></div>
     </div>
 
     <div class="stub plain">
@@ -1057,7 +1058,7 @@ const T = {
       roles: "Role(s) — tap all that apply", addBtn: "Add staff",
       currentCard: "Current staff", filterAll: "All", filterPosition: "By position", filterName: "By name",
       searchPh: "Search by name…", noStaff: "No staff yet.", noRole: "no role",
-      sendLogin: "Send login", loginSent: "Login sent", resendLogin: "Reset login", resendConfirm: "This person already has a login. Send a new setup link? They will choose a new email and password.", edit: "Edit", portalActive: "Staff portal: active", portalNotSetUp: "Staff portal: not set up",
+      sendLogin: "Send login", loginSent: "Login sent", deleteConfirm: n => `Remove ${n} from the app? They lose their login and come off the schedule going forward. Their past shifts, hours and payroll history are kept.`, former: "Former employees", restore: "Restore", restoreNote: "Restored. They need a new login link to get back into the staff portal.", resendLogin: "Reset login", resendConfirm: "This person already has a login. Send a new setup link? They will choose a new email and password.", edit: "Edit", portalActive: "Staff portal: active", portalNotSetUp: "Staff portal: not set up",
       mostAvailable: "Most available", pointsNote: "3 pts / covered · 1 pt / responded",
       noRateSet: "no rate set", hiredOn: date => `hired ${date}`,
       editAddress: "Address (optional)", editRate: "Hourly rate", editHireDate: "Hire date", save: "Save", cancel: "Cancel",
@@ -1212,7 +1213,7 @@ const T = {
       roles: "Poste(s) — touchez tous ceux qui s'appliquent", addBtn: "Ajouter l'employé",
       currentCard: "Personnel actuel", filterAll: "Tous", filterPosition: "Par poste", filterName: "Par nom",
       searchPh: "Rechercher par nom…", noStaff: "Aucun employé pour l'instant.", noRole: "aucun poste",
-      sendLogin: "Envoyer l'accès", loginSent: "Accès envoyé", resendLogin: "Réinitialiser l'accès", resendConfirm: "Cette personne a déjà un accès. Envoyer un nouveau lien ? Elle choisira un nouveau courriel et mot de passe.", edit: "Modifier", portalActive: "Portail employé : actif", portalNotSetUp: "Portail employé : non configuré",
+      sendLogin: "Envoyer l'accès", loginSent: "Accès envoyé", deleteConfirm: n => `Retirer ${n} de l'application ? Cette personne perd son accès et est retirée de l'horaire à venir. Ses quarts passés, ses heures et son historique de paie sont conservés.`, former: "Anciens employés", restore: "Rétablir", restoreNote: "Rétabli. Cette personne a besoin d'un nouveau lien d'accès pour retourner au portail.", resendLogin: "Réinitialiser l'accès", resendConfirm: "Cette personne a déjà un accès. Envoyer un nouveau lien ? Elle choisira un nouveau courriel et mot de passe.", edit: "Modifier", portalActive: "Portail employé : actif", portalNotSetUp: "Portail employé : non configuré",
       mostAvailable: "Les plus disponibles", pointsNote: "3 pts / quart couvert · 1 pt / réponse",
       noRateSet: "aucun taux défini", hiredOn: date => `embauché le ${date}`,
       editAddress: "Adresse (facultatif)", editRate: "Taux horaire", editHireDate: "Date d'embauche", save: "Enregistrer", cancel: "Annuler",
@@ -1367,7 +1368,7 @@ const T = {
       roles: "Puesto(s) — toca todos los que apliquen", addBtn: "Agregar personal",
       currentCard: "Personal actual", filterAll: "Todos", filterPosition: "Por puesto", filterName: "Por nombre",
       searchPh: "Buscar por nombre…", noStaff: "No hay personal todavía.", noRole: "sin puesto",
-      sendLogin: "Enviar acceso", loginSent: "Acceso enviado", resendLogin: "Restablecer acceso", resendConfirm: "Esta persona ya tiene acceso. ¿Enviar un nuevo enlace? Elegirá un nuevo correo y contraseña.", edit: "Editar", portalActive: "Portal del personal: activo", portalNotSetUp: "Portal del personal: no configurado",
+      sendLogin: "Enviar acceso", loginSent: "Acceso enviado", deleteConfirm: n => `¿Quitar a ${n} de la aplicación? Pierde su acceso y sale del horario futuro. Sus turnos pasados, horas e historial de nómina se conservan.`, former: "Empleados anteriores", restore: "Restablecer", restoreNote: "Restablecido. Necesita un nuevo enlace de acceso para volver al portal.", resendLogin: "Restablecer acceso", resendConfirm: "Esta persona ya tiene acceso. ¿Enviar un nuevo enlace? Elegirá un nuevo correo y contraseña.", edit: "Editar", portalActive: "Portal del personal: activo", portalNotSetUp: "Portal del personal: no configurado",
       mostAvailable: "Más disponibles", pointsNote: "3 pts / turno cubierto · 1 pt / respuesta",
       noRateSet: "sin tarifa definida", hiredOn: date => `contratado el ${date}`,
       editAddress: "Dirección (opcional)", editRate: "Tarifa por hora", editHireDate: "Fecha de contratación", save: "Guardar", cancel: "Cancelar",
@@ -1497,7 +1498,10 @@ function roleLabel(role) {
   return (ROLE_LABELS[role] && ROLE_LABELS[role][LANG]) || role;
 }
 let selectedRoles = [];
-let staff = [];
+let staff = [];        // active employees only
+let staffAll = [];     // everyone, including removed people (kept so past shifts and payroll still show names and rates)
+let formerStaff = [];  // removed people, kept for history
+function setStaffData(list) { staffAll = list; staff = list.filter(p => !p.archived); formerStaff = list.filter(p => p.archived); }
 let shifts = [];
 let boardPosts = [];
 let boardEditing = null;      // { id, title, body } while a post is being edited
@@ -1724,7 +1728,7 @@ async function decideAvail(staffId, action) {
 async function loadAll() {
   const [s, sh, po, ap, sv] = await Promise.all([api("/api/staff"), api("/api/shifts"), api("/api/hiring/postings"), api("/api/hiring/applications"), api("/api/services")]);
   if (sv.ok && Array.isArray(sv.data.services) && sv.data.services.length) SERVICE_LIST = sv.data.services;
-  if (s.ok) staff = s.data;
+  if (s.ok) setStaffData(s.data);
   if (sh.ok) shifts = sh.data;
   if (po.ok) postings = po.data;
   if (ap.ok) applications = ap.data;
@@ -1815,7 +1819,7 @@ const snapOpenEvents = new Set();
 function todayBreakdown(shiftList, activeIds) {
   const byStaff = new Map(); // one row per person: they may have more than one shift that day
   (shiftList || todayShifts).forEach(sh => {
-    const person = staff.find(p => p.id === sh.staffId);
+    const person = staffAll.find(p => p.id === sh.staffId);
     if (!person) return;
     const role = sh.role || (person.roles && person.roles[0]) || "";
     const svc = svcOfTime(sh.startTime);
@@ -2021,6 +2025,17 @@ function render() {
         `;
       }).join("");
 
+  // former employees: removed from the app, but their shifts and payroll history are kept
+  const formerDiv = document.getElementById("formerStaffList");
+  if (formerDiv) {
+    formerDiv.innerHTML = formerStaff.length === 0 ? "" : `
+      <details style="margin-top:14px"><summary style="cursor:pointer;opacity:.75">${escapeHtml(t("staff.former"))} (${formerStaff.length})</summary>
+        ${formerStaff.map(p => `<div class="row" style="opacity:.8;display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+          <span>${escapeHtml(p.name)}${p.roles && p.roles[0] ? ` <span style="opacity:.6">· ${escapeHtml(roleLabel(p.roles[0]))}</span>` : ""}</span>
+          <button class="edit-btn" onclick="restoreStaff('${p.id}')">${escapeHtml(t("staff.restore"))}</button></div>`).join("")}
+      </details>`;
+  }
+
   // leaderboard
   const leaderboardDiv = document.getElementById("leaderboardList");
   const ranked = computeStats(staff, shifts);
@@ -2072,7 +2087,7 @@ function render() {
   filledDiv.innerHTML = filled.length === 0
     ? `<p class="empty">${t("scheduling.nothingFilled")}</p>`
     : filled.map(s => {
-        const assignee = staff.find(p => p.id === s.assignedTo);
+        const assignee = staffAll.find(p => p.id === s.assignedTo);
         return `
           <div class="ticket">
             <div class="stamp filled">${t("scheduling.filledStamp")}</div>
@@ -2174,7 +2189,7 @@ function renderOverview() {
   const BOH = ["Line Cook", "Dishwasher", "Prep Cook", "Expo"]; // everything else (incl. Manager) is front of house, as in the schedule grid
   let laborFoh = 0, laborBoh = 0;
   dayShifts.forEach(sh => {
-    const p = staff.find(x => x.id === sh.staffId);
+    const p = staffAll.find(x => x.id === sh.staffId);
     const cost = shiftHours(sh.startTime, sh.endTime) * ((p && p.hourlyRate) || 0);
     laborCost += cost;
     const role = sh.role || (p && p.roles && p.roles[0]) || "";
@@ -2413,7 +2428,7 @@ async function loadTraining() {
 }
 
 function staffNameById(sid) {
-  const p = staff.find(s => s.id === sid);
+  const p = staffAll.find(s => s.id === sid);
   return p ? p.name : "—";
 }
 
@@ -2753,7 +2768,7 @@ function payrollNumbers() {
   const weekDates = Array.from({ length: 7 }, (_, i) => isoLocal(addDaysLocal(mon, i)));
   const nextStart = isoLocal(addDaysLocal(mon, 7));
   const nextEnd = isoLocal(addDaysLocal(mon, 20));
-  const rateOf = sid => { const p = staff.find(s => s.id === sid); return p && p.hourlyRate != null ? p.hourlyRate : null; };
+  const rateOf = sid => { const p = staffAll.find(s => s.id === sid); return p && p.hourlyRate != null ? p.hourlyRate : null; };
   const perStaff = {};
   let laborCost = 0, nextPeriod = 0;
   const shifts = payroll ? payroll.shifts : [];
@@ -2796,7 +2811,7 @@ function renderPayroll(force) {
   const max = Math.max(...n.daily, 1);
   const days = t("days");
   const staffRows = Object.entries(n.perStaff).map(([sid, e]) => {
-    const p = staff.find(s => s.id === sid);
+    const p = staffAll.find(s => s.id === sid);
     if (!p) return "";
     const role = p.roles && p.roles[0] ? ` <span style="opacity:0.6">· ${escapeHtml(roleLabel(p.roles[0]))}</span>` : "";
     const hrs = Math.round(e.hours * 10) / 10;
@@ -2939,7 +2954,15 @@ async function addStaff() {
   }
 }
 
+async function restoreStaff(id) {
+  const r = await api(`/api/staff/${id}/restore`, { method: "POST" });
+  if (r.ok) { showBanner(t("staff.restoreNote"), "success"); loadAll(); }
+  else showBanner(r.error, "warn");
+}
+
 async function removeStaff(id) {
+  const person = staffAll.find(p => p.id === id);
+  if (!confirm(t("staff.deleteConfirm", person ? person.name : ""))) return;
   await api(`/api/staff/${id}`, { method: "DELETE" });
   loadAll();
 }

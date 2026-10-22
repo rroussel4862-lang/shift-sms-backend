@@ -366,6 +366,7 @@ async function initDb() {
   `);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS board_seen_at BIGINT;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS schedule_seen_at BIGINT;`);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS archived_at BIGINT;`); // removed from the app but kept for shift and payroll history
   await pool.query(`ALTER TABLE board_posts ADD COLUMN IF NOT EXISTS translations JSONB;`);
 
   // Manually entered weekly sales for past years (keyed by that week's Monday) so this year can be compared to last year
@@ -590,7 +591,7 @@ async function sendSms(to, body, restaurantId = null) {
 // Texts one staff member about a manager's decision. Never blocks or fails the request: a failed text is only logged.
 async function notifyStaff(restaurantId, staffId, fr, en) {
   try {
-    const { rows } = await pool.query("SELECT phone FROM staff WHERE id = $1 AND restaurant_id = $2", [staffId, restaurantId]);
+    const { rows } = await pool.query("SELECT phone FROM staff WHERE id = $1 AND restaurant_id = $2 AND archived_at IS NULL", [staffId, restaurantId]);
     if (rows[0] && rows[0].phone) await sendSms(rows[0].phone, bilingual(fr, en), restaurantId);
   } catch (e) {
     console.error("Couldn't notify staff:", e.message);
@@ -602,6 +603,7 @@ function staffRowToJson(row) {
     name: row.name,
     phone: row.phone,
     roles: row.roles,
+    archived: !!row.archived_at,
     hourlyRate: row.hourly_rate !== null && row.hourly_rate !== undefined ? Number(row.hourly_rate) : null,
     hireDate: row.hire_date || "",
     address: row.address || "",
@@ -692,17 +694,25 @@ function requireAuth(req, res, next) {
   }
 }
 
-function requireStaffAuth(req, res, next) {
+async function requireStaffAuth(req, res, next) {
   const token = req.cookies && req.cookies.staff_token;
   if (!token) return res.status(401).json({ error: "not logged in" });
+  let payload;
   try {
-    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
-    req.staffId = payload.staffId;
-    req.restaurantId = payload.restaurantId;
-    next();
+    payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
   } catch (e) {
     return res.status(401).json({ error: "session expired — please log in again" });
   }
+  try {
+    // someone who was removed from the app loses access straight away, even with a login cookie that hasn't expired
+    const { rows } = await pool.query("SELECT archived_at FROM staff WHERE id = $1", [payload.staffId]);
+    if (rows[0] && rows[0].archived_at) return res.status(401).json({ error: "not logged in" });
+  } catch (e) {
+    console.error("Staff session check failed:", e.message);
+  }
+  req.staffId = payload.staffId;
+  req.restaurantId = payload.restaurantId;
+  next();
 }
 
 function requirePlatformAuth(req, res, next) {
@@ -1011,7 +1021,7 @@ app.post("/api/training", requireAuth, async (req, res) => {
   }
 
   // Only staff belonging to this restaurant can be assigned. Omitting staffIds assigns everyone.
-  const { rows: staffRows } = await pool.query("SELECT id FROM staff WHERE restaurant_id = $1", [req.restaurantId]);
+  const { rows: staffRows } = await pool.query("SELECT id FROM staff WHERE restaurant_id = $1 AND archived_at IS NULL", [req.restaurantId]);
   const validIds = new Set(staffRows.map((s) => s.id));
   const targets = Array.isArray(staffIds) ? staffIds.filter((sid) => validIds.has(sid)) : [...validIds];
 
@@ -1146,7 +1156,7 @@ app.post("/api/staff", requireAuth, async (req, res) => {
 });
 
 app.patch("/api/staff/:id", requireAuth, async (req, res) => {
-  const { rows: existingRows } = await pool.query("SELECT * FROM staff WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  const { rows: existingRows } = await pool.query("SELECT * FROM staff WHERE id = $1 AND restaurant_id = $2 AND archived_at IS NULL", [req.params.id, req.restaurantId]);
   if (existingRows.length === 0) return res.status(404).json({ error: "staff not found" });
 
   const { name, phone, roles, hourlyRate, hireDate, address } = req.body || {};
@@ -1195,13 +1205,35 @@ app.patch("/api/staff/:id", requireAuth, async (req, res) => {
   res.json(staffRowToJson(rows[0]));
 });
 
+// "Removing" someone keeps them in the database, so their past shifts, hours and payroll stay intact. They lose their login, stop
+// getting texts, and leave every upcoming shift and open swap; they disappear from the staff list and the schedule grid.
 app.delete("/api/staff/:id", requireAuth, async (req, res) => {
-  await pool.query("DELETE FROM staff WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  const { rows } = await pool.query("SELECT id, name FROM staff WHERE id = $1 AND restaurant_id = $2 AND archived_at IS NULL", [req.params.id, req.restaurantId]);
+  if (!rows[0]) return res.status(204).end();
+  const now = Date.now();
+  await pool.query(
+    "UPDATE shift_swaps SET status = 'cancelled', resolved_at = $3 WHERE restaurant_id = $1 AND status IN ('open','pending') AND (from_staff_id = $2 OR to_staff_id = $2)",
+    [req.restaurantId, rows[0].id, now]
+  );
+  await pool.query("DELETE FROM schedule_shifts WHERE restaurant_id = $1 AND staff_id = $2 AND shift_date >= $3", [req.restaurantId, rows[0].id, ownerToday()]);
+  await pool.query(
+    "UPDATE staff SET archived_at = $3, email = NULL, password_hash = NULL, claim_token = NULL, claim_token_at = NULL WHERE id = $1 AND restaurant_id = $2",
+    [rows[0].id, req.restaurantId, now]
+  );
+  logActivity({ restaurantId: req.restaurantId, eventType: "staff_removed", detail: `staff removed: ${rows[0].name}` });
   res.status(204).end();
 });
 
+// Bring a removed person back (they need a new login link; their upcoming shifts are not restored).
+app.post("/api/staff/:id/restore", requireAuth, async (req, res) => {
+  const { rows } = await pool.query("UPDATE staff SET archived_at = NULL WHERE id = $1 AND restaurant_id = $2 AND archived_at IS NOT NULL RETURNING *", [req.params.id, req.restaurantId]);
+  if (!rows[0]) return res.status(404).json({ error: "removed staff member not found" });
+  logActivity({ restaurantId: req.restaurantId, eventType: "staff_restored", detail: `staff restored: ${rows[0].name}` });
+  res.json(staffRowToJson(rows[0]));
+});
+
 app.post("/api/staff/:id/send-login-setup", requireAuth, async (req, res) => {
-  const { rows } = await pool.query("SELECT * FROM staff WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  const { rows } = await pool.query("SELECT * FROM staff WHERE id = $1 AND restaurant_id = $2 AND archived_at IS NULL", [req.params.id, req.restaurantId]);
   if (rows.length === 0) return res.status(404).json({ error: "staff not found" });
   const staffer = rows[0];
 
@@ -1261,7 +1293,7 @@ app.post("/api/shifts", requireAuth, async (req, res) => {
   );
 
   const { rows: recipientRows } = await pool.query(
-    `SELECT * FROM staff WHERE restaurant_id = $1
+    `SELECT * FROM staff WHERE restaurant_id = $1 AND archived_at IS NULL
      AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(roles) r WHERE lower(r) = lower($2))`,
     [req.restaurantId, shift.role]
   );
@@ -1279,7 +1311,7 @@ app.post("/api/shifts/:id/respond", requireAuth, async (req, res) => {
   if (shiftRows.length === 0) return res.status(404).json({ error: "shift not found" });
   const shift = shiftRowToJson(shiftRows[0]);
 
-  const { rows: staffRows } = await pool.query("SELECT * FROM staff WHERE id = $1 AND restaurant_id = $2", [staffId, req.restaurantId]);
+  const { rows: staffRows } = await pool.query("SELECT * FROM staff WHERE id = $1 AND restaurant_id = $2 AND archived_at IS NULL", [staffId, req.restaurantId]);
   if (staffRows.length === 0) return res.status(404).json({ error: "staff not found" });
   const staffer = staffRowToJson(staffRows[0]);
 
@@ -1301,7 +1333,7 @@ app.post("/api/shifts/:id/assign", requireAuth, async (req, res) => {
   if (shiftRows.length === 0) return res.status(404).json({ error: "shift not found" });
   const shift = shiftRowToJson(shiftRows[0]);
 
-  const { rows: staffRows } = await pool.query("SELECT * FROM staff WHERE restaurant_id = $1", [req.restaurantId]);
+  const { rows: staffRows } = await pool.query("SELECT * FROM staff WHERE restaurant_id = $1 AND archived_at IS NULL", [req.restaurantId]);
   const allStaff = staffRows.map(staffRowToJson);
   const winner = allStaff.find((s) => s.id === staffId);
   if (!winner) return res.status(404).json({ error: "staff not found" });
@@ -1378,14 +1410,14 @@ app.post("/api/sms/inbound", async (req, res) => {
     const { rows: restRows } = await pool.query("SELECT id FROM restaurants WHERE twilio_phone_number = $1", [to]);
     if (restRows.length > 0) {
       restaurantId = restRows[0].id;
-      const { rows: staffRows } = await pool.query("SELECT * FROM staff WHERE phone = $1 AND restaurant_id = $2 LIMIT 1", [from, restaurantId]);
+      const { rows: staffRows } = await pool.query("SELECT * FROM staff WHERE phone = $1 AND restaurant_id = $2 AND archived_at IS NULL LIMIT 1", [from, restaurantId]);
       if (staffRows[0]) staffer = staffRowToJson(staffRows[0]);
     }
   }
 
   if (!staffer) {
     // Fallback: shared default number, or no dedicated-number match — best-effort phone lookup.
-    const { rows: staffRows } = await pool.query("SELECT * FROM staff WHERE phone = $1 LIMIT 1", [from]);
+    const { rows: staffRows } = await pool.query("SELECT * FROM staff WHERE phone = $1 AND archived_at IS NULL LIMIT 1", [from]);
     if (staffRows[0]) {
       staffer = staffRowToJson(staffRows[0]);
       restaurantId = staffRows[0].restaurant_id;
@@ -1804,7 +1836,7 @@ function swapTodayFloor() {
 }
 
 function textSwapParty(staffId, restaurantId, body) {
-  pool.query("SELECT phone FROM staff WHERE id = $1", [staffId])
+  pool.query("SELECT phone FROM staff WHERE id = $1 AND archived_at IS NULL", [staffId])
     .then(({ rows }) => rows[0] && sendSms(rows[0].phone, body, restaurantId))
     .catch((e) => console.error("swap SMS failed:", e.message));
 }
@@ -1820,7 +1852,7 @@ function textManagersAboutSwap(swap, restaurantId) {
     ? `${swap.fromName} (${swapWhenText(swap.shift)}) ↔ ${swap.toName || "?"} (${swapWhenText(swap.swapShift)})`
     : `${swap.fromName} gives ${swapWhenText(swap.shift)} to ${swap.toName || "?"}`;
   const body = `Shift ${swap.kind === "swap" ? "swap" : "give-away"} waiting for your approval: ${what}. Approve or deny it in Open Shift Rail > Scheduling.`;
-  pool.query(`SELECT phone FROM staff WHERE restaurant_id = $1 AND roles @> '["Manager"]'::jsonb`, [restaurantId])
+  pool.query(`SELECT phone FROM staff WHERE restaurant_id = $1 AND archived_at IS NULL AND roles @> '["Manager"]'::jsonb`, [restaurantId])
     .then(({ rows }) => Promise.all(rows.map((m) => sendSms(m.phone, body, restaurantId))))
     .catch((e) => console.error("swap manager SMS failed:", e.message));
 }
@@ -2260,7 +2292,7 @@ async function textSchedulePosted(req, weekStart, house) {
   try {
     const { rows: shiftRows } = await pool.query(
       `SELECT s.staff_id, s.role, st.roles AS person_roles FROM schedule_shifts s JOIN staff st ON st.id = s.staff_id
-       WHERE s.restaurant_id = $1 AND s.shift_date >= $2 AND s.shift_date <= $3`,
+       WHERE s.restaurant_id = $1 AND st.archived_at IS NULL AND s.shift_date >= $2 AND s.shift_date <= $3`,
       [req.restaurantId, weekStart, addDaysIso(weekStart, 6)]
     );
     const counts = new Map();
@@ -2308,7 +2340,7 @@ app.post("/api/schedule", requireAuth, async (req, res) => {
   if (!startTime || !endTime) return res.status(400).json({ error: "startTime and endTime are required" });
   if (station && !STATIONS.includes(station)) return res.status(400).json({ error: `station must be one of: ${STATIONS.join(", ")}` });
 
-  const { rows: staffRows } = await pool.query("SELECT id FROM staff WHERE id = $1 AND restaurant_id = $2", [staffId, req.restaurantId]);
+  const { rows: staffRows } = await pool.query("SELECT id FROM staff WHERE id = $1 AND restaurant_id = $2 AND archived_at IS NULL", [staffId, req.restaurantId]);
   if (staffRows.length === 0) return res.status(404).json({ error: "staff not found" });
 
   const newId = id();
@@ -2444,7 +2476,7 @@ app.post("/api/schedule/bulk", requireAuth, async (req, res) => {
   if (list.length > SCHEDULE_BULK_MAX) return res.status(400).json({ error: `at most ${SCHEDULE_BULK_MAX} shifts at a time` });
   const dates = list.map((c) => c && c.date).filter(isIsoDate).sort();
   if (dates.length === 0) return res.status(400).json({ error: "valid dates are required" });
-  const { rows: staffRows } = await pool.query("SELECT id, name, roles FROM staff WHERE restaurant_id = $1", [req.restaurantId]);
+  const { rows: staffRows } = await pool.query("SELECT id, name, roles FROM staff WHERE restaurant_id = $1 AND archived_at IS NULL", [req.restaurantId]);
   const staffById = {};
   staffRows.forEach((r) => { staffById[r.id] = { name: r.name, roles: r.roles || [] }; });
   const { rows: existingRows } = await pool.query(
@@ -4078,7 +4110,7 @@ async function buildScheduleProposal({ restaurantId, prompt, weekStart, staffIds
   const weekEnd = addDaysIso(weekStart, 6);
   const wanted = Array.isArray(staffIds) ? new Set(staffIds.map(String)) : null;
 
-  const { rows: allStaff } = await pool.query("SELECT * FROM staff WHERE restaurant_id = $1", [restaurantId]);
+  const { rows: allStaff } = await pool.query("SELECT * FROM staff WHERE restaurant_id = $1 AND archived_at IS NULL", [restaurantId]);
   const pool_ = allStaff.filter((p) => !wanted || wanted.has(p.id));
   if (pool_.length === 0) throw httpError(400, "There is no staff to schedule here yet.");
   const staffById = {};
@@ -4272,7 +4304,7 @@ app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
   const { rows } = await pool.query(`
     SELECT
       r.id, r.name, r.created_at, r.twilio_phone_number, r.is_demo,
-      (SELECT COUNT(*) FROM staff s WHERE s.restaurant_id = r.id) AS staff_count,
+      (SELECT COUNT(*) FROM staff s WHERE s.restaurant_id = r.id AND s.archived_at IS NULL) AS staff_count,
       (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id) AS shift_count,
       (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id AND sh.status = 'open') AS open_shift_count,
       (SELECT COUNT(*) FROM job_postings jp WHERE jp.restaurant_id = r.id AND jp.status = 'open') AS open_posting_count,
@@ -4850,7 +4882,7 @@ async function restaurantSnapshot(restaurant, today) {
 
   const { rows: open } = await pool.query("SELECT COUNT(*) AS n FROM shifts WHERE restaurant_id = $1 AND status = 'open'", [rid]);
   const { rows: sw } = await pool.query("SELECT COUNT(*) AS n FROM shift_swaps WHERE restaurant_id = $1 AND status = 'pending'", [rid]);
-  const { rows: staffN } = await pool.query("SELECT COUNT(*) AS n FROM staff WHERE restaurant_id = $1", [rid]);
+  const { rows: staffN } = await pool.query("SELECT COUNT(*) AS n FROM staff WHERE restaurant_id = $1 AND archived_at IS NULL", [rid]);
   const openShifts = Number(open[0].n);
   const pendingSwaps = Number(sw[0].n);
 

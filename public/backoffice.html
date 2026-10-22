@@ -220,6 +220,9 @@
   .save-bar .sb-save { background: #fff; color: var(--ink); }
   .save-bar .sb-discard { background: rgba(0,0,0,.25); color: #fff; }
   .shift-chip.draft { border: 1px dashed var(--amber); opacity: .85; }
+  .shift-chip.ghost { border: 1px dashed var(--text-dim, #888); opacity: .6; background: transparent; }
+  .shift-chip.ghost .times { text-decoration: line-through; }
+  .shift-chip.ghost .ghost-note { font-size: 10.5px; opacity: .85; margin-top: 2px; }
 
   .grid-wrap { overflow: auto; border: 1px solid var(--grid-border); border-radius: 8px; }
   #sectionSchedule .grid-wrap { max-height: none; }
@@ -680,7 +683,7 @@ I18N.add({
     "sched.skip.unavailable": "marked unavailable", "sched.availShort": "Available", "sched.availFrom": "Available from", "sched.availUntil": "Available until", "sched.unavailAll": "Unavailable · all day", "sched.unavailShort": "Unavailable", "sched.unavailStart": "start", "sched.unavailEnd": "close", "sched.skip.overlap": "already has a shift then", "sched.skip.bad_time": "invalid times", "sched.skip.bad_date": "date outside this week", "sched.skip.unknown_staff": "unknown staff member",
     "sched.noStaff": h => `No staff tagged with ${h} roles yet. Add roles in the Staff tab.`,
     "sched.hoursWeek": h => `${h} hours this week`, "sched.costWeek": h => `${h} labor cost this week`,
-    "sched.rolePh": "Role (optional)", "sched.mgrShow": "Show the managers' schedule", "sched.mgrHide": "Hide the managers' schedule", "sched.stationPh": "Station (optional)", "sched.addShift": "+ Add", "sched.paste": "Paste here", "common.edit": "Edit", "common.cancel": "Cancel", "common.save": "Save", "common.copy": "Copy", "common.delete": "Delete",
+    "sched.rolePh": "Role (optional)", "sched.ghost": "Removed since posted", "sched.ghostRestore": "Put it back", "sched.former": "former", "sched.mgrShow": "Show the managers' schedule", "sched.mgrHide": "Hide the managers' schedule", "sched.stationPh": "Station (optional)", "sched.addShift": "+ Add", "sched.paste": "Paste here", "common.edit": "Edit", "common.cancel": "Cancel", "common.save": "Save", "common.copy": "Copy", "common.delete": "Delete",
     "house.foh": "FOH", "house.boh": "BOH",
     "days.0": "Mon", "days.1": "Tue", "days.2": "Wed", "days.3": "Thu", "days.4": "Fri", "days.5": "Sat", "days.6": "Sun",
     "role.Manager": "Manager", "role.Line Cook": "Line Cook", "role.Server": "Server", "role.Host": "Host", "role.Bartender": "Bartender", "role.Busser": "Busser", "role.Dishwasher": "Dishwasher", "role.Prep Cook": "Prep Cook", "role.Expo": "Expo",
@@ -728,7 +731,7 @@ I18N.add({
     "sched.skip.unavailable": "marqué indisponible", "sched.availShort": "Disponible", "sched.availFrom": "Disponible dès", "sched.availUntil": "Disponible jusqu'à", "sched.unavailAll": "Indisponible · toute la journée", "sched.unavailShort": "Indisponible", "sched.unavailStart": "début", "sched.unavailEnd": "fermeture", "sched.skip.overlap": "a déjà un quart à ce moment", "sched.skip.bad_time": "heures invalides", "sched.skip.bad_date": "date hors de cette semaine", "sched.skip.unknown_staff": "employé inconnu",
     "sched.noStaff": h => `Aucun employé n'a de poste en ${h} pour l'instant. Ajoutez des postes dans l'onglet Personnel.`,
     "sched.hoursWeek": h => `Heures ${h} cette semaine`, "sched.costWeek": h => `Coût de main-d'œuvre ${h} cette semaine`,
-    "sched.rolePh": "Poste (facultatif)", "sched.mgrShow": "Afficher l'horaire des gestionnaires", "sched.mgrHide": "Masquer l'horaire des gestionnaires", "sched.stationPh": "Station (facultatif)", "sched.addShift": "+ Ajouter", "sched.paste": "Coller ici", "common.edit": "Modifier", "common.cancel": "Annuler", "common.save": "Enregistrer", "common.copy": "Copier", "common.delete": "Supprimer",
+    "sched.rolePh": "Poste (facultatif)", "sched.ghost": "Retiré depuis l'affichage", "sched.ghostRestore": "Remettre", "sched.former": "ancien", "sched.mgrShow": "Afficher l'horaire des gestionnaires", "sched.mgrHide": "Masquer l'horaire des gestionnaires", "sched.stationPh": "Station (facultatif)", "sched.addShift": "+ Ajouter", "sched.paste": "Coller ici", "common.edit": "Modifier", "common.cancel": "Annuler", "common.save": "Enregistrer", "common.copy": "Copier", "common.delete": "Supprimer",
     "house.foh": "Salle", "house.boh": "Cuisine",
     "days.0": "Lun", "days.1": "Mar", "days.2": "Mer", "days.3": "Jeu", "days.4": "Ven", "days.5": "Sam", "days.6": "Dim",
     "role.Manager": "Gérant(e)", "role.Line Cook": "Cuisinier de ligne", "role.Server": "Serveur/Serveuse", "role.Host": "Hôte/Hôtesse", "role.Bartender": "Barman/Barmaid", "role.Busser": "Aide-serveur", "role.Dishwasher": "Plongeur/Plongeuse", "role.Prep Cook": "Cuisinier de préparation", "role.Expo": "Expéditeur",
@@ -776,7 +779,7 @@ I18N.add({
     "sched.skip.unavailable": "marcado como no disponible", "sched.availShort": "Disponible", "sched.availFrom": "Disponible desde", "sched.availUntil": "Disponible hasta", "sched.unavailAll": "No disponible · todo el día", "sched.unavailShort": "No disponible", "sched.unavailStart": "inicio", "sched.unavailEnd": "cierre", "sched.skip.overlap": "ya tiene un turno a esa hora", "sched.skip.bad_time": "horas no válidas", "sched.skip.bad_date": "fecha fuera de esta semana", "sched.skip.unknown_staff": "empleado desconocido",
     "sched.noStaff": h => `Aún no hay personal con puestos de ${h}. Agrega puestos en la pestaña Personal.`,
     "sched.hoursWeek": h => `Horas de ${h} esta semana`, "sched.costWeek": h => `Costo laboral de ${h} esta semana`,
-    "sched.rolePh": "Puesto (opcional)", "sched.mgrShow": "Mostrar el horario de los gerentes", "sched.mgrHide": "Ocultar el horario de los gerentes", "sched.stationPh": "Estación (opcional)", "sched.addShift": "+ Agregar", "sched.paste": "Pegar aquí", "common.edit": "Editar", "common.cancel": "Cancelar", "common.save": "Guardar", "common.copy": "Copiar", "common.delete": "Eliminar",
+    "sched.rolePh": "Puesto (opcional)", "sched.ghost": "Quitado desde la publicación", "sched.ghostRestore": "Volver a ponerlo", "sched.former": "anterior", "sched.mgrShow": "Mostrar el horario de los gerentes", "sched.mgrHide": "Ocultar el horario de los gerentes", "sched.stationPh": "Estación (opcional)", "sched.addShift": "+ Agregar", "sched.paste": "Pegar aquí", "common.edit": "Editar", "common.cancel": "Cancelar", "common.save": "Guardar", "common.copy": "Copiar", "common.delete": "Eliminar",
     "house.foh": "Salón", "house.boh": "Cocina",
     "days.0": "Lun", "days.1": "Mar", "days.2": "Mié", "days.3": "Jue", "days.4": "Vie", "days.5": "Sáb", "days.6": "Dom",
     "role.Manager": "Gerente", "role.Line Cook": "Cocinero de línea", "role.Server": "Mesero/a", "role.Host": "Anfitrión/a", "role.Bartender": "Bartender", "role.Busser": "Ayudante de mesero", "role.Dishwasher": "Lavaplatos", "role.Prep Cook": "Cocinero de preparación", "role.Expo": "Expo",
@@ -787,7 +790,9 @@ const roleLabel = r => { const k = "role." + r; const v = I18N.t(k); return v ==
 const houseLabel = () => tr(houseView === "foh" ? "sched.foh" : "sched.boh");
 const houseShort = () => tr(houseView === "foh" ? "house.foh" : "house.boh");
 
-let staff = [];
+let staff = [];      // active employees
+let staffAll = [];   // everyone incl. removed people (history keeps their names and rates)
+function setStaffData(list) { staffAll = list; staff = list.filter(p => !p.archived); }
 const ROLES = ["Manager", "Server", "Bartender", "Busser", "Host", "Line Cook", "Dishwasher", "Prep Cook", "Expo"];
 const FOH_ROLES = ["Manager", "Server", "Bartender", "Busser", "Host"]; // grid order: manager first
 const BOH_ROLES = ["Manager", "Line Cook", "Prep Cook", "Dishwasher", "Expo"]; // manager band first, like FOH
@@ -813,6 +818,7 @@ function roleColor(role) {
 }
 let weekStart = getMonday(new Date());
 let scheduleShifts = [];
+let postedShifts = []; // the week as it was posted (both houses); a shift in here that is no longer on the grid was removed since
 let salesProjections = {};
 let actualSales = {};
 let projSvc = {};       // date -> {serviceId: forecast amount}
@@ -999,13 +1005,13 @@ async function loadPunch() {
   const r = await api(`/api/schedule?start=${asked}&end=${asked}`);
   if (asked !== punchDay) return;
   if (!r.ok) return showBanner(r.error, "warn");
-  const nameOf = id => (staff.find(p => p.id === id) || {}).name || "";
+  const nameOf = id => (staffAll.find(p => p.id === id) || {}).name || "";
   punchShifts = r.data.filter(sh => nameOf(sh.staffId)).sort((a, b) => (a.scheduledStart || a.startTime).localeCompare(b.scheduledStart || b.startTime) || nameOf(a.staffId).localeCompare(nameOf(b.staffId)));
   renderPunch();
 }
 function renderPunch() {
   const el = document.getElementById("punchList");
-  const nameOf = id => (staff.find(p => p.id === id) || {}).name || "";
+  const nameOf = id => (staffAll.find(p => p.id === id) || {}).name || "";
   document.getElementById("punchBar").style.display = punchShifts.length ? "flex" : "none";
   if (!punchShifts.length) { el.innerHTML = `<p style="color:var(--text-dim)">${escapeHtml(tr("punch.empty"))}</p>`; return; }
   el.innerHTML = punchShifts.map(sh => {
@@ -1043,7 +1049,7 @@ async function applyPunch() {
 // A cancelled shift: remove it from the schedule altogether (the grid, the day's staff list and labor numbers follow).
 async function deletePunchShift(id) {
   const sh = punchShifts.find(x => x.id === id); if (!sh) return;
-  const who = (staff.find(p => p.id === sh.staffId) || {}).name || "";
+  const who = (staffAll.find(p => p.id === sh.staffId) || {}).name || "";
   if (!confirm(tr("punch.confirmDelete", who, `${formatTime(sh.scheduledStart || sh.startTime)}–${formatTime(sh.scheduledEnd || sh.endTime)}`))) return;
   const r = await api(`/api/schedule/${id}?notify=1`, { method: "DELETE" });
   if (r && r.ok === false) return showBanner(r.error, "warn");
@@ -1122,7 +1128,7 @@ async function sendLoginSetup(id) {
 async function loadStaff() {
   const result = await api("/api/staff");
   if (result.ok) {
-    staff = result.data;
+    setStaffData(result.data);
     renderStaffTable();
   } else {
     showBanner(result.error, "warn");
@@ -1238,7 +1244,7 @@ function renderAiSched() {
     return;
   }
   if (!aiProposal) { box.innerHTML = ""; return; }
-  const byId = {}; staff.forEach(p => { byId[p.id] = p; });
+  const byId = {}; staffAll.forEach(p => { byId[p.id] = p; });
   const byDay = {};
   aiProposal.shifts.forEach(sh => { (byDay[sh.date] = byDay[sh.date] || []).push(sh); });
   let hours = 0, cost = 0;
@@ -1580,13 +1586,16 @@ async function loadSchedule() {
   document.getElementById("weekLabel").textContent = `${formatShort(weekStart)} – ${formatShort(endDate)}, ${endDate.getFullYear()}`;
   const startStr = toISODate(weekStart), endStr = toISODate(endDate);
   loadPublishState();
-  const [shiftsResult, projResult, actualResult, availResult, timeOffResult] = await Promise.all([
+  const [shiftsResult, projResult, actualResult, availResult, timeOffResult, snapFoh, snapBoh] = await Promise.all([
     api(`/api/schedule?start=${startStr}&end=${endStr}`),
     api(`/api/sales-projections?start=${startStr}&end=${endStr}`),
     api(`/api/actual-sales?start=${startStr}&end=${endStr}`),
     api("/api/availability"),
     api(`/api/time-off?start=${startStr}&end=${endStr}`),
+    api(`/api/schedule/snapshot?weekStart=${startStr}&house=foh`),
+    api(`/api/schedule/snapshot?weekStart=${startStr}&house=boh`),
   ]);
+  postedShifts = [snapFoh, snapBoh].filter(r => r.ok && r.data && Array.isArray(r.data.shifts)).flatMap(r => r.data.shifts);
   if (availResult.ok) availByStaff = availResult.data;
   if (timeOffResult.ok) {
     timeOffByStaff = {};
@@ -1798,7 +1807,8 @@ function byLastName(a, b) {
 function viewGroups() {
   const activeRoles = houseView === "foh" ? FOH_ROLES : BOH_ROLES;
   return activeRoles
-    .map(role => ({ role, people: staff.filter(p => (p.roles || []).includes(role)).sort(byLastName) }))
+    .map(role => ({ role, people: staffAll.filter(p => (p.roles || []).includes(role)
+      && (!p.archived || scheduleShifts.some(s => s.staffId === p.id) || postedShifts.some(g => g.staffId === p.id))).sort(byLastName) }))
     .filter(g => g.people.length);
 }
 
@@ -1884,6 +1894,19 @@ function renderDayCell(staffMember, dateStr, groupRole) {
     </div>
   `).join("");
 
+  // shifts that were posted but are no longer on the grid (cancelled, or moved): shown faded so the change isn't silent
+  html += postedShifts.filter(g => g.staffId === staffMember.id && g.date === dateStr && shiftGroup(staffMember, g) === groupRole
+      && !scheduleShifts.some(s => s.staffId === g.staffId && s.date === g.date && (s.role || "") === (g.role || ""))).map(g => `
+    <div class="shift-chip ghost" style="--role-color:${shiftColor(g.role, g.station)}">
+      <div class="chip-top">
+        <div class="times">${formatTime(g.startTime)}–${formatTime(g.endTime)}</div>
+        <div class="chip-actions">${staffMember.archived ? "" : `<button class="chip-btn" onclick="restoreGhost('${g.staffId}','${g.date}','${g.startTime}')" title="${escapeHtml(tr("sched.ghostRestore"))}">↺</button>`}</div>
+      </div>
+      ${g.role ? `<div class="role-tag">${escapeHtml(roleLabel(g.role))}</div>` : ""}
+      ${stationTag(g.station)}
+      <div class="ghost-note">${escapeHtml(tr("sched.ghost"))}</div>
+    </div>`).join("");
+
   html += draftShifts.filter(d => d.staffId === staffMember.id && d.date === dateStr && d.role === groupRole).map(d => `
     <div class="shift-chip draft" style="--role-color:${shiftColor(d.role, d.station)}">
       <div class="chip-top">
@@ -1910,7 +1933,7 @@ function renderDayCell(staffMember, dateStr, groupRole) {
         </div>
       </div>
     `;
-  } else {
+  } else if (!staffMember.archived) {
     html += `<button class="add-shift-btn" onclick="showAddShiftForm('${staffMember.id}','${dateStr}','${groupRole}')">${tr("sched.addShift")}</button>`;
     if (copiedShift) {
       html += `<button class="paste-btn" onclick="pasteShift('${staffMember.id}','${dateStr}','${groupRole}')">${tr("sched.paste")}</button>`;
@@ -1945,6 +1968,13 @@ function cancelAddShift() {
   renderScheduleGrid();
 }
 
+async function restoreGhost(staffId, date, startTime) {
+  const g = postedShifts.find(x => x.staffId === staffId && x.date === date && x.startTime === startTime);
+  if (!g) return;
+  const result = await api("/api/schedule", { method: "POST", body: JSON.stringify({ staffId, date, startTime: g.startTime, endTime: g.endTime, role: g.role || "", station: g.station || "" }) });
+  if (!result.ok) return showBanner(result.error, "warn");
+  loadSchedule();
+}
 async function submitAddShift(staffId, dateStr) {
   const startInput = document.getElementById(`shiftStart-${staffId}-${dateStr}`);
   const endInput = document.getElementById(`shiftEnd-${staffId}-${dateStr}`);
@@ -2132,7 +2162,7 @@ function renderScheduleGrid() {
         return `
         <tr class="rl" style="--role-color:${roleColor(g.role)}">
           <td class="staff-cell">
-            <div class="name">${escapeHtml(p.name)}</div>
+            <div class="name">${escapeHtml(p.name)}${p.archived ? ` <span style="opacity:.55;font-weight:400">(${escapeHtml(tr("sched.former"))})</span>` : ""}</div>
             <div class="rate num">${p.hourlyRate !== null ? "$" + p.hourlyRate.toFixed(2) + "/hr" : "no rate"}</div>
           </td>
           ${dayCells}
