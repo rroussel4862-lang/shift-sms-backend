@@ -108,7 +108,7 @@ async function seedDemo(pool, { today, addDaysIso, mondayOfIso }) {
     );
     // wipe everything the demo restaurant owns (staff takes availability, time off, swaps, acks and assignments with it)
     for (const t of ["staff", "schedule_shifts", "schedule_published", "shifts", "job_postings", "training_items", "board_posts",
-                     "actual_sales", "sales_projections", "weekly_sales_history", "day_context"]) {
+                     "actual_sales", "sales_projections", "weekly_sales_history", "day_context", "schedule_snapshots"]) {
       await client.query(`DELETE FROM ${t} WHERE restaurant_id = $1`, [DEMO_RESTAURANT_ID]);
     }
     // nobody knows these passwords: the demo is entered through the demo page, never by typing a login

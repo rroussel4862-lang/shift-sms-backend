@@ -124,3 +124,38 @@ describe("Front of House and Back of House are posted separately", () => {
     expect((await A.agent.get(`/api/schedule/publish?weekStart=${WEEK}&house=nope`)).status).toBe(400);
   });
 });
+
+describe("a week is remembered exactly as it was posted", () => {
+  const WEEK = addDays(THIS_MON, 35);
+  const snap = (agent, house = "foh") => agent.get(`/api/schedule/snapshot?weekStart=${WEEK}&house=${house}`);
+
+  test("a shift cancelled after posting is still in the posted copy; a shift added after posting is not", async () => {
+    const thu = (await A.agent.post("/api/schedule").send({ staffId: ann.id, date: addDays(WEEK, 3), startTime: "17:00", endTime: "23:00", role: "Server" })).body;
+    await A.agent.post("/api/schedule").send({ staffId: ann.id, date: addDays(WEEK, 4), startTime: "17:00", endTime: "23:00", role: "Server" });
+    expect((await snap(A.agent)).status).toBe(404); // nothing posted yet
+
+    expect((await A.agent.post("/api/schedule/publish").send({ weekStart: WEEK, house: "foh" })).status).toBe(200);
+    expect((await A.agent.delete(`/api/schedule/${thu.id}`)).status).toBe(204); // cancelled after posting
+    await A.agent.post("/api/schedule").send({ staffId: ann.id, date: addDays(WEEK, 5), startTime: "17:00", endTime: "23:00", role: "Server" }); // added after posting
+
+    const res = await snap(A.agent);
+    expect(res.status).toBe(200);
+    expect(res.body.shifts.map((s) => s.date).sort()).toEqual([addDays(WEEK, 3), addDays(WEEK, 4)]);
+    expect(res.body.shifts[0]).toEqual(expect.objectContaining({ staffId: ann.id, startTime: expect.any(String), endTime: expect.any(String), role: "Server" }));
+
+    // posting again does not overwrite the copy
+    await A.agent.post("/api/schedule/publish").send({ weekStart: WEEK, house: "foh" });
+    expect((await snap(A.agent)).body.shifts).toHaveLength(2);
+    // and the other house has no copy
+    expect((await snap(A.agent, "boh")).status).toBe(404);
+  });
+
+  test("going back to draft drops the copy, the next post takes a fresh one, and other restaurants can't see it", async () => {
+    expect((await B.agent.get(`/api/schedule/snapshot?weekStart=${WEEK}&house=foh`)).status).toBe(404);
+    expect((await A.agent.delete(`/api/schedule/publish/${WEEK}?house=foh`)).status).toBe(200);
+    expect((await snap(A.agent)).status).toBe(404);
+    await A.agent.post("/api/schedule/publish").send({ weekStart: WEEK, house: "foh" });
+    expect((await snap(A.agent)).body.shifts.map((s) => s.date).sort()).toEqual([addDays(WEEK, 4), addDays(WEEK, 5)]);
+    expect((await request(app).get(`/api/schedule/snapshot?weekStart=${WEEK}&house=foh`)).status).toBe(401);
+  });
+});

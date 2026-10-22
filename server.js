@@ -214,6 +214,18 @@ async function initDb() {
       }
     }
   }
+  // A copy of each house's week at the moment it was posted, so "copy last week" can bring back exactly what was posted
+  // (a shift cancelled later in the week is gone from the grid but is still in here).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS schedule_snapshots (
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      week_start DATE NOT NULL,
+      house TEXT NOT NULL,
+      taken_at BIGINT NOT NULL,
+      shifts JSONB NOT NULL,
+      PRIMARY KEY (restaurant_id, week_start, house)
+    );
+  `);
   await pool.query(`CREATE INDEX IF NOT EXISTS schedule_shifts_restaurant_idx ON schedule_shifts (restaurant_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS schedule_shifts_date_idx ON schedule_shifts (shift_date);`);
 
@@ -2204,8 +2216,44 @@ app.post("/api/schedule/publish", requireAuth, async (req, res) => {
   );
   logActivity({ restaurantId: req.restaurantId, eventType: "schedule_published", detail: `week of ${weekStart} (${house.toUpperCase()})` });
   let texted = 0;
-  if (ins.rowCount === 1) texted = await textSchedulePosted(req, weekStart, house);
+  if (ins.rowCount === 1) {
+    await snapshotWeek(req.restaurantId, weekStart, house);
+    texted = await textSchedulePosted(req, weekStart, house);
+  }
   res.json({ weekStart, house, published: true, visibleToStaff: true, texted });
+});
+
+// Remember the week as posted. A punched shift is kept with the times it was SCHEDULED for, not the times actually worked.
+async function snapshotWeek(restaurantId, weekStart, house) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT s.*, st.roles AS person_roles FROM schedule_shifts s JOIN staff st ON st.id = s.staff_id
+       WHERE s.restaurant_id = $1 AND s.shift_date >= $2 AND s.shift_date <= $3`,
+      [restaurantId, weekStart, addDaysIso(weekStart, 6)]
+    );
+    const shifts = rows.filter((r) => shiftHouse(r.role, r.person_roles) === house).map((r) => ({
+      staffId: r.staff_id, date: r.shift_date instanceof Date ? r.shift_date.toISOString().slice(0, 10) : String(r.shift_date).slice(0, 10),
+      startTime: r.scheduled_start || r.start_time, endTime: r.scheduled_end || r.end_time, role: r.role || "", station: r.station || "",
+    }));
+    await pool.query(
+      `INSERT INTO schedule_snapshots (restaurant_id, week_start, house, taken_at, shifts) VALUES ($1,$2,$3,$4,$5::jsonb)
+       ON CONFLICT (restaurant_id, week_start, house) DO UPDATE SET taken_at = EXCLUDED.taken_at, shifts = EXCLUDED.shifts`,
+      [restaurantId, weekStart, house, Date.now(), JSON.stringify(shifts)]
+    );
+  } catch (e) {
+    console.error("Couldn't save the posted-schedule snapshot:", e.message);
+  }
+}
+
+// The week exactly as it was posted (404 when this week was never posted through the app, e.g. posted before this existed).
+app.get("/api/schedule/snapshot", requireAuth, async (req, res) => {
+  const weekStart = String(req.query.weekStart || "");
+  if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
+  const house = parseHouse(req.query.house);
+  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
+  const { rows } = await pool.query("SELECT taken_at, shifts FROM schedule_snapshots WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [req.restaurantId, weekStart, house]);
+  if (!rows[0]) return res.status(404).json({ error: "no posted copy of that week" });
+  res.json({ weekStart, house, takenAt: Number(rows[0].taken_at), shifts: rows[0].shifts });
 });
 
 async function textSchedulePosted(req, weekStart, house) {
@@ -2249,6 +2297,7 @@ app.delete("/api/schedule/publish/:weekStart", requireAuth, async (req, res) => 
   if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
   if (weekStart <= mondayOfIso(ownerToday())) return res.status(400).json({ error: "The current week is always visible to staff." });
   await pool.query("DELETE FROM schedule_published WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [req.restaurantId, weekStart, house]);
+  await pool.query("DELETE FROM schedule_snapshots WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [req.restaurantId, weekStart, house]); // back to draft: the next post takes a fresh copy
   res.json({ weekStart, house, published: false, visibleToStaff: false });
 });
 
