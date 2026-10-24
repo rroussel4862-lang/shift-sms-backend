@@ -334,6 +334,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE training_items ADD COLUMN IF NOT EXISTS file_type TEXT;`);
   await pool.query(`ALTER TABLE training_items ADD COLUMN IF NOT EXISTS file_size INTEGER;`);
   await pool.query(`ALTER TABLE training_items ADD COLUMN IF NOT EXISTS file_data BYTEA;`);
+  await pool.query(`ALTER TABLE training_items ADD COLUMN IF NOT EXISTS link_url TEXT;`); // a web link (video, article) instead of, or next to, a file
   await pool.query(`
     CREATE TABLE IF NOT EXISTS training_assignments (
       item_id TEXT NOT NULL REFERENCES training_items(id) ON DELETE CASCADE,
@@ -999,8 +1000,25 @@ app.get("/api/restaurant", requireAuth, async (req, res) => {
 
 const TRAINING_KINDS = ["course", "manual", "contract"];
 
+// A training link must be a normal web address. Returns the cleaned URL, "" for empty, or null when it isn't acceptable
+// (only http and https, so nothing like javascript: can ever be saved and then clicked by staff).
+function cleanTrainingUrl(raw) {
+  let u = String(raw === undefined || raw === null ? "" : raw).trim();
+  if (!u) return "";
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = "https://" + u;
+  if (u.length > 500) return null;
+  try {
+    const parsed = new URL(u);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    if (!parsed.hostname.includes(".")) return null;
+    return parsed.href;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function loadTrainingItems(restaurantId) {
-  const { rows: items } = await pool.query("SELECT id, kind, title, minutes, created_at, file_name, file_type, file_size FROM training_items WHERE restaurant_id = $1 ORDER BY created_at DESC", [restaurantId]);
+  const { rows: items } = await pool.query("SELECT id, kind, title, minutes, created_at, file_name, file_type, file_size, link_url FROM training_items WHERE restaurant_id = $1 ORDER BY created_at DESC", [restaurantId]);
   if (items.length === 0) return [];
   const { rows: assigns } = await pool.query(
     `SELECT a.item_id, a.staff_id, a.completed_at FROM training_assignments a
@@ -1014,6 +1032,7 @@ async function loadTrainingItems(restaurantId) {
     minutes: it.minutes,
     createdAt: Number(it.created_at),
     file: it.file_name ? { name: it.file_name, type: it.file_type, size: it.file_size } : null,
+    link: it.link_url || null,
     assignments: assigns
       .filter((a) => a.item_id === it.id)
       .map((a) => ({ staffId: a.staff_id, done: !!a.completed_at })),
@@ -1025,7 +1044,9 @@ app.get("/api/training", requireAuth, async (req, res) => {
 });
 
 app.post("/api/training", requireAuth, async (req, res) => {
-  const { kind, title, minutes, staffIds } = req.body || {};
+  const { kind, title, minutes, staffIds, url } = req.body || {};
+  const link = cleanTrainingUrl(url);
+  if (link === null) return res.status(400).json({ error: "that link doesn't look right — use a full web address like https://…" });
   if (!TRAINING_KINDS.includes(kind)) return res.status(400).json({ error: "kind must be course, manual or contract" });
   if (!title || !String(title).trim()) return res.status(400).json({ error: "title is required" });
   let mins = null;
@@ -1041,14 +1062,23 @@ app.post("/api/training", requireAuth, async (req, res) => {
 
   const newId = id();
   await pool.query(
-    "INSERT INTO training_items (id, restaurant_id, kind, title, minutes, created_at) VALUES ($1,$2,$3,$4,$5,$6)",
-    [newId, req.restaurantId, kind, String(title).trim(), mins, Date.now()]
+    "INSERT INTO training_items (id, restaurant_id, kind, title, minutes, created_at, link_url) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+    [newId, req.restaurantId, kind, String(title).trim(), mins, Date.now(), link || null]
   );
   await Promise.all(targets.map((sid) =>
     pool.query("INSERT INTO training_assignments (item_id, staff_id) VALUES ($1,$2) ON CONFLICT DO NOTHING", [newId, sid])
   ));
   const items = await loadTrainingItems(req.restaurantId);
   res.status(201).json(items.find((i) => i.id === newId));
+});
+
+// Add, change or clear the link on an existing item (an empty url clears it).
+app.put("/api/training/:id/link", requireAuth, async (req, res) => {
+  const link = cleanTrainingUrl(req.body && req.body.url);
+  if (link === null) return res.status(400).json({ error: "that link doesn't look right — use a full web address like https://…" });
+  const { rowCount } = await pool.query("UPDATE training_items SET link_url = $1 WHERE id = $2 AND restaurant_id = $3", [link || null, req.params.id, req.restaurantId]);
+  if (rowCount === 0) return res.status(404).json({ error: "training item not found" });
+  res.json({ link: link || null });
 });
 
 // ----- attached files -----
@@ -3762,7 +3792,7 @@ const INLINE_VIEW_TYPES = /^(application\/pdf|image\/(png|jpeg)|video\/(mp4|quic
 
 app.get("/api/staff-auth/training", requireStaffAuth, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT i.id, i.kind, i.title, i.minutes, i.created_at, i.file_name, i.file_type, i.file_size, a.completed_at
+    `SELECT i.id, i.kind, i.title, i.minutes, i.created_at, i.file_name, i.file_type, i.file_size, i.link_url, a.completed_at
        FROM training_assignments a JOIN training_items i ON i.id = a.item_id
       WHERE a.staff_id = $1 AND i.restaurant_id = $2
       ORDER BY (a.completed_at IS NOT NULL) ASC, i.created_at DESC`,
@@ -3774,6 +3804,7 @@ app.get("/api/staff-auth/training", requireStaffAuth, async (req, res) => {
     title: r.title,
     minutes: r.minutes,
     file: r.file_name ? { name: r.file_name, type: r.file_type, size: r.file_size, viewable: INLINE_VIEW_TYPES.test(r.file_type || "") } : null,
+    link: r.link_url || null,
     done: !!r.completed_at,
   }));
   res.json({ items, todoCount: items.filter((i) => !i.done).length });

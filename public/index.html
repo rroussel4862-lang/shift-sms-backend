@@ -985,7 +985,7 @@ const T = {
       noItems: "Nothing here yet — create your first course.", noStaffYet: "Add staff first, then assign training.",
       tapToTrack: "Tap to mark who's done", markDone: "Done", markUndone: "Undo", delete: "Delete",
       confirmDelete: "Delete this item and its progress?", bannerCreated: "Created", bannerTitleRequired: "Enter a title first",
-      fileLabel: "Attach a file (optional)", chooseFile: "Choose file", noFileChosen: "No file chosen", fileHint: "PDF, Word, Excel, PowerPoint, image or video (mp4/mov/webm) — up to 25 MB",
+      linkLabel: "Link (optional)", linkPh: "https://… (a video, article or web page)", addLink: "Add link", editLink: "Edit link", removeLink: "Remove link", linkPrompt: "Web link for staff to open (leave empty to remove it):", bannerLinkSaved: "Link saved.", openLink: "Open link", fileLabel: "Attach a file (optional)", chooseFile: "Choose file", noFileChosen: "No file chosen", fileHint: "PDF, Word, Excel, PowerPoint, image or video (mp4/mov/webm) — up to 25 MB",
       attachFile: "Attach file", replaceFile: "Replace file", removeFile: "Remove file", download: "Download", noFile: "No file attached",
       fileTooBig: "That file is over 25 MB", fileBadType: "That file type isn't allowed", uploading: "Uploading…", bannerUploaded: "File uploaded", bannerFileRemoved: "File removed",
       bannerCreatedUploadFailed: err => `Created, but the file didn't upload: ${err}`, confirmRemoveFile: "Remove the attached file?",
@@ -1140,7 +1140,7 @@ const T = {
       noItems: "Rien ici pour l'instant — créez votre premier cours.", noStaffYet: "Ajoutez d'abord du personnel, puis assignez la formation.",
       tapToTrack: "Touchez pour marquer qui a terminé", markDone: "Terminé", markUndone: "Annuler", delete: "Supprimer",
       confirmDelete: "Supprimer cet élément et sa progression ?", bannerCreated: "Créé", bannerTitleRequired: "Entrez d'abord un titre",
-      fileLabel: "Joindre un fichier (facultatif)", chooseFile: "Choisir un fichier", noFileChosen: "Aucun fichier choisi", fileHint: "PDF, Word, Excel, PowerPoint, image ou vidéo (mp4/mov/webm) — jusqu'à 25 Mo",
+      linkLabel: "Lien (facultatif)", linkPh: "https://… (une vidéo, un article ou une page web)", addLink: "Ajouter un lien", editLink: "Modifier le lien", removeLink: "Retirer le lien", linkPrompt: "Lien web que le personnel pourra ouvrir (laisser vide pour le retirer) :", bannerLinkSaved: "Lien enregistré.", openLink: "Ouvrir le lien", fileLabel: "Joindre un fichier (facultatif)", chooseFile: "Choisir un fichier", noFileChosen: "Aucun fichier choisi", fileHint: "PDF, Word, Excel, PowerPoint, image ou vidéo (mp4/mov/webm) — jusqu'à 25 Mo",
       attachFile: "Joindre un fichier", replaceFile: "Remplacer le fichier", removeFile: "Retirer le fichier", download: "Télécharger", noFile: "Aucun fichier joint",
       fileTooBig: "Ce fichier dépasse 25 Mo", fileBadType: "Ce type de fichier n'est pas permis", uploading: "Téléversement…", bannerUploaded: "Fichier téléversé", bannerFileRemoved: "Fichier retiré",
       bannerCreatedUploadFailed: err => `Créé, mais le fichier n'a pas été téléversé : ${err}`, confirmRemoveFile: "Retirer le fichier joint ?",
@@ -1295,7 +1295,7 @@ const T = {
       noItems: "Nada aquí todavía — crea tu primer curso.", noStaffYet: "Primero agrega personal y luego asigna la capacitación.",
       tapToTrack: "Toca para marcar quién terminó", markDone: "Listo", markUndone: "Deshacer", delete: "Eliminar",
       confirmDelete: "¿Eliminar este elemento y su progreso?", bannerCreated: "Creado", bannerTitleRequired: "Escribe primero un título",
-      fileLabel: "Adjuntar un archivo (opcional)", chooseFile: "Elegir archivo", noFileChosen: "Ningún archivo elegido", fileHint: "PDF, Word, Excel, PowerPoint, imagen o video (mp4/mov/webm) — hasta 25 MB",
+      linkLabel: "Enlace (opcional)", linkPh: "https://… (un video, artículo o página web)", addLink: "Agregar enlace", editLink: "Editar enlace", removeLink: "Quitar enlace", linkPrompt: "Enlace web que el personal podrá abrir (déjelo vacío para quitarlo):", bannerLinkSaved: "Enlace guardado.", openLink: "Abrir enlace", fileLabel: "Adjuntar un archivo (opcional)", chooseFile: "Elegir archivo", noFileChosen: "Ningún archivo elegido", fileHint: "PDF, Word, Excel, PowerPoint, imagen o video (mp4/mov/webm) — hasta 25 MB",
       attachFile: "Adjuntar archivo", replaceFile: "Reemplazar archivo", removeFile: "Quitar archivo", download: "Descargar", noFile: "Sin archivo adjunto",
       fileTooBig: "Ese archivo supera los 25 MB", fileBadType: "Ese tipo de archivo no está permitido", uploading: "Subiendo…", bannerUploaded: "Archivo subido", bannerFileRemoved: "Archivo quitado",
       bannerCreatedUploadFailed: err => `Creado, pero el archivo no se subió: ${err}`, confirmRemoveFile: "¿Quitar el archivo adjunto?",
@@ -2370,7 +2370,7 @@ async function denySwap(id) {
 let trainingItems = [];
 let trainingExpanded = new Set();
 let trainingFormOpen = false;
-let trainingDraft = { kind: "course", title: "", minutes: "", assignTo: "all", file: null };
+let trainingDraft = { kind: "course", title: "", minutes: "", assignTo: "all", file: null, url: "" };
 const TRAINING_EXTS = ["pdf","doc","docx","xls","xlsx","ppt","pptx","txt","png","jpg","jpeg","mp4","mov","webm"];
 const TRAINING_MAX_BYTES = 25 * 1024 * 1024;
 function fmtSize(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB"; }
@@ -2458,6 +2458,8 @@ function trainingFormHtml() {
       ${d.kind === "course" ? `
         <label>${t("training.minutesLabel")}</label>
         <input type="text" inputmode="numeric" value="${escapeHtml(d.minutes)}" placeholder="20" oninput="trainingDraft.minutes=this.value" />` : ""}
+      <label>${t("training.linkLabel")}</label>
+      <input type="url" value="${escapeHtml(d.url || "")}" placeholder="${escapeHtml(t("training.linkPh"))}" oninput="trainingDraft.url=this.value" />
       <label>${t("training.fileLabel")}</label>
       <div class="file-pick">
         <label class="mini outline file-btn">${t("training.chooseFile")}<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.mp4,.mov,.webm" onchange="pickDraftFile(this)" style="display:none" /></label>
@@ -2496,6 +2498,9 @@ function trainingItemHtml(it) {
   const fileLine = it.file
     ? `<div class="meta file-line">📎 <a href="/api/training/${it.id}/file" onclick="event.stopPropagation()" download>${escapeHtml(it.file.name)}</a> · ${fmtSize(it.file.size)}</div>`
     : "";
+  const linkLine = it.link
+    ? `<div class="meta file-line">🔗 <a href="${escapeHtml(it.link)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${escapeHtml(it.link.length > 60 ? it.link.slice(0, 57) + "…" : it.link)}</a></div>`
+    : "";
   const rows = open ? `
     <div style="margin-top:12px">
       ${assigned === 0 ? `<div class="meta">${t("training.noStaffYet")}</div>` : it.assignments.map(a => `
@@ -2506,6 +2511,7 @@ function trainingItemHtml(it) {
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
         <label class="mini file-btn" onclick="event.stopPropagation()">${it.file ? t("training.replaceFile") : t("training.attachFile")}<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.mp4,.mov,.webm" onchange="pickItemFile('${it.id}', this)" style="display:none" /></label>
         ${it.file ? `<button class="mini outline" onclick="event.stopPropagation(); removeItemFile('${it.id}')">${t("training.removeFile")}</button>` : ""}
+        <button class="mini outline" onclick="event.stopPropagation(); editTrainingLink('${it.id}')">${it.link ? t("training.editLink") : t("training.addLink")}</button>
         <button class="mini outline" onclick="event.stopPropagation(); deleteTraining('${it.id}')">${t("training.delete")}</button>
       </div>
     </div>` : "";
@@ -2515,6 +2521,7 @@ function trainingItemHtml(it) {
       <h3 style="display:flex;align-items:center;gap:10px">${thumb}${escapeHtml(it.title)}</h3>
       <div class="meta">${escapeHtml(meta)}${open ? "" : ` · ${t("training.tapToTrack")}`}</div>
       ${fileLine}
+      ${linkLine}
       ${extra}
       ${rows}
     </div>`;
@@ -2554,10 +2561,21 @@ function toggleTrainingItem(itemId) {
   renderTraining(true);
 }
 
+async function editTrainingLink(itemId) {
+  const it = trainingItems.find(i => i.id === itemId);
+  const answer = prompt(t("training.linkPrompt"), it && it.link ? it.link : "");
+  if (answer === null) return; // cancelled
+  const r = await api(`/api/training/${itemId}/link`, { method: "PUT", body: JSON.stringify({ url: answer }) });
+  if (!r.ok) return showBanner(r.error, "warn");
+  if (it) it.link = r.data.link;
+  showBanner(t("training.bannerLinkSaved"), "success");
+  renderTraining(true);
+}
+
 async function createTraining() {
   const d = trainingDraft;
   if (!d.title.trim()) return showBanner(t("training.bannerTitleRequired"), "warn");
-  const body = { kind: d.kind, title: d.title.trim(), minutes: d.kind === "course" ? d.minutes : null };
+  const body = { kind: d.kind, title: d.title.trim(), minutes: d.kind === "course" ? d.minutes : null, url: (d.url || "").trim() };
   if (d.assignTo !== "all") body.staffIds = [d.assignTo];
   const result = await api("/api/training", { method: "POST", body: JSON.stringify(body) });
   if (result.ok) {

@@ -219,7 +219,7 @@ I18N.add({
     "board.gotIt": "Got it", "board.gotItDone": "✓ Got it", "board.edited": "edited",
     "tabs.training": "Training", "training.h2": "My training", "training.empty": "Nothing assigned to you yet.",
     "training.course": "Course", "training.manual": "Manual", "training.contract": "Contract", "training.min": m => `${m} min`,
-    "training.open": "Open", "training.download": "Download", "training.noFile": "No file attached yet",
+    "training.open": "Open", "training.openLink": "Open link", "training.download": "Download", "training.noFile": "No file attached yet",
     "training.markDone": "Mark as done", "training.markRead": "I've read this", "training.done": "✓ Done", "training.undo": "Undo",
     "role.Manager": "Manager", "role.Line Cook": "Line Cook", "role.Server": "Server", "role.Host": "Host", "role.Bartender": "Bartender", "role.Busser": "Busser", "role.Dishwasher": "Dishwasher", "role.Prep Cook": "Prep Cook", "role.Expo": "Expo",
     "landing.title": "My Shifts", "landing.sub": "Your schedule, your availability, and open shifts you can pick up — log in to get started.",
@@ -256,7 +256,7 @@ I18N.add({
     "board.gotIt": "C'est lu", "board.gotItDone": "✓ C'est lu", "board.edited": "modifié",
     "tabs.training": "Formation", "training.h2": "Ma formation", "training.empty": "Rien ne vous est assigné pour l'instant.",
     "training.course": "Cours", "training.manual": "Guide", "training.contract": "Contrat", "training.min": m => `${m} min`,
-    "training.open": "Ouvrir", "training.download": "Télécharger", "training.noFile": "Aucun fichier joint pour l'instant",
+    "training.open": "Ouvrir", "training.openLink": "Ouvrir le lien", "training.download": "Télécharger", "training.noFile": "Aucun fichier joint pour l'instant",
     "training.markDone": "Marquer comme terminé", "training.markRead": "J'ai lu ceci", "training.done": "✓ Terminé", "training.undo": "Annuler",
     "role.Manager": "Gérant(e)", "role.Line Cook": "Cuisinier de ligne", "role.Server": "Serveur/Serveuse", "role.Host": "Hôte/Hôtesse", "role.Bartender": "Barman/Barmaid", "role.Busser": "Aide-serveur", "role.Dishwasher": "Plongeur/Plongeuse", "role.Prep Cook": "Cuisinier de préparation", "role.Expo": "Expéditeur",
     "landing.title": "Mes quarts", "landing.sub": "Votre horaire, vos disponibilités et les quarts ouverts que vous pouvez prendre — connectez-vous pour commencer.",
@@ -293,7 +293,7 @@ I18N.add({
     "board.gotIt": "Enterado", "board.gotItDone": "✓ Enterado", "board.edited": "editado",
     "tabs.training": "Capacitación", "training.h2": "Mi capacitación", "training.empty": "Aún no tienes nada asignado.",
     "training.course": "Curso", "training.manual": "Manual", "training.contract": "Contrato", "training.min": m => `${m} min`,
-    "training.open": "Abrir", "training.download": "Descargar", "training.noFile": "Aún no hay archivo adjunto",
+    "training.open": "Abrir", "training.openLink": "Abrir enlace", "training.download": "Descargar", "training.noFile": "Aún no hay archivo adjunto",
     "training.markDone": "Marcar como hecho", "training.markRead": "Lo leí", "training.done": "✓ Hecho", "training.undo": "Deshacer",
     "role.Manager": "Gerente", "role.Line Cook": "Cocinero de línea", "role.Server": "Mesero/a", "role.Host": "Anfitrión/a", "role.Bartender": "Bartender", "role.Busser": "Ayudante de mesero", "role.Dishwasher": "Lavaplatos", "role.Prep Cook": "Cocinero de preparación", "role.Expo": "Expo",
     "landing.title": "Mis turnos", "landing.sub": "Tu horario, tu disponibilidad y los turnos abiertos que puedes tomar — inicia sesión para empezar.",
@@ -802,12 +802,16 @@ function renderTraining() {
                <button class="claim-btn" style="width:auto;padding:7px 14px;${it.file.viewable ? "background:none;color:var(--ink);border:1px solid var(--ink)" : ""}" onclick="openTrainingFile('${it.id}', false)">${tr("training.download")}</button>
              </div>
              <div class="meta">${escapeHtml(it.file.name)} · ${fmtFileSize(it.file.size)}</div>`
-          : `<div class="meta">${tr("training.noFile")}</div>`;
+          : (it.link ? "" : `<div class="meta">${tr("training.noFile")}</div>`);
+        const link = it.link
+          ? `<div style="margin:6px 0"><a class="claim-btn" style="display:inline-block;width:auto;padding:7px 14px;text-decoration:none" href="${escapeHtml(it.link)}" target="_blank" rel="noopener noreferrer">${tr("training.openLink")}</a></div>`
+          : "";
         return `
           <div class="ticket">
             <div class="stamp">${escapeHtml(kind)}</div>
             <h3>${escapeHtml(it.title)}</h3>
             ${it.minutes ? `<div class="meta">${escapeHtml(tr("training.min", it.minutes))}</div>` : ""}
+            ${link}
             ${file}
             ${it.done
               ? `<button class="claim-btn" disabled>${tr("training.done")}</button> <button class="claim-btn" style="width:auto;padding:7px 14px;background:none;color:var(--ink);border:1px solid var(--ink)" onclick="setTrainingDone('${it.id}', false)">${tr("training.undo")}</button>`
