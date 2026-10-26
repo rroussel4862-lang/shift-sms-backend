@@ -145,6 +145,20 @@
 
     <div class="section">
       <h2>Restaurants</h2>
+      <div style="margin-bottom:10px">
+        <button class="btn small" id="addRestBtn" onclick="toggleAddRestaurant()">+ Add restaurant</button>
+      </div>
+      <div id="addRestForm" style="display:none;margin-bottom:14px">
+        <div class="filter-row">
+          <input type="text" id="newRestName" placeholder="Restaurant name" />
+          <input type="text" id="newRestOwnerName" placeholder="Owner's name" />
+          <input type="email" id="newRestOwnerEmail" placeholder="Owner's email" />
+          <button class="btn small" onclick="createRestaurantFromDashboard()">Create</button>
+          <button class="ghost" onclick="toggleAddRestaurant()">Cancel</button>
+        </div>
+        <div style="font-size:12px;color:var(--text-dim)">A new owner gets a temporary password, shown once. An email that already belongs to an owner just gets this restaurant added.</div>
+        <div id="addRestMsg" style="color:var(--red,#c0392b);font-size:12.5px;margin-top:4px"></div>
+      </div>
       <div style="overflow-x:auto">
         <table>
           <thead>
@@ -325,6 +339,30 @@ async function loadAiUsage() {
         <td>${r.inputTokens.toLocaleString()} / ${r.outputTokens.toLocaleString()}</td><td>${r.searches}</td>
         <td>${usd(r.costUsd)}</td><td>${usd(r.costPerDayUsd)}</td>
         <td>${r.byFeature[0] ? escapeHtml(r.byFeature[0].feature) + " (" + usd(r.byFeature[0].costUsd) + ")" : "—"}</td></tr>`).join("");
+}
+
+function toggleAddRestaurant() {
+  const f = document.getElementById("addRestForm");
+  f.style.display = f.style.display === "none" ? "block" : "none";
+  document.getElementById("addRestMsg").textContent = "";
+  if (f.style.display === "block") document.getElementById("newRestName").focus();
+}
+
+async function createRestaurantFromDashboard() {
+  const msg = document.getElementById("addRestMsg");
+  msg.textContent = "";
+  const name = document.getElementById("newRestName").value.trim();
+  const ownerName = document.getElementById("newRestOwnerName").value.trim();
+  const ownerEmail = document.getElementById("newRestOwnerEmail").value.trim();
+  if (!name || !ownerEmail) { msg.textContent = "Enter the restaurant name and the owner's email"; return; }
+  const r = await api("/api/platform/restaurants", { method: "POST", body: JSON.stringify({ name, ownerName, ownerEmail }) });
+  if (!r.ok) { msg.textContent = r.error; return; }
+  ["newRestName", "newRestOwnerName", "newRestOwnerEmail"].forEach(i => { document.getElementById(i).value = ""; });
+  toggleAddRestaurant();
+  await loadRestaurants();
+  if (typeof loadOwners === "function") await loadOwners();
+  if (r.data.tempPassword) showCredentials(r.data.owner, r.data.tempPassword);
+  else alert(`"${r.data.restaurant.name}" was added to the existing owner ${r.data.owner.email}. They can sign in as before.`);
 }
 
 async function resetDemo() {

@@ -4524,6 +4524,40 @@ app.post("/api/platform/demo/reset", requirePlatformAuth, async (req, res) => {
 
 // Permanently deletes a restaurant and everything under it (staff, shifts, schedule, sales, logins). The exact
 // restaurant name must be sent back as confirmation, so a stray click or a look-alike name ("Shay" vs "SHAY") can't wipe real data.
+// Create a restaurant from the dashboard, together with its owner login. A brand-new owner gets a temporary password (shown once);
+// an owner who already exists just gets the new restaurant added to their account.
+app.post("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
+  const { name, ownerName, ownerEmail } = req.body || {};
+  const restaurantName = String(name || "").trim();
+  if (!restaurantName || restaurantName.length > 100) return res.status(400).json({ error: "restaurant name is required (up to 100 characters)" });
+  const email = String(ownerEmail || "").trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "a valid owner email is required" });
+  const { rows: ownerRows } = await pool.query("SELECT * FROM owners WHERE email = $1", [email]);
+  let owner = ownerRows[0] || null;
+  if (owner && owner.role === "manager") return res.status(409).json({ error: "that email belongs to a manager login; use an owner's email" });
+  if (!owner) {
+    if (!String(ownerName || "").trim()) return res.status(400).json({ error: "the owner's name is required" });
+    const { rows: userClash } = await pool.query("SELECT 1 FROM users WHERE email = $1", [email]);
+    if (userClash.length) return res.status(409).json({ error: "that email already signs in to another restaurant directly" });
+  }
+  const { rows: nameClash } = await pool.query("SELECT 1 FROM restaurants WHERE LOWER(name) = LOWER($1)", [restaurantName]);
+  if (nameClash.length) return res.status(409).json({ error: "a restaurant with that name already exists" });
+
+  const restaurantId = id();
+  const now = Date.now();
+  let password = null;
+  await pool.query("INSERT INTO restaurants (id, name, created_at) VALUES ($1,$2,$3)", [restaurantId, restaurantName, now]);
+  if (!owner) {
+    password = tempPassword();
+    const ownerId = id();
+    await pool.query("INSERT INTO owners (id, name, email, password_hash, created_at, role) VALUES ($1,$2,$3,$4,$5,'owner')", [ownerId, String(ownerName).trim(), email, await bcrypt.hash(password, 10), now]);
+    owner = { id: ownerId };
+  }
+  await pool.query("INSERT INTO owner_restaurants (owner_id, restaurant_id) VALUES ($1,$2) ON CONFLICT DO NOTHING", [owner.id, restaurantId]);
+  logActivity({ restaurantId, eventType: "restaurant_created", detail: `restaurant created from dashboard: ${restaurantName} (${email})` });
+  res.status(201).json({ restaurant: { id: restaurantId, name: restaurantName }, owner: await ownerWithRestaurants(owner.id), tempPassword: password });
+});
+
 app.delete("/api/platform/restaurants/:id", requirePlatformAuth, async (req, res) => {
   const { rows } = await pool.query("SELECT id, name FROM restaurants WHERE id = $1", [req.params.id]);
   if (rows.length === 0) return res.status(404).json({ error: "restaurant not found" });
