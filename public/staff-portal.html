@@ -409,7 +409,7 @@ async function enterApp(name) {
     window.__tourStarted = true;
     OSRTour.init({
       tour: "staff", page: "si", helpMount: "#hdrRight",
-      views: { schedule: () => switchStaffTab("schedule"), availability: () => switchStaffTab("availability"), open: () => switchStaffTab("open"), board: () => switchStaffTab("board") },
+      views: { schedule: () => switchStaffTab("schedule"), availability: () => switchStaffTab("availability"), open: () => switchStaffTab("open"), board: () => switchStaffTab("board"), training: () => switchStaffTab("training") },
     });
   }
   try { const saved = sessionStorage.getItem("osr-si-tab"); if (saved && saved !== currentStaffTab && ["schedule", "availability", "open", "board", "training"].includes(saved)) switchStaffTab(saved); } catch (e) {}

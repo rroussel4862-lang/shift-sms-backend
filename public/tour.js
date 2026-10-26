@@ -35,7 +35,9 @@
       { code: "S01", page: "si", view: "schedule", sel: ["#myScheduleList"] },
       { code: "S02", page: "si", view: "availability", sel: ["#tabBtnAvailability"] },
       { code: "S03", page: "si", view: "open", sel: ["#tabBtnOpen"] },
-      { code: "S04", page: "si", view: "board", sel: ["#tabBtnBoard"] }
+      { code: "S04", page: "si", view: "board", sel: ["#tabBtnBoard"] },
+      { code: "S05", page: "si", view: "training", sel: ["#tabBtnTraining"] },
+      { code: "S06", page: "si", view: "schedule", sel: ["#myScheduleList"] }
     ]
   };
 

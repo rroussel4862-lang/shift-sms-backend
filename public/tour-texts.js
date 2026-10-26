@@ -92,6 +92,16 @@ window.OSR_TOUR_TEXTS = {
     fr: ["Le babillard a les nouvelles 📣", "Les annonces de ton gestionnaire arrivent ici. Viens y jeter un œil de temps en temps."],
     es: ["El tablón tiene las novedades 📣", "Los anuncios de tu gerente llegan aquí. Pásate de vez en cuando."],
   },
+  S05: { // Training tab
+    en: ["Your training lives here 🎓", "Courses, manuals and links from your manager show up here. Open them and tap Mark as done when you're finished."],
+    fr: ["Ta formation est ici 🎓", "Les cours, guides et liens de ton gestionnaire apparaissent ici. Ouvre-les et touche Marquer comme terminé quand c'est fait."],
+    es: ["Tu capacitación está aquí 🎓", "Los cursos, manuales y enlaces de tu gerente aparecen aquí. Ábrelos y toca Marcar como hecho al terminar."],
+  },
+  S06: { // Give away / swap a shift
+    en: ["Can't make a shift?", "Tap Give away or Swap on one of your shifts. A coworker accepts, then your manager approves. Nothing changes until then."],
+    fr: ["Tu ne peux pas venir ?", "Touche Céder ou Échanger sur un de tes quarts. Un collègue accepte, puis ton gestionnaire approuve. Rien ne change avant."],
+    es: ["¿No puedes ir a un turno?", "Toca Ceder o Cambiar en uno de tus turnos. Un compañero acepta y luego tu gerente aprueba. Nada cambia antes."],
+  },
 
   /* ---------------------------------------------------------------- "GETTING STARTED" CHECKLIST (manager Overview) */
 
