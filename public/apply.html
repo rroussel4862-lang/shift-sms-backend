@@ -53,8 +53,18 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Open Shift">
+<link rel="stylesheet" href="/theme-clean.css">
+<link rel="stylesheet" href="/theme-warm.css">
+<style>
+  body.theme-clean { display: block; padding: 28px 16px 40px; min-height: 100vh; }
+  body.theme-clean .card { margin: 0 auto 16px; max-width: 420px; text-align: left; }
+  body.theme-clean .osr-logo { width: 64px; height: 64px; border-radius: 18px; margin: 8px auto 20px; background: #1C201D url("/icons/icon-192.png") center / cover no-repeat; box-shadow: 0 6px 18px rgba(90, 58, 5, 0.18); }
+  body.theme-clean h1 { text-transform: none; letter-spacing: -0.015em; }
+  body.theme-clean button:not(.lang-btn) { border-radius: 999px; text-transform: none; letter-spacing: 0; }
+</style>
 </head>
-<body>
+<body class="theme-clean theme-warm">
+<div class="osr-logo" role="img" aria-label="Open Shift Rail"></div>
 
 <div class="card" id="loading" data-i18n="loading">Loading…</div>
 

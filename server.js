@@ -84,11 +84,16 @@ async function initDb() {
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS twilio_phone_number TEXT UNIQUE;`);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT false;`);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS demo_seeded_on TEXT;`);
-  // The warm layout (one-page shell + unified navigation). On for everyone; switchable per restaurant from the dashboard.
   // Terms of Service acceptance at sign-up: when, and which version of the text they agreed to.
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS terms_accepted_at BIGINT;`);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS terms_version TEXT;`);
-  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS new_design BOOLEAN NOT NULL DEFAULT true;`);
+  // Billing (Stripe). Every restaurant that existed before billing is 'exempt' (no charge, no cut-off) until you change it from the dashboard.
+  // billing_status: exempt | free (free until free_until) | unpaid (signed up, not paid yet) | active | past_due | canceled
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS billing_status TEXT NOT NULL DEFAULT 'exempt';`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS free_until BIGINT;`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS billing_period_end BIGINT;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -733,6 +738,16 @@ async function requireAuth(req, res, next) {
   req.restaurantId = payload.restaurantId;
   req.userId = payload.userId;
   req.ownerId = payload.ownerId || null; // set when an owner is acting as manager of one of their restaurants
+  // A restaurant that hasn't paid (or whose subscription ended) is held at the payment screen. Sign-in, sign-out and billing stay open.
+  const url = req.originalUrl.split("?")[0];
+  if (!/^\/api\/(auth|billing|owner)\//.test(url)) {
+    try {
+      const b = await getBilling(req.restaurantId);
+      if (b.blocked) return res.status(402).json({ error: "payment required — open Billing to continue", code: "payment_required" });
+    } catch (e) {
+      console.error("Billing check failed:", e.message);
+    }
+  }
   next();
 }
 
@@ -833,6 +848,138 @@ app.use((req, res, next) => {
 app.set("trust proxy", 1); // Render sits in front of this app — without this, every visitor looks like the same IP to rate limiting
 // API answers are always live data: never let a browser or home-screen app reuse an old copy.
 app.use("/api", (req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+
+// ---------- billing (Stripe) ----------
+// Nothing here does anything until STRIPE_SECRET_KEY is set. We talk to Stripe's REST API directly (no extra package).
+const stripeConfigured = () => !!process.env.STRIPE_SECRET_KEY;
+
+function stripeForm(obj, prefix = "", out = []) {
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null) continue;
+    const key = prefix ? `${prefix}[${k}]` : k;
+    if (Array.isArray(v)) v.forEach((x, i) => (x !== null && typeof x === "object" ? stripeForm(x, `${key}[${i}]`, out) : out.push(`${encodeURIComponent(`${key}[${i}]`)}=${encodeURIComponent(x)}`)));
+    else if (typeof v === "object") stripeForm(v, key, out);
+    else out.push(`${encodeURIComponent(key)}=${encodeURIComponent(v)}`);
+  }
+  return out;
+}
+
+async function stripeApi(pathName, params = {}) {
+  const res = await fetch(`https://api.stripe.com/v1/${pathName}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Stripe-Version": "2024-06-20",
+    },
+    body: stripeForm(params).join("&"),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = (data && data.error && data.error.message) || `Stripe error ${res.status}`;
+    const err = new Error(msg);
+    err.stripe = true;
+    throw err;
+  }
+  return data;
+}
+
+// Checks the Stripe-Signature header on a webhook: HMAC-SHA256 of "timestamp.body", within 5 minutes.
+function verifyStripeSignature(rawBody, header, secret, toleranceSec = 300, nowMs = Date.now()) {
+  if (!rawBody || !header || !secret) return false;
+  const parts = String(header).split(",").map((x) => x.trim().split("="));
+  const t = (parts.find((p) => p[0] === "t") || [])[1];
+  const sigs = parts.filter((p) => p[0] === "v1").map((p) => p[1]);
+  if (!t || !sigs.length || !/^\d+$/.test(t)) return false;
+  if (Math.abs(nowMs / 1000 - Number(t)) > toleranceSec) return false;
+  const expected = crypto.createHmac("sha256", secret).update(`${t}.`).update(rawBody).digest("hex");
+  const eb = Buffer.from(expected);
+  return sigs.some((sig) => {
+    const sb = Buffer.from(sig);
+    return sb.length === eb.length && crypto.timingSafeEqual(sb, eb);
+  });
+}
+
+// What a restaurant's billing looks like right now. blocked = the managers must pay before using the app.
+const billingCache = new Map(); // restaurantId -> { at, row }
+function clearBillingCache(restaurantId) { if (restaurantId) billingCache.delete(restaurantId); else billingCache.clear(); }
+function billingFromRow(r) {
+  const status = (r && r.billing_status) || "exempt";
+  const freeUntil = r && r.free_until ? Number(r.free_until) : null;
+  const periodEnd = r && r.billing_period_end ? Number(r.billing_period_end) : null;
+  const freeOver = status === "free" && freeUntil !== null && freeUntil < Date.now();
+  const blocked = status === "unpaid" || status === "canceled" || freeOver;
+  return { status: freeOver ? "free_ended" : status, blocked, freeUntil, periodEnd, hasCustomer: !!(r && r.stripe_customer_id), configured: stripeConfigured() };
+}
+async function getBilling(restaurantId) {
+  if (!restaurantId || demoIds.has(restaurantId)) return billingFromRow(null);
+  const hit = billingCache.get(restaurantId);
+  if (hit && Date.now() - hit.at < 30000) return billingFromRow(hit.row);
+  const { rows } = await pool.query("SELECT billing_status, free_until, billing_period_end, stripe_customer_id FROM restaurants WHERE id = $1", [restaurantId]);
+  billingCache.set(restaurantId, { at: Date.now(), row: rows[0] || null });
+  return billingFromRow(rows[0] || null);
+}
+
+const SUBSCRIPTION_STATUS = { active: "active", trialing: "active", past_due: "past_due", unpaid: "unpaid", incomplete: "unpaid", canceled: "canceled", incomplete_expired: "canceled", paused: "canceled" };
+
+async function restaurantForStripe({ restaurantId, customerId }) {
+  if (restaurantId) {
+    const { rows } = await pool.query("SELECT id FROM restaurants WHERE id = $1", [restaurantId]);
+    if (rows[0]) return rows[0].id;
+  }
+  if (customerId) {
+    const { rows } = await pool.query("SELECT id FROM restaurants WHERE stripe_customer_id = $1", [customerId]);
+    if (rows[0]) return rows[0].id;
+  }
+  return null;
+}
+
+async function applyStripeEvent(event) {
+  const obj = (event.data && event.data.object) || {};
+  const type = event.type;
+  let status = null, restaurantId = null, extra = {};
+  if (type === "checkout.session.completed") {
+    restaurantId = await restaurantForStripe({ restaurantId: obj.client_reference_id, customerId: obj.customer });
+    if (obj.mode === "subscription" && (obj.payment_status === "paid" || obj.payment_status === "no_payment_required")) status = "active";
+    extra = { customer: obj.customer || null, subscription: obj.subscription || null };
+  } else if (type === "customer.subscription.created" || type === "customer.subscription.updated" || type === "customer.subscription.deleted") {
+    restaurantId = await restaurantForStripe({ restaurantId: obj.metadata && obj.metadata.restaurant_id, customerId: obj.customer });
+    status = type === "customer.subscription.deleted" ? "canceled" : SUBSCRIPTION_STATUS[obj.status] || null;
+    extra = { customer: obj.customer || null, subscription: obj.id || null, periodEnd: obj.current_period_end ? obj.current_period_end * 1000 : null };
+  } else if (type === "invoice.payment_failed" || type === "invoice.paid") {
+    restaurantId = await restaurantForStripe({ customerId: obj.customer });
+    status = type === "invoice.paid" ? "active" : "past_due";
+  }
+  if (!restaurantId || !status) return false;
+  await pool.query(
+    `UPDATE restaurants SET billing_status = $1,
+       stripe_customer_id = COALESCE($2, stripe_customer_id),
+       stripe_subscription_id = COALESCE($3, stripe_subscription_id),
+       billing_period_end = COALESCE($4, billing_period_end)
+     WHERE id = $5`,
+    [status, extra.customer || null, extra.subscription || null, extra.periodEnd || null, restaurantId]
+  );
+  clearBillingCache(restaurantId);
+  logActivity({ restaurantId, eventType: "billing_" + status, level: status === "past_due" ? "warn" : "info", detail: `Stripe: ${type} -> ${status}` });
+  return true;
+}
+
+// Stripe calls this when a payment succeeds, fails, or a subscription changes. It must read the raw body, so it sits before express.json().
+app.post("/api/stripe/webhook", express.raw({ type: "application/json", limit: "1mb" }), async (req, res) => {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) return res.status(503).json({ error: "billing is not set up" });
+  if (!verifyStripeSignature(req.body, req.get("Stripe-Signature"), secret)) return res.status(400).json({ error: "bad signature" });
+  let event;
+  try { event = JSON.parse(req.body.toString("utf8")); } catch (e) { return res.status(400).json({ error: "bad body" }); }
+  try {
+    await applyStripeEvent(event);
+  } catch (e) {
+    console.error("Stripe webhook failed:", e.message);
+    return res.status(500).json({ error: "could not process" }); // Stripe retries
+  }
+  res.json({ received: true });
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -919,7 +1066,8 @@ app.post("/api/auth/signup", signupLimiter, async (req, res) => {
   const passwordHash = await bcrypt.hash(password, 10);
   const now = Date.now();
 
-  await pool.query("INSERT INTO restaurants (id, name, created_at, terms_accepted_at, terms_version) VALUES ($1,$2,$3,$4,$5)", [restaurantId, restaurantName.trim(), now, now, TERMS_VERSION]);
+  // With billing set up, a new restaurant starts unpaid and goes straight to checkout; without it, the app stays open as before.
+  await pool.query("INSERT INTO restaurants (id, name, created_at, terms_accepted_at, terms_version, billing_status) VALUES ($1,$2,$3,$4,$5,$6)", [restaurantId, restaurantName.trim(), now, now, TERMS_VERSION, stripeConfigured() ? "unpaid" : "exempt"]);
   await pool.query(
     "INSERT INTO users (id, restaurant_id, email, password_hash, created_at) VALUES ($1,$2,$3,$4,$5)",
     [userId, restaurantId, email.toLowerCase(), passwordHash, now]
@@ -928,7 +1076,7 @@ app.post("/api/auth/signup", signupLimiter, async (req, res) => {
   const token = signToken({ userId, restaurantId });
   res.cookie("token", token, COOKIE_OPTS);
   logActivity({ restaurantId, eventType: "restaurant_signup", detail: `${restaurantName.trim()} (${email.toLowerCase()}) accepted Terms ${TERMS_VERSION}` });
-  res.status(201).json({ restaurant: { id: restaurantId, name: restaurantName.trim() }, email: email.toLowerCase() });
+  res.status(201).json({ restaurant: { id: restaurantId, name: restaurantName.trim() }, email: email.toLowerCase(), demo: false, newDesign: true });
 });
 
 app.post("/api/auth/login", loginLimiter, loginEmailLimiter, async (req, res) => {
@@ -936,7 +1084,7 @@ app.post("/api/auth/login", loginLimiter, loginEmailLimiter, async (req, res) =>
   if (!email || !password) return res.status(400).json({ error: "email and password are required" });
 
   const { rows } = await pool.query(
-    `SELECT users.*, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address, restaurants.new_design AS restaurant_new_design FROM users
+    `SELECT users.*, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address FROM users
      JOIN restaurants ON restaurants.id = users.restaurant_id
      WHERE users.email = $1`,
     [email.toLowerCase()]
@@ -951,13 +1099,13 @@ app.post("/api/auth/login", loginLimiter, loginEmailLimiter, async (req, res) =>
       await pool.query("UPDATE owners SET last_login_at = $1 WHERE id = $2", [Date.now(), owner.id]);
       res.cookie("owner_token", signToken({ ownerId: owner.id }), COOKIE_OPTS);
       const { rows: rs } = await pool.query(
-        "SELECT r.id, r.name, r.address, r.new_design FROM owner_restaurants x JOIN restaurants r ON r.id = x.restaurant_id WHERE x.owner_id = $1 ORDER BY r.name",
+        "SELECT r.id, r.name, r.address FROM owner_restaurants x JOIN restaurants r ON r.id = x.restaurant_id WHERE x.owner_id = $1 ORDER BY r.name",
         [owner.id]
       );
       logActivity({ restaurantId: rs.length === 1 ? rs[0].id : null, eventType: "login_success", detail: `${owner.role === "manager" ? "manager" : "owner"} login via main page: ${owner.email} [${deviceLabel(req)}]` });
       if (rs.length !== 1) return res.json({ redirect: "/owner.html" });
       res.cookie("token", signToken({ restaurantId: rs[0].id, ownerId: owner.id }), COOKIE_OPTS);
-      return res.json({ restaurant: { id: rs[0].id, name: rs[0].name, address: rs[0].address || "" }, email: owner.email, viaOwner: true, canSwitch: false, demo: demoIds.has(rs[0].id), newDesign: demoIds.has(rs[0].id) || rs[0].new_design !== false });
+      return res.json({ restaurant: { id: rs[0].id, name: rs[0].name, address: rs[0].address || "" }, email: owner.email, viaOwner: true, canSwitch: false, demo: demoIds.has(rs[0].id), newDesign: true });
     }
     logActivity({ eventType: "login_failed", level: "warn", detail: `manager login failed: ${email.toLowerCase()} (${owner ? "wrong password" : "no such account"}) [main page, ${deviceLabel(req)}]` });
     return res.status(401).json({ error: "incorrect email or password" });
@@ -972,7 +1120,7 @@ app.post("/api/auth/login", loginLimiter, loginEmailLimiter, async (req, res) =>
   const token = signToken({ userId: user.id, restaurantId: user.restaurant_id });
   res.cookie("token", token, COOKIE_OPTS);
   logActivity({ restaurantId: user.restaurant_id, eventType: "login_success", detail: `manager login: ${email.toLowerCase()} [main page, ${deviceLabel(req)}]` });
-  res.json({ restaurant: { id: user.restaurant_id, name: user.restaurant_name, address: user.restaurant_address || "" }, email: user.email, demo: demoIds.has(user.restaurant_id), newDesign: demoIds.has(user.restaurant_id) || user.restaurant_new_design !== false });
+  res.json({ restaurant: { id: user.restaurant_id, name: user.restaurant_name, address: user.restaurant_address || "" }, email: user.email, demo: demoIds.has(user.restaurant_id), newDesign: true });
 });
 
 app.post("/api/auth/logout", (req, res) => {
@@ -980,11 +1128,81 @@ app.post("/api/auth/logout", (req, res) => {
   res.status(204).end();
 });
 
+// ----- billing routes (managers) -----
+app.get("/api/billing/status", requireAuth, async (req, res) => {
+  const b = await getBilling(req.restaurantId);
+  res.json({ status: b.status, blocked: b.blocked, freeUntil: b.freeUntil, periodEnd: b.periodEnd, canManage: b.hasCustomer, configured: b.configured });
+});
+
+// Starts a Stripe Checkout page for this restaurant's subscription: $100 CAD/month (the price set in STRIPE_PRICE_ID), card, charged every month.
+app.post("/api/billing/checkout", requireAuth, async (req, res) => {
+  if (!stripeConfigured() || !process.env.STRIPE_PRICE_ID) return res.status(503).json({ error: "billing is not set up yet" });
+  const rid = req.restaurantId;
+  if (demoIds.has(rid)) return res.status(400).json({ error: "the demo restaurant has no billing" });
+  try {
+    const { rows } = await pool.query("SELECT name, billing_status, free_until, stripe_customer_id FROM restaurants WHERE id = $1", [rid]);
+    const r = rows[0];
+    if (!r) return res.status(404).json({ error: "restaurant not found" });
+    if (r.billing_status === "active" || r.billing_status === "past_due") return res.status(409).json({ error: "this restaurant already has a subscription — use Manage billing" });
+    let email = "";
+    if (req.userId) email = ((await pool.query("SELECT email FROM users WHERE id = $1", [req.userId])).rows[0] || {}).email || "";
+    else if (req.ownerId) email = ((await pool.query("SELECT email FROM owners WHERE id = $1", [req.ownerId])).rows[0] || {}).email || "";
+    let customerId = r.stripe_customer_id;
+    if (!customerId) {
+      const c = await stripeApi("customers", { name: r.name, email: email || undefined, metadata: { restaurant_id: rid } });
+      customerId = c.id;
+      await pool.query("UPDATE restaurants SET stripe_customer_id = $1 WHERE id = $2", [customerId, rid]);
+    }
+    const base = (PUBLIC_URL || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
+    const taxRates = (process.env.STRIPE_TAX_RATE_IDS || "").split(",").map((x) => x.trim()).filter(Boolean);
+    const lang = ["fr", "en"].includes(req.body && req.body.locale) ? req.body.locale : "auto";
+    const params = {
+      mode: "subscription",
+      customer: customerId,
+      client_reference_id: rid,
+      locale: lang,
+      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1, ...(taxRates.length ? { tax_rates: taxRates } : {}) }],
+      subscription_data: { metadata: { restaurant_id: rid } },
+      success_url: `${base}/?billing=success`,
+      cancel_url: `${base}/?billing=canceled`,
+    };
+    if (!taxRates.length && process.env.STRIPE_AUTOMATIC_TAX === "1") {
+      params.automatic_tax = { enabled: true };
+      params.billing_address_collection = "required";
+      params.customer_update = { address: "auto" };
+    }
+    // Free until a later date: collect the card now, and Stripe makes the first charge on that date (Checkout needs it 2+ days away).
+    if (r.billing_status === "free" && r.free_until && Number(r.free_until) > Date.now() + 49 * 3600 * 1000) {
+      params.subscription_data.trial_end = Math.floor(Number(r.free_until) / 1000);
+    }
+    const session = await stripeApi("checkout/sessions", params);
+    res.json({ url: session.url });
+  } catch (e) {
+    console.error("Checkout failed:", e.message);
+    res.status(502).json({ error: "Could not reach the payment page. Please try again in a moment." });
+  }
+});
+
+// Stripe's own page where the restaurant updates its card, sees invoices, or cancels.
+app.post("/api/billing/portal", requireAuth, async (req, res) => {
+  if (!stripeConfigured()) return res.status(503).json({ error: "billing is not set up yet" });
+  const { rows } = await pool.query("SELECT stripe_customer_id FROM restaurants WHERE id = $1", [req.restaurantId]);
+  if (!rows[0] || !rows[0].stripe_customer_id) return res.status(404).json({ error: "no subscription yet" });
+  try {
+    const base = (PUBLIC_URL || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
+    const session = await stripeApi("billing_portal/sessions", { customer: rows[0].stripe_customer_id, return_url: `${base}/` });
+    res.json({ url: session.url });
+  } catch (e) {
+    console.error("Billing portal failed:", e.message);
+    res.status(502).json({ error: "Could not open the billing page. Please try again in a moment." });
+  }
+});
+
 app.get("/api/auth/me", requireAuth, async (req, res) => {
   if (req.ownerId) {
     // An owner opened one of their restaurants: same access as the manager login.
     const { rows } = await pool.query(
-      `SELECT o.email, o.name AS user_name, r.id AS restaurant_id, r.name AS restaurant_name, r.address AS restaurant_address, r.new_design AS restaurant_new_design
+      `SELECT o.email, o.name AS user_name, r.id AS restaurant_id, r.name AS restaurant_name, r.address AS restaurant_address
        FROM owners o JOIN owner_restaurants x ON x.owner_id = o.id JOIN restaurants r ON r.id = x.restaurant_id
        WHERE o.id = $1 AND r.id = $2`,
       [req.ownerId, req.restaurantId]
@@ -996,12 +1214,12 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
       name: rows[0].user_name || "",
       viaOwner: true,
       demo: demoIds.has(rows[0].restaurant_id),
-      newDesign: demoIds.has(rows[0].restaurant_id) || rows[0].restaurant_new_design !== false,
+      newDesign: true,
       canSwitch: (await pool.query("SELECT COUNT(*) AS n FROM owner_restaurants WHERE owner_id = $1", [req.ownerId])).rows[0].n > 1,
     });
   }
   const { rows } = await pool.query(
-    `SELECT users.email, users.name AS user_name, restaurants.id AS restaurant_id, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address, restaurants.new_design AS restaurant_new_design
+    `SELECT users.email, users.name AS user_name, restaurants.id AS restaurant_id, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address
      FROM users JOIN restaurants ON restaurants.id = users.restaurant_id
      WHERE users.id = $1`,
     [req.userId]
@@ -1012,7 +1230,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
     email: rows[0].email,
     name: rows[0].user_name || "",
     demo: demoIds.has(rows[0].restaurant_id),
-    newDesign: demoIds.has(rows[0].restaurant_id) || rows[0].restaurant_new_design !== false,
+    newDesign: true,
   });
 });
 
@@ -1720,11 +1938,11 @@ app.post("/api/staff-auth/logout", (req, res) => {
 
 app.get("/api/staff-auth/me", requireStaffAuth, async (req, res) => {
   const { rows } = await pool.query(
-    "SELECT staff.*, restaurants.name AS restaurant_name, restaurants.new_design AS restaurant_new_design FROM staff JOIN restaurants ON restaurants.id = staff.restaurant_id WHERE staff.id = $1",
+    "SELECT staff.*, restaurants.name AS restaurant_name FROM staff JOIN restaurants ON restaurants.id = staff.restaurant_id WHERE staff.id = $1",
     [req.staffId]
   );
   if (rows.length === 0) return res.status(401).json({ error: "not logged in" });
-  res.json({ ...staffRowToJson(rows[0]), restaurantName: rows[0].restaurant_name, demo: demoIds.has(rows[0].restaurant_id), newDesign: demoIds.has(rows[0].restaurant_id) || rows[0].restaurant_new_design !== false });
+  res.json({ ...staffRowToJson(rows[0]), restaurantName: rows[0].restaurant_name, demo: demoIds.has(rows[0].restaurant_id), newDesign: true });
 });
 
 // ---------- staff portal: schedule, availability, open shifts (staff, authenticated) ----------
@@ -4518,7 +4736,7 @@ app.get("/api/platform-auth/me", requirePlatformAuth, async (req, res) => {
 app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
   const { rows } = await pool.query(`
     SELECT
-      r.id, r.name, r.created_at, r.twilio_phone_number, r.is_demo, r.new_design,
+      r.id, r.name, r.created_at, r.twilio_phone_number, r.is_demo, r.billing_status, r.free_until,
       (SELECT COUNT(*) FROM staff s WHERE s.restaurant_id = r.id AND s.archived_at IS NULL) AS staff_count,
       (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id) AS shift_count,
       (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id AND sh.status = 'open') AS open_shift_count,
@@ -4535,7 +4753,8 @@ app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
     createdAt: Number(r.created_at),
     twilioPhoneNumber: r.twilio_phone_number || "",
     isDemo: !!r.is_demo,
-    newDesign: r.new_design !== false,
+    billingStatus: r.billing_status || "exempt",
+    freeUntil: r.free_until ? Number(r.free_until) : null,
     staffCount: Number(r.staff_count),
     shiftCount: Number(r.shift_count),
     openShiftCount: Number(r.open_shift_count),
@@ -4691,14 +4910,22 @@ app.patch("/api/platform/restaurants/:id/twilio-number", requirePlatformAuth, as
   }
 });
 
-// Per-restaurant switch for the new layout and design. Turning it off sends that restaurant back to the classic look.
-app.patch("/api/platform/restaurants/:id/design", requirePlatformAuth, async (req, res) => {
-  const on = req.body && req.body.newDesign;
-  if (typeof on !== "boolean") return res.status(400).json({ error: "newDesign must be true or false" });
-  const { rows } = await pool.query("UPDATE restaurants SET new_design = $1 WHERE id = $2 RETURNING id, new_design", [on, req.params.id]);
-  if (rows.length === 0) return res.status(404).json({ error: "restaurant not found" });
-  logActivity({ restaurantId: rows[0].id, eventType: "design_switched", detail: on ? "New layout and design turned on" : "New layout and design turned off (classic look)" });
-  res.json({ id: rows[0].id, newDesign: rows[0].new_design });
+// Billing exceptions from the dashboard: 'exempt' (never charged, never cut off) or 'free' until a date (then the restaurant must pay).
+app.patch("/api/platform/restaurants/:id/billing", requirePlatformAuth, async (req, res) => {
+  const { mode, freeUntil } = req.body || {};
+  if (mode !== "exempt" && mode !== "free") return res.status(400).json({ error: "mode must be exempt or free" });
+  let until = null;
+  if (mode === "free") {
+    until = /^\d{4}-\d{2}-\d{2}$/.test(String(freeUntil || "")) ? Date.parse(freeUntil + "T23:59:59-04:00") : NaN;
+    if (!Number.isFinite(until)) return res.status(400).json({ error: "free access needs an end date (YYYY-MM-DD)" });
+  }
+  const { rows: cur } = await pool.query("SELECT billing_status FROM restaurants WHERE id = $1", [req.params.id]);
+  if (cur.length === 0) return res.status(404).json({ error: "restaurant not found" });
+  if (cur[0].billing_status === "active" || cur[0].billing_status === "past_due") return res.status(409).json({ error: "this restaurant has a live subscription; cancel it in Stripe first" });
+  await pool.query("UPDATE restaurants SET billing_status = $1, free_until = $2 WHERE id = $3", [mode, until, req.params.id]);
+  clearBillingCache(req.params.id);
+  logActivity({ restaurantId: req.params.id, eventType: "billing_set", detail: mode === "free" ? `Free access until ${freeUntil}` : "Billing exempt" });
+  res.json({ id: req.params.id, billingStatus: mode, freeUntil: until });
 });
 
 // Raw activity rows are kept this long, then rolled up into activity_daily.
@@ -5200,4 +5427,4 @@ app.get("/api/owner/overview", requireOwnerAuth, async (req, res) => {
   });
 });
 
-module.exports = { app, pool, initDb, seedDemoNow, ensureFreshDemo, demoIds, makeErrorCode, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates, cleanAvailability };
+module.exports = { verifyStripeSignature, stripeForm, app, pool, initDb, seedDemoNow, ensureFreshDemo, demoIds, makeErrorCode, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates, cleanAvailability };

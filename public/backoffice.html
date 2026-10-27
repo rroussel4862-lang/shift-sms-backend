@@ -645,6 +645,7 @@
 </div>
 
 <script src="/demo-banner.js"></script>
+<script src="/billing-gate.js"></script>
 <script src="/tour-texts.js"></script>
 <script src="/tour.js"></script>
 <script>
@@ -2235,6 +2236,7 @@ function renderScheduleGrid() {
     return;
   }
   document.getElementById("app").style.display = "block";
+  if (window.osrBillingCheck) osrBillingCheck();
   document.getElementById("restaurantHeading").textContent = tr("headingOf", me.data.restaurant.name);
   window.__restaurantName = me.data.restaurant.name;
   document.title = me.data.restaurant.name + " — Back Office";

@@ -170,7 +170,7 @@
         <table>
           <thead>
             <tr>
-              <th>Name</th><th>Twilio number</th><th>Staff</th><th>Shifts (open)</th><th>Open postings</th><th>Activity (7d)</th><th>Last activity</th><th>Signed up</th><th>New design</th><th></th>
+              <th>Name</th><th>Twilio number</th><th>Staff</th><th>Shifts (open)</th><th>Open postings</th><th>Activity (7d)</th><th>Last activity</th><th>Signed up</th><th>Billing</th><th></th>
             </tr>
           </thead>
           <tbody id="restaurantsBody"></tbody>
@@ -426,7 +426,7 @@ async function loadRestaurants() {
           <td class="num">${r.activityLast7d}</td>
           <td>${timeAgo(r.lastActivityAt)}</td>
           <td>${formatDate(r.createdAt)}</td>
-          <td onclick="event.stopPropagation()"><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ${r.newDesign ? "checked" : ""} onchange="saveDesign('${r.id}', this)"> <span style="font-size:11px;color:var(--text-dim)">${r.newDesign ? "On" : "Classic"}</span></label></td>
+          <td onclick="event.stopPropagation()">${billingCell(r)}</td>
           <td onclick="event.stopPropagation()"><button class="ghost" style="padding:5px 9px;font-size:11px;color:#e5645a" onclick="deleteRestaurant('${r.id}')">Delete</button></td>
         </tr>
       `).join("");
@@ -442,13 +442,28 @@ async function deleteRestaurant(id) {
   loadRestaurants();
 }
 
-async function saveDesign(restaurantId, box) {
-  const result = await api(`/api/platform/restaurants/${restaurantId}/design`, {
-    method: "PATCH",
-    body: JSON.stringify({ newDesign: box.checked }),
-  });
-  if (!result.ok) { box.checked = !box.checked; alert(result.error); return; }
-  box.nextElementSibling.textContent = result.data.newDesign ? "On" : "Classic";
+const BILLING_LABEL = { exempt: "Exempt", free: "Free until", unpaid: "Not paid yet", active: "Paying", past_due: "Payment failed", canceled: "Canceled" };
+function billingCell(r) {
+  const st = r.billingStatus || "exempt";
+  const live = st === "active" || st === "past_due";
+  const color = st === "active" ? "#5fb37a" : st === "past_due" || st === "unpaid" || st === "canceled" ? "#e5645a" : "var(--text-dim)";
+  const until = st === "free" && r.freeUntil ? " " + new Date(r.freeUntil).toISOString().slice(0, 10) : "";
+  if (live || r.isDemo) return `<span style="font-size:11px;color:${color}">${BILLING_LABEL[st] || st}</span>`;
+  const sel = (v, t) => `<option value="${v}" ${(st === v) ? "selected" : ""}>${t}</option>`;
+  return `<div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
+    <span style="font-size:11px;color:${color}">${BILLING_LABEL[st] || st}${until}</span>
+    <div style="display:flex;gap:4px;align-items:center">
+      <select id="bmode-${r.id}" style="background:var(--bg);border:1px solid var(--rail);color:var(--text-bright);border-radius:4px;padding:3px;font-size:11px">${sel("exempt", "Exempt")}${sel("free", "Free until…")}</select>
+      <input type="date" id="bdate-${r.id}" value="${st === "free" && r.freeUntil ? new Date(r.freeUntil).toISOString().slice(0, 10) : ""}" style="background:var(--bg);border:1px solid var(--rail);color:var(--text-bright);border-radius:4px;padding:2px;font-size:11px;width:112px">
+      <button class="ghost" style="padding:4px 8px;font-size:11px" onclick="saveBilling('${r.id}')">Save</button>
+    </div></div>`;
+}
+async function saveBilling(restaurantId) {
+  const mode = document.getElementById(`bmode-${restaurantId}`).value;
+  const freeUntil = document.getElementById(`bdate-${restaurantId}`).value;
+  const result = await api(`/api/platform/restaurants/${restaurantId}/billing`, { method: "PATCH", body: JSON.stringify({ mode, freeUntil }) });
+  if (!result.ok) return alert(result.error);
+  loadRestaurants();
 }
 
 async function saveTwilioNumber(restaurantId) {

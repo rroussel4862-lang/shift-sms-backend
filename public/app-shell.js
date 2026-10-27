@@ -5,15 +5,15 @@
   var L = {
     en: { today: "Today", schedule: "Schedule", people: "People", money: "Money", messages: "Messages", menu: "Menu",
       overview: "Overview", week: "Weekly schedule", open: "Open shifts & swaps", punch: "Punch clock", team: "Team & requests", pay: "Pay & tenure",
-      training: "Training", hiring: "Hiring", payroll: "Payroll & sales", sales: "Daily sales entry", revenue: "Revenue history", tour: "Take the tour", all: "All restaurants", logout: "Log out",
+      training: "Training", hiring: "Hiring", payroll: "Payroll & sales", sales: "Daily sales entry", revenue: "Revenue history", tour: "Take the tour", billing: "Billing and invoices", all: "All restaurants", logout: "Log out",
       demo: "Demo: made-up restaurant and sample data. It resets every night." },
     fr: { today: "Aujourd'hui", schedule: "Horaire", people: "Équipe", money: "Argent", messages: "Messages", menu: "Menu",
       overview: "Aperçu", week: "Horaire de la semaine", open: "Quarts ouverts et échanges", punch: "Pointage", team: "Personnel et demandes", pay: "Salaires et ancienneté",
-      training: "Formation", hiring: "Embauche", payroll: "Paie et ventes", sales: "Saisie des ventes", revenue: "Historique des revenus", tour: "Visite guidée", all: "Restaurants", logout: "Déconnexion",
+      training: "Formation", hiring: "Embauche", payroll: "Paie et ventes", sales: "Saisie des ventes", revenue: "Historique des revenus", tour: "Visite guidée", billing: "Facturation et factures", all: "Restaurants", logout: "Déconnexion",
       demo: "Démo : restaurant fictif et données d'exemple. Réinitialisé chaque nuit." },
     es: { today: "Hoy", schedule: "Horario", people: "Equipo", money: "Dinero", messages: "Mensajes", menu: "Menú",
       overview: "Resumen", week: "Horario semanal", open: "Turnos abiertos y cambios", punch: "Reloj", team: "Personal y solicitudes", pay: "Pago y antigüedad",
-      training: "Capacitación", hiring: "Contratación", payroll: "Nómina y ventas", sales: "Registro de ventas", revenue: "Historial de ingresos", tour: "Recorrido guiado", all: "Restaurantes", logout: "Cerrar sesión",
+      training: "Capacitación", hiring: "Contratación", payroll: "Nómina y ventas", sales: "Registro de ventas", revenue: "Historial de ingresos", tour: "Recorrido guiado", billing: "Facturación y facturas", all: "Restaurantes", logout: "Cerrar sesión",
       demo: "Demo: restaurante ficticio con datos de ejemplo. Se reinicia cada noche." }
   };
   function lang() { try { return localStorage.getItem("osr-lang") || "en"; } catch (e) { return "en"; } }
@@ -167,14 +167,16 @@
     var w = win("mi"); try { w.api(owner ? "/api/owner-auth/logout" : "/api/auth/logout", { method: "POST" }).then(done, done); } catch (e) { done(); }
     function done() { clearFlag(); location.href = owner ? "/owner.html" : "/"; }
   });
-  spanel.appendChild(tourBtn); spanel.appendChild(allBtn); spanel.appendChild(langRow); spanel.appendChild(outBtn);
+  var billBtn = document.createElement("button"); billBtn.type = "button"; billBtn.className = "cn-item"; billBtn.hidden = true;
+  billBtn.addEventListener("click", function () { closeAll(); if (window.osrBillingPortal) osrBillingPortal(); });
+  spanel.appendChild(tourBtn); spanel.appendChild(billBtn); spanel.appendChild(allBtn); spanel.appendChild(langRow); spanel.appendChild(outBtn);
   attach(mbtn, spanel, true);
   mbtn.setAttribute("aria-label", "Menu");
 
   function refresh() {
     var l = lang();
     document.documentElement.lang = l;
-    tourBtn.textContent = "? " + tx("tour"); allBtn.textContent = tx("all"); backLink.querySelector(".cn-back-t").textContent = tx("all"); backLink.title = tx("all"); backLink.setAttribute("aria-label", tx("all")); outBtn.textContent = tx("logout");
+    tourBtn.textContent = "? " + tx("tour"); allBtn.textContent = tx("all"); billBtn.textContent = tx("billing"); backLink.querySelector(".cn-back-t").textContent = tx("all"); backLink.title = tx("all"); backLink.setAttribute("aria-label", tx("all")); outBtn.textContent = tx("logout");
     langRow.querySelectorAll(".lang-btn").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-l") === l); });
     document.getElementById("demoBar").textContent = tx("demo");
     tabs.forEach(function (t) {
@@ -231,7 +233,8 @@
   FRAME[first].addEventListener("load", function once() { FRAME[first].removeEventListener("load", once); setTimeout(function () { load(second, second === "bo" ? "&section=schedule" : ""); }, 200); });
   /* the name and the sign-in check */
   fetch("/api/auth/me", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
-    if (!me || !me.newDesign) { clearFlag(); location.replace("/"); return; }
+    if (!me) { clearFlag(); location.replace("/"); return; }
+    if (window.osrBillingCheck) osrBillingCheck({ onStatus: function (b) { billBtn.hidden = !(b.canManage && (b.status === "active" || b.status === "past_due")); } });
     owner = !!me.viaOwner; allBtn.hidden = !(me.viaOwner && me.canSwitch); backLink.hidden = allBtn.hidden;
     document.getElementById("demoBar").style.display = me.demo ? "block" : "none";
     var n = (me.restaurant && me.restaurant.name) || "Open Shift Rail";

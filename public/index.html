@@ -708,6 +708,11 @@
   <div class="landing-mark"><span>OSR</span></div>
   <h1 data-i18n="landing.title">Open Shift Rail</h1>
   <p data-i18n="landing.tagline">Post a no-show. Text your staff. Fill the shift — all from here.</p>
+  <ul class="landing-points">
+    <li data-i18n="landing.point1">Text an open shift to your whole team in one tap</li>
+    <li data-i18n="landing.point2">Schedule, sales and labor cost in one place</li>
+    <li data-i18n="landing.point3">Hire, train and message your staff too</li>
+  </ul>
 
   <div id="authForms" style="width:100%;max-width:300px;text-align:left">
     <div class="tabs" style="max-width:none;margin:0 0 16px;padding:0">
@@ -954,6 +959,7 @@
 </div>
 
 <script src="/demo-banner.js"></script>
+<script src="/billing-gate.js"></script>
 <script src="/tour-texts.js"></script>
 <script src="/tour.js"></script>
 <script>
@@ -982,6 +988,7 @@ const T = {
     common: { networkError: "Network error — is the server running?", justNow: "just now", minAgo: m => `${m}m ago`, hourAgo: h => `${h}h ago` },
     landing: {
       title: "Open Shift Rail", tagline: "Post a no-show. Text your staff. Fill the shift — all from here.",
+      point1: "Text an open shift to your whole team in one tap", point2: "Schedule, sales and labor cost in one place", point3: "Hire, train and message your staff too",
       agreeBefore: "I agree to the", termsLink: "Terms of Service", andWord: "and", privacyLink: "Privacy Policy", errTerms: "Please agree to the Terms of Service and Privacy Policy to create your account",
       loginTab: "Log in", signupTab: "Sign up", restaurantNameLabel: "Restaurant name", restaurantNamePh: "e.g. Ferro",
       emailLabel: "Email", emailPh: "you@restaurant.com", passwordLabel: "Password",
@@ -1139,6 +1146,7 @@ const T = {
     common: { networkError: "Erreur réseau — le serveur est-il en marche ?", justNow: "à l'instant", minAgo: m => `il y a ${m} min`, hourAgo: h => `il y a ${h} h` },
     landing: {
       title: "Open Shift Rail", tagline: "Signalez une absence. Textez votre personnel. Comblez le quart — tout ici.",
+      point1: "Envoyez un quart ouvert à toute l'équipe en un geste", point2: "Horaire, ventes et coût de main-d'œuvre au même endroit", point3: "Embauchez, formez et écrivez à votre équipe aussi",
       agreeBefore: "J'accepte les", termsLink: "conditions d'utilisation", andWord: "et la", privacyLink: "politique de confidentialité", errTerms: "Veuillez accepter les conditions d'utilisation et la politique de confidentialité pour créer votre compte",
       loginTab: "Connexion", signupTab: "Inscription", restaurantNameLabel: "Nom du restaurant", restaurantNamePh: "ex. Ferro",
       emailLabel: "Courriel", emailPh: "vous@restaurant.com", passwordLabel: "Mot de passe",
@@ -1296,6 +1304,7 @@ const T = {
     common: { networkError: "Error de red — ¿está el servidor en marcha?", justNow: "justo ahora", minAgo: m => `hace ${m} min`, hourAgo: h => `hace ${h} h` },
     landing: {
       title: "Open Shift Rail", tagline: "Reporta una ausencia. Envía mensajes a tu personal. Cubre el turno — todo aquí.",
+      point1: "Envía un turno abierto a todo el equipo con un toque", point2: "Horario, ventas y costo de personal en un solo lugar", point3: "Contrata, capacita y escribe a tu equipo también",
       agreeBefore: "Acepto los", termsLink: "Términos del servicio", andWord: "y la", privacyLink: "Política de privacidad", errTerms: "Acepta los Términos del servicio y la Política de privacidad para crear tu cuenta",
       loginTab: "Iniciar sesión", signupTab: "Registrarse", restaurantNameLabel: "Nombre del restaurante", restaurantNamePh: "ej. Ferro",
       emailLabel: "Correo electrónico", emailPh: "tu@restaurante.com", passwordLabel: "Contraseña",
@@ -3448,6 +3457,9 @@ async function submitAuth() {
     if (!result.ok) return (errorDiv.textContent = result.error);
     restaurantName = result.data.restaurant.name;
     restaurantAddress = result.data.restaurant.address || "";
+    // a new restaurant that has to pay goes straight to the payment page; otherwise open the app as usual
+    if (window.osrBillingStart && await osrBillingStart()) return;
+    if (window.osrDesign) osrDesign(result.data);
     enterApp();
   } else {
     if (!email || !password) return (errorDiv.textContent = t("landing.errEmailPassword"));
@@ -3502,6 +3514,7 @@ async function askUserName() {
 
 function enterApp() {
   loadUserName();
+  if (window.osrBillingCheck) osrBillingCheck();
   document.getElementById("landing").style.display = "none";
   document.getElementById("appShell").style.display = "block";
   document.getElementById("sidebarRestaurantName").textContent = restaurantName || "Open Shift Rail";

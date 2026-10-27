@@ -112,3 +112,13 @@ body.theme-clean.theme-warm .osr-cl { background: #FFF6E3; border: 1px solid #F0
 body.theme-clean.theme-warm .osr-bub { background: #FFFCF7; border-radius: 20px; border: 1px solid var(--rail); }
 body.theme-clean.theme-warm .osr-bub button.osr-primary { background: var(--amber); border-color: var(--amber); color: #2C2620; border-radius: 999px; }
 body.theme-clean.theme-warm .osr-bub button { border-radius: 999px; }
+
+/* ---------- the main website page (sign in / sign up) ---------- */
+body.theme-clean.theme-warm #landing { background: var(--bg); }
+body.theme-clean.theme-warm #landing .landing-mark { width: 72px; height: 72px; border-radius: 20px; box-shadow: 0 6px 18px rgba(90, 58, 5, 0.18); margin-bottom: 18px; }
+body.theme-clean.theme-warm #landing h1 { font-size: 32px; text-transform: none; letter-spacing: -0.02em; color: var(--ink); }
+body.theme-clean.theme-warm #landing > p { font-size: 17px; max-width: 360px; color: var(--text-dim); }
+body.theme-clean.theme-warm .landing-points { list-style: none; margin: 0 0 26px; padding: 0; max-width: 340px; text-align: left; display: grid; gap: 8px; }
+body.theme-clean.theme-warm .landing-points li { position: relative; padding-left: 28px; font-size: 14.5px; color: var(--ink); line-height: 1.4; }
+body.theme-clean.theme-warm .landing-points li::before { content: ""; position: absolute; left: 0; top: 2px; width: 18px; height: 18px; border-radius: 50%; background: #FBE7C2 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cpath d='M5 9.3l2.6 2.6L13 6.5' fill='none' stroke='%235A3A05' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 18px no-repeat; }
+body.theme-clean.theme-warm #landing #authForms { background: #FFFCF7; border: 1px solid var(--rail); border-radius: 24px; padding: 20px 20px 18px; box-shadow: 0 8px 30px rgba(90, 58, 5, 0.08); max-width: 340px !important; }

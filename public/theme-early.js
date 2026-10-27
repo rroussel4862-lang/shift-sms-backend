@@ -1,7 +1,6 @@
-/* Runs first thing in <body> on the main app, Back Office and staff portal. If this browser last signed in to a
-   restaurant that uses the new layout and design, it puts that look on straight away, so moving between pages doesn't
-   flash the old design first. The server has the final say: every page checks with it and corrects the flag
-   (see osrDesign / osrNotDemo). The flag is kept in this browser's local storage. */
+/* Runs first thing in <body> on the main page, Back Office and staff portal. It puts the Open Shift Rail look on
+   straight away (so nothing flashes), and, if this browser is signed in, opens the one-page app. The "signed in" flag is
+   kept in this browser's local storage; every page confirms it with the server (see osrDesign / osrNoSession). */
 (function () {
   var KEY = "osr-demo-theme";
   var embedded = false;
@@ -15,7 +14,8 @@
       if (isBo) k = new URLSearchParams(location.search).get("section") || "";
       else k = sessionStorage.getItem("osr-mi-tab") || "";
     } catch (e) {}
-    location.replace("/app.html?v=" + v + (k ? "&k=" + encodeURIComponent(k) : ""));
+    var back = /[?&]billing=success/.test(location.search) ? "&billing=success" : "";   /* keep "just paid" so the shell can wait for the confirmation */
+    location.replace("/app.html?v=" + v + (k ? "&k=" + encodeURIComponent(k) : "") + back);
   }
   if (embedded) { document.body.classList.add("embed"); document.documentElement.classList.add("embed"); }
   function flagged() { try { return localStorage.getItem(KEY) === "1"; } catch (e) { return false; } }
@@ -26,22 +26,25 @@
     if (document.readyState === "loading") document.write("<" + tag + ' id="' + id + '" ' + attrs + (tag === "script" ? "></" + tag + ">" : ">"));
     else { var el = document.createElement(tag); el.id = id; attrs.replace(/(\w+)="([^"]*)"/g, function (m, k, v) { el.setAttribute(k, v); }); (tag === "script" ? document.body : document.head).appendChild(el); if (tag === "script") el.onload = function () { if (window.cleanNav) window.cleanNav(); }; }
   }
-  window.osrApplyTheme = function () {
-    setFlag(true);
-    if (!embedded && (isMain || isBo)) { toShell(); return; }
+  /* the look itself (colours, fonts, navigation) goes on every page; there is no classic look any more */
+  function applyLook() {
     document.body.classList.add("theme-clean");
     add("link", "themeCleanCss", 'rel="stylesheet" href="/theme-clean.css"');
     if (!plain()) { document.body.classList.add("theme-warm"); add("link", "themeWarmCss", 'rel="stylesheet" href="/theme-warm.css"'); }
     add("script", "themeCleanJs", 'src="/theme-clean.js"');
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { if (window.cleanNav) window.cleanNav(); });
     else if (window.cleanNav) window.cleanNav();
+  }
+  /* signed in: remember it, and open the one-page app (the main app and Back Office live together in /app.html) */
+  window.osrApplyTheme = function () {
+    setFlag(true);
+    if (!embedded && (isMain || isBo)) { toShell(); return; }
+    applyLook();
   };
   /* this tab was in the demo a moment ago, so assume it still is; the page confirms or corrects this once it hears from the server */
-  window.osrNotDemo = function () { if (flagged()) { setFlag(false); location.reload(); } };
   /* every page calls this once the server has said who is signed in: new design on -> apply it (and the demo bar in the demo); off -> classic */
   window.osrDesign = function (me) {
-    if (me && me.newDesign) { if (me.demo && window.showDemoBanner) window.showDemoBanner(); else window.osrApplyTheme(); }
-    else window.osrNotDemo();
+    if (me && me.demo && window.showDemoBanner) window.showDemoBanner(); else window.osrApplyTheme();
   };
   window.osrClearDesign = function () { setFlag(false); };
   /* in a demo tab, show the app frame straight away (instead of the login screen or an empty page until the server
@@ -75,5 +78,5 @@
   if (flagged()) {
     window.osrApplyTheme();
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", showFrame); else showFrame();
-  }
+  } else applyLook();
 })();
