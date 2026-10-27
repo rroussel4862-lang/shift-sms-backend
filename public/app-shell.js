@@ -5,15 +5,15 @@
   var L = {
     en: { today: "Today", schedule: "Schedule", people: "People", money: "Money", messages: "Messages", menu: "Menu",
       overview: "Overview", week: "Weekly schedule", open: "Open shifts & swaps", punch: "Punch clock", team: "Team & requests", pay: "Pay & tenure",
-      training: "Training", hiring: "Hiring", payroll: "Payroll & sales", sales: "Daily sales entry", revenue: "Revenue history", tour: "Take the tour", all: "← All restaurants", logout: "Log out",
+      training: "Training", hiring: "Hiring", payroll: "Payroll & sales", sales: "Daily sales entry", revenue: "Revenue history", tour: "Take the tour", all: "All restaurants", logout: "Log out",
       demo: "Demo: made-up restaurant and sample data. It resets every night." },
     fr: { today: "Aujourd'hui", schedule: "Horaire", people: "Équipe", money: "Argent", messages: "Messages", menu: "Menu",
       overview: "Aperçu", week: "Horaire de la semaine", open: "Quarts ouverts et échanges", punch: "Pointage", team: "Personnel et demandes", pay: "Salaires et ancienneté",
-      training: "Formation", hiring: "Embauche", payroll: "Paie et ventes", sales: "Saisie des ventes", revenue: "Historique des revenus", tour: "Visite guidée", all: "← Restaurants", logout: "Déconnexion",
+      training: "Formation", hiring: "Embauche", payroll: "Paie et ventes", sales: "Saisie des ventes", revenue: "Historique des revenus", tour: "Visite guidée", all: "Restaurants", logout: "Déconnexion",
       demo: "Démo : restaurant fictif et données d'exemple. Réinitialisé chaque nuit." },
     es: { today: "Hoy", schedule: "Horario", people: "Equipo", money: "Dinero", messages: "Mensajes", menu: "Menú",
       overview: "Resumen", week: "Horario semanal", open: "Turnos abiertos y cambios", punch: "Reloj", team: "Personal y solicitudes", pay: "Pago y antigüedad",
-      training: "Capacitación", hiring: "Contratación", payroll: "Nómina y ventas", sales: "Registro de ventas", revenue: "Historial de ingresos", tour: "Recorrido guiado", all: "← Restaurantes", logout: "Cerrar sesión",
+      training: "Capacitación", hiring: "Contratación", payroll: "Nómina y ventas", sales: "Registro de ventas", revenue: "Historial de ingresos", tour: "Recorrido guiado", all: "Restaurantes", logout: "Cerrar sesión",
       demo: "Demo: restaurante ficticio con datos de ejemplo. Se reinicia cada noche." }
   };
   function lang() { try { return localStorage.getItem("osr-lang") || "en"; } catch (e) { return "en"; } }
@@ -109,10 +109,6 @@
   var brand = document.createElement("div"); brand.className = "cn-brand header-left";
   brand.innerHTML = '<div class="topbar-mark" aria-hidden="true"></div><span class="cn-name"></span>';
   bar.appendChild(brand);
-  /* owners with several restaurants: a visible way back to the list of restaurants */
-  var backLink = document.createElement("a"); backLink.href = "/owner.html"; backLink.className = "cn-back"; backLink.hidden = true;
-  backLink.style.cssText = "flex:none;align-self:center;margin:0 8px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;font:600 13px/1 inherit;text-decoration:none;color:inherit;white-space:nowrap";
-  bar.appendChild(backLink);
   var strip = document.createElement("div"); strip.className = "cn-tabs"; bar.appendChild(strip);
   var tabs = GROUPS.map(function (g) {
     var one = g.items.length === 1;
@@ -140,6 +136,13 @@
   var more = document.createElement("div"); more.className = "cn-more";
   var mbtn = document.createElement("button"); mbtn.type = "button"; mbtn.className = "cn-trigger";
   mbtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="13" cy="8" r="1.4"/></svg>';
+  /* owners with several restaurants: a small way back to the list of restaurants, next to the menu (arrow only on phones) */
+  var backLink = document.createElement("a"); backLink.href = "/owner.html"; backLink.className = "cn-back"; backLink.hidden = true;
+  backLink.innerHTML = '<span aria-hidden="true">←</span><span class="cn-back-t"></span>';
+  var bst = document.createElement("style");
+  bst.textContent = ".cn-more{display:flex;align-items:center;gap:6px}.cn-back{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 11px;border-radius:999px;border:1px solid var(--rail,#EADFCE);color:inherit;text-decoration:none;font:600 13px/1 inherit;white-space:nowrap}.cn-back[hidden]{display:none}.cn-back:hover{background:#F3EBDD}@media(max-width:760px){.cn-name{white-space:normal!important;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.cn-back{width:34px;padding:0;justify-content:center}.cn-back-t{display:none}}";
+  document.head.appendChild(bst);
+  more.appendChild(backLink);
   more.appendChild(mbtn); bar.appendChild(more);
   var spanel = document.createElement("div"); spanel.className = "cn-panel cn-settings";
   var tourBtn = document.createElement("button"); tourBtn.type = "button"; tourBtn.className = "cn-item";
@@ -171,7 +174,7 @@
   function refresh() {
     var l = lang();
     document.documentElement.lang = l;
-    tourBtn.textContent = "? " + tx("tour"); allBtn.textContent = tx("all"); backLink.textContent = tx("all"); outBtn.textContent = tx("logout");
+    tourBtn.textContent = "? " + tx("tour"); allBtn.textContent = tx("all"); backLink.querySelector(".cn-back-t").textContent = tx("all"); backLink.title = tx("all"); backLink.setAttribute("aria-label", tx("all")); outBtn.textContent = tx("logout");
     langRow.querySelectorAll(".lang-btn").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-l") === l); });
     document.getElementById("demoBar").textContent = tx("demo");
     tabs.forEach(function (t) {
