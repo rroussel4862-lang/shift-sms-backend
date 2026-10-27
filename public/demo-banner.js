@@ -7,30 +7,7 @@
   };
   window.showDemoBanner = function () {
     if (document.getElementById("demoBanner")) return;
-    /* design experiment: the clean theme is loaded for the demo restaurant only */
-    if (!document.getElementById("themeCleanCss")) {
-      var l = document.createElement("link");
-      l.id = "themeCleanCss"; l.rel = "stylesheet"; l.href = "/theme-clean.css";
-      document.head.appendChild(l);
-    }
-    document.body.classList.add("theme-clean");
-    /* design experiment: "warm" is the default look in the demo; add ?theme=clean to the address for the plain one */
-    var plain = false;
-    try { var q = new URLSearchParams(location.search).get("theme"); if (q) sessionStorage.setItem("osr-theme", q); plain = sessionStorage.getItem("osr-theme") === "clean"; } catch (e) {}
-    if (!plain) {
-      document.body.classList.add("theme-warm");
-      if (!document.getElementById("themeWarmCss")) {
-        var w = document.createElement("link");
-        w.id = "themeWarmCss"; w.rel = "stylesheet"; w.href = "/theme-warm.css";
-        document.head.appendChild(w);
-      }
-    }
-    if (!document.getElementById("themeCleanJs")) {
-      var sc = document.createElement("script");
-      sc.id = "themeCleanJs"; sc.src = "/theme-clean.js";
-      sc.onload = function () { if (window.cleanNav) window.cleanNav(); };
-      document.head.appendChild(sc);
-    }
+    if (window.osrApplyTheme) window.osrApplyTheme();
     var lang = "en";
     try { lang = localStorage.getItem("osr-lang") || "en"; } catch (e) {}
     var bar = document.createElement("div");

@@ -119,6 +119,7 @@
 <link rel="manifest" href="/manifest-staff.json">
 </head>
 <body>
+<script src="/theme-early.js"></script>
 
 <div id="landing">
   <div class="landing-mark"><span>OSR</span></div>
@@ -871,7 +872,7 @@ I18N.apply();
   const result = await api("/api/staff-auth/me");
   if (result.ok) {
     window.__myStaffId = result.data.id;
-    if (result.data.demo && window.showDemoBanner) showDemoBanner();
+    if (result.data.demo && window.showDemoBanner) showDemoBanner(); else if (window.osrNotDemo) osrNotDemo();
     enterApp(result.data.name);
   }
 })();

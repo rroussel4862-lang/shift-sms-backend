@@ -447,6 +447,7 @@
 <link rel="manifest" href="/manifest-manager.json">
 </head>
 <body>
+<script src="/theme-early.js"></script>
 
 <div id="authGate" style="display:none">
   <div class="box">
@@ -2236,7 +2237,7 @@ function renderScheduleGrid() {
   document.getElementById("restaurantHeading").textContent = tr("headingOf", me.data.restaurant.name);
   window.__restaurantName = me.data.restaurant.name;
   document.title = me.data.restaurant.name + " — Back Office";
-  if (me.data.demo && window.showDemoBanner) showDemoBanner();
+  if (me.data.demo && window.showDemoBanner) showDemoBanner(); else if (window.osrNotDemo) osrNotDemo();
   const wanted = new URLSearchParams(location.search).get("section");
   const sections = ["schedule", "punch", "sales", "revenue", "staff"];
   // an explicit ?section= (the walk-through uses it) wins; otherwise go back to where the manager was before the refresh

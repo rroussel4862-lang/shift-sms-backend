@@ -130,7 +130,7 @@
     var nm = document.createElement("span"); nm.className = "cn-name"; brand.appendChild(nm);
     bar.insertBefore(brand, bar.firstChild);
     var src = document.getElementById("sidebarRestaurantName");
-    function setName() { var n = ""; try { n = (typeof restaurantName === "string" && restaurantName) || ""; } catch (e) {} nm.textContent = n || (src && src.textContent) || "Open Shift Rail"; }
+    function setName() { var n = ""; try { n = (typeof restaurantName === "string" && restaurantName) || ""; } catch (e) {} var cached = ""; try { cached = sessionStorage.getItem("osr-demo-name") || ""; } catch (e) {} var real = n || (src && src.textContent !== "Open Shift Rail" ? src.textContent : ""); if (real) { try { sessionStorage.setItem("osr-demo-name", real); } catch (e) {} } nm.textContent = real || cached || "Open Shift Rail"; }
     setName();
     if (src) new MutationObserver(setName).observe(src, { childList: true, characterData: true, subtree: true });
     setTimeout(setName, 600); setTimeout(setName, 2500);
@@ -143,6 +143,13 @@
     if (!head || !bar || bar.querySelector(".cn-tab")) return false;
     here = "bo";
     var left = head.querySelector(".header-left"); if (left) bar.insertBefore(left, bar.firstChild);
+    /* show the restaurant's name straight away (remembered from the last page), then let the page set the real one */
+    var h1 = document.getElementById("restaurantHeading");
+    if (h1) {
+      var cached = ""; try { cached = sessionStorage.getItem("osr-demo-name") || ""; } catch (e) {}
+      if (cached && /^Back Office$/i.test(h1.textContent.trim())) h1.textContent = cached + " — Back Office";
+      new MutationObserver(function () { var n = h1.textContent.split(" — ")[0].trim(); if (n && !/^Back Office$/i.test(n)) { try { sessionStorage.setItem("osr-demo-name", n); } catch (e) {} } }).observe(h1, { childList: true, characterData: true, subtree: true });
+    }
     build(bar);
     settings(bar, document.getElementById("hdrRight"), true);
     scheduleViews();
