@@ -85,6 +85,9 @@ async function initDb() {
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT false;`);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS demo_seeded_on TEXT;`);
   // The warm layout (one-page shell + unified navigation). On for everyone; switchable per restaurant from the dashboard.
+  // Terms of Service acceptance at sign-up: when, and which version of the text they agreed to.
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS terms_accepted_at BIGINT;`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS terms_version TEXT;`);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS new_design BOOLEAN NOT NULL DEFAULT true;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -898,11 +901,15 @@ const aiLimiter = rateLimit({
 
 // ---------- auth endpoints ----------
 
+// Bump this whenever public/terms.html changes in a way customers must re-accept.
+const TERMS_VERSION = "2026-10-27";
+
 app.post("/api/auth/signup", signupLimiter, async (req, res) => {
-  const { restaurantName, email, password } = req.body || {};
+  const { restaurantName, email, password, acceptTerms } = req.body || {};
   if (!restaurantName || !restaurantName.trim()) return res.status(400).json({ error: "restaurant name is required" });
   if (!email || !isValidEmail(email)) return res.status(400).json({ error: "a valid email is required" });
   if (!password || password.length < 8) return res.status(400).json({ error: "password must be at least 8 characters" });
+  if (acceptTerms !== true) return res.status(400).json({ error: "you must agree to the Terms of Service to create an account", code: "terms_required" });
 
   const { rows: existing } = await pool.query("SELECT id FROM users WHERE email = $1", [email.toLowerCase()]);
   if (existing.length > 0) return res.status(409).json({ error: "an account with that email already exists" });
@@ -912,7 +919,7 @@ app.post("/api/auth/signup", signupLimiter, async (req, res) => {
   const passwordHash = await bcrypt.hash(password, 10);
   const now = Date.now();
 
-  await pool.query("INSERT INTO restaurants (id, name, created_at) VALUES ($1,$2,$3)", [restaurantId, restaurantName.trim(), now]);
+  await pool.query("INSERT INTO restaurants (id, name, created_at, terms_accepted_at, terms_version) VALUES ($1,$2,$3,$4,$5)", [restaurantId, restaurantName.trim(), now, now, TERMS_VERSION]);
   await pool.query(
     "INSERT INTO users (id, restaurant_id, email, password_hash, created_at) VALUES ($1,$2,$3,$4,$5)",
     [userId, restaurantId, email.toLowerCase(), passwordHash, now]
@@ -920,7 +927,7 @@ app.post("/api/auth/signup", signupLimiter, async (req, res) => {
 
   const token = signToken({ userId, restaurantId });
   res.cookie("token", token, COOKIE_OPTS);
-  logActivity({ restaurantId, eventType: "restaurant_signup", detail: `${restaurantName.trim()} (${email.toLowerCase()})` });
+  logActivity({ restaurantId, eventType: "restaurant_signup", detail: `${restaurantName.trim()} (${email.toLowerCase()}) accepted Terms ${TERMS_VERSION}` });
   res.status(201).json({ restaurant: { id: restaurantId, name: restaurantName.trim() }, email: email.toLowerCase() });
 });
 

@@ -27,7 +27,7 @@ async function createRestaurant(agentFactory, overrides = {}) {
   const agent = agentFactory();
   const res = await agent
     .post("/api/auth/signup")
-    .send({ restaurantName, email, password });
+    .send({ restaurantName, email, password, acceptTerms: true });
 
   if (res.status !== 201) {
     throw new Error(`createRestaurant signup failed: ${res.status} ${JSON.stringify(res.body)}`);

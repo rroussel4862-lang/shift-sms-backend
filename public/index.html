@@ -83,7 +83,7 @@
     color: var(--text-dim);
     margin: 10px 0 5px;
   }
-  input[type="text"], input[type="tel"], select {
+  input[type="text"], input[type="tel"], input[type="password"], select {
     width: 100%;
     background: var(--bg);
     border: 1px solid var(--rail);
@@ -723,10 +723,15 @@
     <input type="text" id="authEmail" placeholder="you@restaurant.com" data-i18n-ph="landing.emailPh" />
     <label data-i18n="landing.passwordLabel">Password</label>
     <input type="password" id="authPassword" placeholder="••••••••" />
+    <label id="termsRow" style="display:none;align-items:flex-start;gap:8px;margin-top:14px;font-size:12.5px;line-height:1.45;text-transform:none;letter-spacing:0;cursor:pointer">
+      <input type="checkbox" id="authTerms" style="width:auto;margin:2px 0 0;flex:none" />
+      <span><span data-i18n="landing.agreeBefore">I agree to the</span> <a href="/terms.html" target="_blank" rel="noopener" style="color:var(--amber);text-decoration:underline" data-i18n="landing.termsLink">Terms of Service</a> <span data-i18n="landing.andWord">and</span> <a href="/privacy.html" target="_blank" rel="noopener" style="color:var(--amber);text-decoration:underline" data-i18n="landing.privacyLink">Privacy Policy</a></span>
+    </label>
 
     <button class="enter-btn" style="width:100%;margin-top:16px" onclick="submitAuth()" id="authSubmitBtn" data-i18n="landing.loginTab">Log in</button>
     <div id="authError" style="color:var(--amber);font-size:12px;margin-top:10px;min-height:16px"></div>
     <div id="staffHint" style="display:none;font-size:12px;margin-top:8px;color:var(--text-dim)"></div>
+    <div style="font-size:12px;margin-top:18px;color:var(--text-dim);text-align:center"><a href="/terms.html" style="color:inherit" data-i18n="landing.termsLink">Terms of Service</a> · <a href="/privacy.html" style="color:inherit" data-i18n="landing.privacyLink">Privacy Policy</a> · <a href="mailto:support@openshiftrail.com" style="color:inherit">support@openshiftrail.com</a></div>
   </div>
 </div>
 
@@ -977,6 +982,7 @@ const T = {
     common: { networkError: "Network error — is the server running?", justNow: "just now", minAgo: m => `${m}m ago`, hourAgo: h => `${h}h ago` },
     landing: {
       title: "Open Shift Rail", tagline: "Post a no-show. Text your staff. Fill the shift — all from here.",
+      agreeBefore: "I agree to the", termsLink: "Terms of Service", andWord: "and", privacyLink: "Privacy Policy", errTerms: "Please agree to the Terms of Service and Privacy Policy to create your account",
       loginTab: "Log in", signupTab: "Sign up", restaurantNameLabel: "Restaurant name", restaurantNamePh: "e.g. Ferro",
       emailLabel: "Email", emailPh: "you@restaurant.com", passwordLabel: "Password",
       errRestaurantName: "Enter your restaurant's name", errEmail: "Enter an email",
@@ -1133,6 +1139,7 @@ const T = {
     common: { networkError: "Erreur réseau — le serveur est-il en marche ?", justNow: "à l'instant", minAgo: m => `il y a ${m} min`, hourAgo: h => `il y a ${h} h` },
     landing: {
       title: "Open Shift Rail", tagline: "Signalez une absence. Textez votre personnel. Comblez le quart — tout ici.",
+      agreeBefore: "J'accepte les", termsLink: "conditions d'utilisation", andWord: "et la", privacyLink: "politique de confidentialité", errTerms: "Veuillez accepter les conditions d'utilisation et la politique de confidentialité pour créer votre compte",
       loginTab: "Connexion", signupTab: "Inscription", restaurantNameLabel: "Nom du restaurant", restaurantNamePh: "ex. Ferro",
       emailLabel: "Courriel", emailPh: "vous@restaurant.com", passwordLabel: "Mot de passe",
       errRestaurantName: "Entrez le nom de votre restaurant", errEmail: "Entrez un courriel",
@@ -1289,6 +1296,7 @@ const T = {
     common: { networkError: "Error de red — ¿está el servidor en marcha?", justNow: "justo ahora", minAgo: m => `hace ${m} min`, hourAgo: h => `hace ${h} h` },
     landing: {
       title: "Open Shift Rail", tagline: "Reporta una ausencia. Envía mensajes a tu personal. Cubre el turno — todo aquí.",
+      agreeBefore: "Acepto los", termsLink: "Términos del servicio", andWord: "y la", privacyLink: "Política de privacidad", errTerms: "Acepta los Términos del servicio y la Política de privacidad para crear tu cuenta",
       loginTab: "Iniciar sesión", signupTab: "Registrarse", restaurantNameLabel: "Nombre del restaurante", restaurantNamePh: "ej. Ferro",
       emailLabel: "Correo electrónico", emailPh: "tu@restaurante.com", passwordLabel: "Contraseña",
       errRestaurantName: "Ingresa el nombre de tu restaurante", errEmail: "Ingresa un correo electrónico",
@@ -3415,6 +3423,7 @@ function setAuthMode(mode) {
   document.getElementById("authTabLogin").classList.toggle("active", mode === "login");
   document.getElementById("authTabSignup").classList.toggle("active", mode === "signup");
   document.getElementById("signupFields").style.display = mode === "signup" ? "block" : "none";
+  document.getElementById("termsRow").style.display = mode === "signup" ? "flex" : "none";
   document.getElementById("authSubmitBtn").textContent = mode === "signup" ? t("landing.createAccount") : t("landing.loginTab");
   document.getElementById("authError").textContent = "";
   const sh = document.getElementById("staffHint"); if (sh) sh.style.display = "none";
@@ -3431,9 +3440,10 @@ async function submitAuth() {
     if (!name) return (errorDiv.textContent = t("landing.errRestaurantName"));
     if (!email) return (errorDiv.textContent = t("landing.errEmail"));
     if (!password || password.length < 8) return (errorDiv.textContent = t("landing.errPassword"));
+    if (!document.getElementById("authTerms").checked) return (errorDiv.textContent = t("landing.errTerms"));
     const result = await api("/api/auth/signup", {
       method: "POST",
-      body: JSON.stringify({ restaurantName: name, email, password }),
+      body: JSON.stringify({ restaurantName: name, email, password, acceptTerms: true }),
     });
     if (!result.ok) return (errorDiv.textContent = result.error);
     restaurantName = result.data.restaurant.name;
