@@ -998,7 +998,7 @@ const T = {
       tapToTrack: "Tap to mark who's done", markDone: "Done", markUndone: "Undo", delete: "Delete",
       confirmDelete: "Delete this item and its progress?", bannerCreated: "Created", bannerTitleRequired: "Enter a title first",
       linkLabel: "Link (optional)", linkPh: "https://… (a video, article or web page)", addLink: "Add link", editLink: "Edit link", removeLink: "Remove link", linkPrompt: "Web link for staff to open (leave empty to remove it):", bannerLinkSaved: "Link saved.", openLink: "Open link", fileLabel: "Attach a file (optional)", chooseFile: "Choose file", noFileChosen: "No file chosen", fileHint: "PDF, Word, Excel, PowerPoint, image or video (mp4/mov/webm) — up to 25 MB",
-      attachFile: "Attach file", replaceFile: "Replace file", removeFile: "Remove file", download: "Download", noFile: "No file attached",
+      attachFile: "Attach files", addAnotherFile: "Add more files", chooseFiles: "Choose files", tooManyFiles: n => `Up to ${n} files per item`, replaceFile: "Replace file", removeFile: "Remove this file", download: "Download", noFile: "No file attached",
       fileTooBig: "That file is over 25 MB", fileBadType: "That file type isn't allowed", uploading: "Uploading…", bannerUploaded: "File uploaded", bannerFileRemoved: "File removed",
       bannerCreatedUploadFailed: err => `Created, but the file didn't upload: ${err}`, confirmRemoveFile: "Remove the attached file?",
     },
@@ -1154,7 +1154,7 @@ const T = {
       tapToTrack: "Touchez pour marquer qui a terminé", markDone: "Terminé", markUndone: "Annuler", delete: "Supprimer",
       confirmDelete: "Supprimer cet élément et sa progression ?", bannerCreated: "Créé", bannerTitleRequired: "Entrez d'abord un titre",
       linkLabel: "Lien (facultatif)", linkPh: "https://… (une vidéo, un article ou une page web)", addLink: "Ajouter un lien", editLink: "Modifier le lien", removeLink: "Retirer le lien", linkPrompt: "Lien web que le personnel pourra ouvrir (laisser vide pour le retirer) :", bannerLinkSaved: "Lien enregistré.", openLink: "Ouvrir le lien", fileLabel: "Joindre un fichier (facultatif)", chooseFile: "Choisir un fichier", noFileChosen: "Aucun fichier choisi", fileHint: "PDF, Word, Excel, PowerPoint, image ou vidéo (mp4/mov/webm) — jusqu'à 25 Mo",
-      attachFile: "Joindre un fichier", replaceFile: "Remplacer le fichier", removeFile: "Retirer le fichier", download: "Télécharger", noFile: "Aucun fichier joint",
+      attachFile: "Joindre des fichiers", addAnotherFile: "Ajouter d'autres fichiers", chooseFiles: "Choisir des fichiers", tooManyFiles: n => `Jusqu'à ${n} fichiers par élément`, replaceFile: "Remplacer le fichier", removeFile: "Retirer le fichier", download: "Télécharger", noFile: "Aucun fichier joint",
       fileTooBig: "Ce fichier dépasse 25 Mo", fileBadType: "Ce type de fichier n'est pas permis", uploading: "Téléversement…", bannerUploaded: "Fichier téléversé", bannerFileRemoved: "Fichier retiré",
       bannerCreatedUploadFailed: err => `Créé, mais le fichier n'a pas été téléversé : ${err}`, confirmRemoveFile: "Retirer le fichier joint ?",
     },
@@ -1310,7 +1310,7 @@ const T = {
       tapToTrack: "Toca para marcar quién terminó", markDone: "Listo", markUndone: "Deshacer", delete: "Eliminar",
       confirmDelete: "¿Eliminar este elemento y su progreso?", bannerCreated: "Creado", bannerTitleRequired: "Escribe primero un título",
       linkLabel: "Enlace (opcional)", linkPh: "https://… (un video, artículo o página web)", addLink: "Agregar enlace", editLink: "Editar enlace", removeLink: "Quitar enlace", linkPrompt: "Enlace web que el personal podrá abrir (déjelo vacío para quitarlo):", bannerLinkSaved: "Enlace guardado.", openLink: "Abrir enlace", fileLabel: "Adjuntar un archivo (opcional)", chooseFile: "Elegir archivo", noFileChosen: "Ningún archivo elegido", fileHint: "PDF, Word, Excel, PowerPoint, imagen o video (mp4/mov/webm) — hasta 25 MB",
-      attachFile: "Adjuntar archivo", replaceFile: "Reemplazar archivo", removeFile: "Quitar archivo", download: "Descargar", noFile: "Sin archivo adjunto",
+      attachFile: "Adjuntar archivos", addAnotherFile: "Agregar más archivos", chooseFiles: "Elegir archivos", tooManyFiles: n => `Hasta ${n} archivos por elemento`, replaceFile: "Reemplazar archivo", removeFile: "Quitar archivo", download: "Descargar", noFile: "Sin archivo adjunto",
       fileTooBig: "Ese archivo supera los 25 MB", fileBadType: "Ese tipo de archivo no está permitido", uploading: "Subiendo…", bannerUploaded: "Archivo subido", bannerFileRemoved: "Archivo quitado",
       bannerCreatedUploadFailed: err => `Creado, pero el archivo no se subió: ${err}`, confirmRemoveFile: "¿Quitar el archivo adjunto?",
     },
@@ -2385,7 +2385,8 @@ async function denySwap(id) {
 let trainingItems = [];
 let trainingExpanded = new Set();
 let trainingFormOpen = false;
-let trainingDraft = { kind: "course", title: "", minutes: "", assignTo: "all", file: null, url: "" };
+let trainingDraft = { kind: "course", title: "", minutes: "", assignTo: "all", files: [], url: "" };
+const TRAINING_MAX_FILES = 15;
 const TRAINING_EXTS = ["pdf","doc","docx","xls","xlsx","ppt","pptx","txt","png","jpg","jpeg","mp4","mov","webm"];
 const TRAINING_MAX_BYTES = 25 * 1024 * 1024;
 function fmtSize(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB"; }
@@ -2397,42 +2398,53 @@ function checkTrainingFile(f) {
 }
 async function uploadTrainingFile(itemId, file) {
   try {
-    const res = await fetch(`/api/training/${itemId}/file?name=${encodeURIComponent(file.name)}`, {
-      method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/octet-stream" }, body: file,
+    const res = await fetch(`/api/training/${itemId}/files?name=${encodeURIComponent(file.name)}`, {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/octet-stream" }, body: file,
     });
     let body = null; try { body = await res.json(); } catch (e) {}
     if (!res.ok) return { ok: false, error: (body && body.error) || (res.status === 413 ? t("training.fileTooBig") : `HTTP ${res.status}`) };
     return { ok: true, data: body };
   } catch (e) { return { ok: false, error: t("common.networkError") }; }
 }
+// Checks each chosen file; returns the good ones (and shows a message for the first bad one).
+function acceptTrainingFiles(list, already) {
+  const good = [];
+  for (const f of Array.from(list || [])) {
+    const err = checkTrainingFile(f);
+    if (err) { showBanner(f.name + ": " + err, "warn"); continue; }
+    if (already + good.length >= TRAINING_MAX_FILES) { showBanner(t("training.tooManyFiles", TRAINING_MAX_FILES), "warn"); break; }
+    good.push(f);
+  }
+  return good;
+}
 function pickDraftFile(input) {
-  const f = input.files && input.files[0];
-  if (!f) return;
-  const err = checkTrainingFile(f);
-  if (err) { input.value = ""; return showBanner(err, "warn"); }
-  trainingDraft.file = f;
-  renderTraining(true);
-}
-async function pickItemFile(itemId, input) {
-  const f = input.files && input.files[0];
+  const picked = acceptTrainingFiles(input.files, trainingDraft.files.length);
   input.value = "";
-  if (!f) return;
-  const err = checkTrainingFile(f);
-  if (err) return showBanner(err, "warn");
-  showBanner(t("training.uploading"), "success");
-  const r = await uploadTrainingFile(itemId, f);
-  if (!r.ok) return showBanner(r.error, "warn");
-  const it = trainingItems.find(i => i.id === itemId);
-  if (it) it.file = r.data;
-  showBanner(t("training.bannerUploaded"), "success");
+  picked.forEach(f => { if (!trainingDraft.files.some(x => x.name === f.name && x.size === f.size)) trainingDraft.files.push(f); });
   renderTraining(true);
 }
-async function removeItemFile(itemId) {
+function dropDraftFile(i) { trainingDraft.files.splice(i, 1); renderTraining(true); }
+async function pickItemFile(itemId, input) {
+  const it = trainingItems.find(i => i.id === itemId);
+  const picked = acceptTrainingFiles(input.files, it ? (it.files || []).length : 0);
+  input.value = "";
+  if (!picked.length) return;
+  showBanner(t("training.uploading"), "success");
+  let failed = null;
+  for (const f of picked) {
+    const r = await uploadTrainingFile(itemId, f);
+    if (!r.ok) { failed = r.error; break; }
+    if (it) { it.files = it.files || []; it.files.push(r.data); it.file = it.file || { name: r.data.name, type: r.data.type, size: r.data.size }; }
+  }
+  if (failed) showBanner(failed, "warn"); else showBanner(t("training.bannerUploaded"), "success");
+  renderTraining(true);
+}
+async function removeItemFile(itemId, fileId) {
   if (!confirm(t("training.confirmRemoveFile"))) return;
-  const r = await api(`/api/training/${itemId}/file`, { method: "DELETE" });
+  const r = await api(`/api/training/${itemId}/files/${fileId}`, { method: "DELETE" });
   if (!r.ok) return showBanner(r.error, "warn");
   const it = trainingItems.find(i => i.id === itemId);
-  if (it) it.file = null;
+  if (it) { it.files = (it.files || []).filter(f => f.id !== fileId); it.file = it.files.length ? { name: it.files[0].name, type: it.files[0].type, size: it.files[0].size } : null; }
   showBanner(t("training.bannerFileRemoved"), "success");
   renderTraining(true);
 }
@@ -2477,9 +2489,10 @@ function trainingFormHtml() {
       <input type="url" value="${escapeHtml(d.url || "")}" placeholder="${escapeHtml(t("training.linkPh"))}" oninput="trainingDraft.url=this.value" />
       <label>${t("training.fileLabel")}</label>
       <div class="file-pick">
-        <label class="mini outline file-btn">${t("training.chooseFile")}<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.mp4,.mov,.webm" onchange="pickDraftFile(this)" style="display:none" /></label>
-        <span class="meta">${d.file ? escapeHtml(d.file.name) + " · " + fmtSize(d.file.size) : t("training.noFileChosen")}</span>
+        <label class="mini outline file-btn">${t("training.chooseFiles")}<input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.mp4,.mov,.webm" onchange="pickDraftFile(this)" style="display:none" /></label>
+        ${d.files.length ? "" : `<span class="meta">${t("training.noFileChosen")}</span>`}
       </div>
+      ${d.files.map((f, i) => `<div class="meta file-line">📎 ${escapeHtml(f.name)} · ${fmtSize(f.size)} <a href="#" onclick="dropDraftFile(${i}); return false;" title="${escapeHtml(t("training.removeFile"))}" aria-label="${escapeHtml(t("training.removeFile"))}">✕</a></div>`).join("")}
       <div class="meta" style="margin-top:4px">${t("training.fileHint")}</div>
       <label>${t("training.assignLabel")}</label>
       <select onchange="trainingDraft.assignTo=this.value">
@@ -2510,9 +2523,8 @@ function trainingItemHtml(it) {
     meta = assigned > 0 && done === assigned ? t("training.signed") : t("training.pendingSignature");
   }
   const thumb = it.kind === "course" ? `<span class="video-thumb"></span>` : "";
-  const fileLine = it.file
-    ? `<div class="meta file-line">📎 <a href="/api/training/${it.id}/file" onclick="event.stopPropagation()" download>${escapeHtml(it.file.name)}</a> · ${fmtSize(it.file.size)}</div>`
-    : "";
+  const fileLine = (it.files || []).map(f =>
+    `<div class="meta file-line">📎 <a href="/api/training/${it.id}/files/${f.id}" onclick="event.stopPropagation()" download>${escapeHtml(f.name)}</a> · ${fmtSize(f.size)}${open ? ` <a href="#" onclick="event.stopPropagation(); removeItemFile('${it.id}','${f.id}'); return false;" title="${escapeHtml(t("training.removeFile"))}" aria-label="${escapeHtml(t("training.removeFile"))}">✕</a>` : ""}</div>`).join("");
   const linkLine = it.link
     ? `<div class="meta file-line">🔗 <a href="${escapeHtml(it.link)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${escapeHtml(it.link.length > 60 ? it.link.slice(0, 57) + "…" : it.link)}</a></div>`
     : "";
@@ -2524,8 +2536,7 @@ function trainingItemHtml(it) {
           <button class="mini${a.done ? " outline" : ""}" onclick="event.stopPropagation(); toggleAssignment('${it.id}','${a.staffId}',${!a.done})">${a.done ? t("training.markUndone") : t("training.markDone")}</button>
         </div>`).join("")}
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-        <label class="mini file-btn" onclick="event.stopPropagation()">${it.file ? t("training.replaceFile") : t("training.attachFile")}<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.mp4,.mov,.webm" onchange="pickItemFile('${it.id}', this)" style="display:none" /></label>
-        ${it.file ? `<button class="mini outline" onclick="event.stopPropagation(); removeItemFile('${it.id}')">${t("training.removeFile")}</button>` : ""}
+        <label class="mini file-btn" onclick="event.stopPropagation()">${(it.files || []).length ? t("training.addAnotherFile") : t("training.attachFile")}<input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.mp4,.mov,.webm" onchange="pickItemFile('${it.id}', this)" style="display:none" /></label>
         <button class="mini outline" onclick="event.stopPropagation(); editTrainingLink('${it.id}')">${it.link ? t("training.editLink") : t("training.addLink")}</button>
         <button class="mini outline" onclick="event.stopPropagation(); deleteTraining('${it.id}')">${t("training.delete")}</button>
       </div>
@@ -2566,7 +2577,7 @@ function renderTraining(force) {
 }
 
 function openTrainingForm(kind) {
-  trainingDraft = { kind, title: "", minutes: "", assignTo: "all", file: null };
+  trainingDraft = { kind, title: "", minutes: "", assignTo: "all", files: [], url: "" };
   trainingFormOpen = true;
   renderTraining(true);
 }
@@ -2596,10 +2607,17 @@ async function createTraining() {
   if (result.ok) {
     trainingFormOpen = false;
     let created = result.data;
-    if (d.file) {
-      const up = await uploadTrainingFile(created.id, d.file);
-      if (up.ok) { created.file = up.data; showBanner(t("training.bannerCreated"), "success"); }
-      else showBanner(t("training.bannerCreatedUploadFailed", up.error), "warn");
+    if (d.files && d.files.length) {
+      let failed = null;
+      created.files = created.files || [];
+      for (const f of d.files) {
+        const up = await uploadTrainingFile(created.id, f);
+        if (!up.ok) { failed = up.error; break; }
+        created.files.push(up.data);
+        created.file = created.file || { name: up.data.name, type: up.data.type, size: up.data.size };
+      }
+      if (!failed) showBanner(t("training.bannerCreated"), "success");
+      else showBanner(t("training.bannerCreatedUploadFailed", failed), "warn");
     } else {
       showBanner(t("training.bannerCreated"), "success");
     }

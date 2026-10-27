@@ -804,12 +804,15 @@ function renderTraining() {
     : trainingItems.map(it => {
         const kind = tr("training." + it.kind);
         const doneLabel = it.kind === "course" ? tr("training.markDone") : tr("training.markRead");
-        const file = it.file
-          ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0">
-               ${it.file.viewable ? `<button class="claim-btn" style="width:auto;padding:7px 14px" onclick="openTrainingFile('${it.id}', true)">${tr("training.open")}</button>` : ""}
-               <button class="claim-btn" style="width:auto;padding:7px 14px;${it.file.viewable ? "background:none;color:var(--ink);border:1px solid var(--ink)" : ""}" onclick="openTrainingFile('${it.id}', false)">${tr("training.download")}</button>
-             </div>
-             <div class="meta">${escapeHtml(it.file.name)} · ${fmtFileSize(it.file.size)}</div>`
+        const fl = it.files || [];
+        const file = fl.length
+          ? fl.map(f => `<div style="margin:8px 0 10px">
+               <div class="meta" style="margin-bottom:4px">${escapeHtml(f.name)} · ${fmtFileSize(f.size)}</div>
+               <div style="display:flex;gap:8px;flex-wrap:wrap">
+                 ${f.viewable ? `<button class="claim-btn" style="width:auto;padding:7px 14px" onclick="openTrainingFile('${it.id}', true, '${f.id}')">${tr("training.open")}</button>` : ""}
+                 <button class="claim-btn" style="width:auto;padding:7px 14px;${f.viewable ? "background:none;color:var(--ink);border:1px solid var(--ink)" : ""}" onclick="openTrainingFile('${it.id}', false, '${f.id}')">${tr("training.download")}</button>
+               </div>
+             </div>`).join("")
           : (it.link ? "" : `<div class="meta">${tr("training.noFile")}</div>`);
         const link = it.link
           ? `<div style="margin:6px 0"><a class="claim-btn" style="display:inline-block;width:auto;padding:7px 14px;text-decoration:none" href="${escapeHtml(it.link)}" target="_blank" rel="noopener noreferrer">${tr("training.openLink")}</a></div>`
@@ -836,8 +839,8 @@ async function loadTraining() {
   renderTrainingBadge(result.data.todoCount);
 }
 
-function openTrainingFile(id, view) {
-  window.open(`/api/staff-auth/training/${id}/file${view ? "?view=1" : ""}`, "_blank", "noopener");
+function openTrainingFile(id, view, fileId) {
+  window.open(`/api/staff-auth/training/${id}/${fileId ? "files/" + fileId : "file"}${view ? "?view=1" : ""}`, "_blank", "noopener");
 }
 
 async function setTrainingDone(id, done) {

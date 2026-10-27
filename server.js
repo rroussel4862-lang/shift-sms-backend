@@ -335,6 +335,28 @@ async function initDb() {
   await pool.query(`ALTER TABLE training_items ADD COLUMN IF NOT EXISTS file_size INTEGER;`);
   await pool.query(`ALTER TABLE training_items ADD COLUMN IF NOT EXISTS file_data BYTEA;`);
   await pool.query(`ALTER TABLE training_items ADD COLUMN IF NOT EXISTS link_url TEXT;`); // a web link (video, article) instead of, or next to, a file
+  // Several files per course / manual / contract. (The single-file columns above are the old storage; their files are moved here once.)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS training_files (
+      id TEXT PRIMARY KEY,
+      item_id TEXT NOT NULL REFERENCES training_items(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      data BYTEA NOT NULL,
+      created_at BIGINT NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS training_files_item_idx ON training_files (item_id);`);
+  await pool.query(`
+    WITH moved AS (
+      INSERT INTO training_files (id, item_id, name, type, size, data, created_at)
+      SELECT md5(random()::text || id), id, file_name, COALESCE(file_type, 'application/octet-stream'), COALESCE(file_size, octet_length(file_data)), file_data, created_at
+        FROM training_items WHERE file_data IS NOT NULL AND file_name IS NOT NULL
+      RETURNING item_id
+    )
+    UPDATE training_items SET file_name = NULL, file_type = NULL, file_size = NULL, file_data = NULL WHERE id IN (SELECT item_id FROM moved);
+  `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS training_assignments (
       item_id TEXT NOT NULL REFERENCES training_items(id) ON DELETE CASCADE,
@@ -1021,25 +1043,34 @@ function cleanTrainingUrl(raw) {
 }
 
 async function loadTrainingItems(restaurantId) {
-  const { rows: items } = await pool.query("SELECT id, kind, title, minutes, created_at, file_name, file_type, file_size, link_url FROM training_items WHERE restaurant_id = $1 ORDER BY created_at DESC", [restaurantId]);
+  const { rows: items } = await pool.query("SELECT id, kind, title, minutes, created_at, link_url FROM training_items WHERE restaurant_id = $1 ORDER BY created_at DESC", [restaurantId]);
   if (items.length === 0) return [];
   const { rows: assigns } = await pool.query(
     `SELECT a.item_id, a.staff_id, a.completed_at FROM training_assignments a
      JOIN training_items i ON i.id = a.item_id WHERE i.restaurant_id = $1`,
     [restaurantId]
   );
-  return items.map((it) => ({
-    id: it.id,
-    kind: it.kind,
-    title: it.title,
-    minutes: it.minutes,
-    createdAt: Number(it.created_at),
-    file: it.file_name ? { name: it.file_name, type: it.file_type, size: it.file_size } : null,
-    link: it.link_url || null,
-    assignments: assigns
-      .filter((a) => a.item_id === it.id)
-      .map((a) => ({ staffId: a.staff_id, done: !!a.completed_at })),
-  }));
+  const { rows: fileRows } = await pool.query(
+    `SELECT f.id, f.item_id, f.name, f.type, f.size FROM training_files f
+     JOIN training_items i ON i.id = f.item_id WHERE i.restaurant_id = $1 ORDER BY f.created_at, f.id`,
+    [restaurantId]
+  );
+  return items.map((it) => {
+    const files = fileRows.filter((f) => f.item_id === it.id).map((f) => ({ id: f.id, name: f.name, type: f.type, size: f.size }));
+    return {
+      id: it.id,
+      kind: it.kind,
+      title: it.title,
+      minutes: it.minutes,
+      createdAt: Number(it.created_at),
+      file: files.length ? { name: files[0].name, type: files[0].type, size: files[0].size } : null, // the first file (older screens only know about one)
+      files,
+      link: it.link_url || null,
+      assignments: assigns
+        .filter((a) => a.item_id === it.id)
+        .map((a) => ({ staffId: a.staff_id, done: !!a.completed_at })),
+    };
+  });
 }
 
 app.get("/api/training", requireAuth, async (req, res) => {
@@ -1095,47 +1126,94 @@ const TRAINING_FILE_TYPES = {
   mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm",
 };
 
+const TRAINING_FILES_MAX = 15; // files per course / manual / contract
+
+// Check the upload (type, size, name) and return what to store, or send the error and return null.
+function readTrainingUpload(req, res) {
+  const name = String(req.query.name || "").replace(/[\\/\r\n"]/g, "_").slice(0, 150).trim();
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  if (!name || !TRAINING_FILE_TYPES[ext]) {
+    res.status(400).json({ error: "File type not allowed. Use PDF, Word, Excel, PowerPoint, text, image or video (mp4/mov/webm)." });
+    return null;
+  }
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) { res.status(400).json({ error: "file is empty" }); return null; }
+  return { name, type: TRAINING_FILE_TYPES[ext], size: req.body.length, data: req.body };
+}
+async function ownTrainingItem(req) {
+  const { rows } = await pool.query("SELECT id FROM training_items WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  return rows.length > 0;
+}
+function sendTrainingFile(res, f, inline) {
+  res.set({
+    "Content-Type": f.type || "application/octet-stream",
+    "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${f.name.replace(/[^\x20-\x7e]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(f.name)}`,
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "sandbox",
+  });
+  res.send(f.data);
+}
+
+// Add one more file to an item (call it once per file).
+app.post(
+  "/api/training/:id/files",
+  requireAuth,
+  express.raw({ type: () => true, limit: TRAINING_FILE_MAX_BYTES }),
+  async (req, res) => {
+    if (!(await ownTrainingItem(req))) return res.status(404).json({ error: "item not found" });
+    const f = readTrainingUpload(req, res); if (!f) return;
+    const { rows: cnt } = await pool.query("SELECT COUNT(*)::int AS n FROM training_files WHERE item_id = $1", [req.params.id]);
+    if (cnt[0].n >= TRAINING_FILES_MAX) return res.status(400).json({ error: `Up to ${TRAINING_FILES_MAX} files per item.` });
+    const fid = id();
+    await pool.query("INSERT INTO training_files (id, item_id, name, type, size, data, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)", [fid, req.params.id, f.name, f.type, f.size, f.data, Date.now()]);
+    res.status(201).json({ id: fid, name: f.name, type: f.type, size: f.size });
+  }
+);
+app.get("/api/training/:id/files/:fileId", requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT f.name, f.type, f.data FROM training_files f JOIN training_items i ON i.id = f.item_id
+      WHERE f.id = $1 AND i.id = $2 AND i.restaurant_id = $3`,
+    [req.params.fileId, req.params.id, req.restaurantId]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: "no such file" });
+  sendTrainingFile(res, rows[0], false);
+});
+app.delete("/api/training/:id/files/:fileId", requireAuth, async (req, res) => {
+  const result = await pool.query(
+    `DELETE FROM training_files f USING training_items i WHERE f.id = $1 AND f.item_id = i.id AND i.id = $2 AND i.restaurant_id = $3`,
+    [req.params.fileId, req.params.id, req.restaurantId]
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: "no such file" });
+  res.json({ ok: true });
+});
+
+// Older single-file routes, kept so nothing that still uses them breaks: upload replaces all files with this one,
+// download returns the first file, delete removes every file.
 app.put(
   "/api/training/:id/file",
   requireAuth,
   express.raw({ type: () => true, limit: TRAINING_FILE_MAX_BYTES }),
   async (req, res) => {
-    const { rows: item } = await pool.query("SELECT id FROM training_items WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
-    if (item.length === 0) return res.status(404).json({ error: "item not found" });
-    const name = String(req.query.name || "").replace(/[\\/\r\n"]/g, "_").slice(0, 150).trim();
-    const ext = (name.split(".").pop() || "").toLowerCase();
-    if (!name || !TRAINING_FILE_TYPES[ext]) {
-      return res.status(400).json({ error: "File type not allowed. Use PDF, Word, Excel, PowerPoint, text, image or video (mp4/mov/webm)." });
-    }
-    if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "file is empty" });
-    await pool.query(
-      "UPDATE training_items SET file_name = $1, file_type = $2, file_size = $3, file_data = $4 WHERE id = $5 AND restaurant_id = $6",
-      [name, TRAINING_FILE_TYPES[ext], req.body.length, req.body, req.params.id, req.restaurantId]
-    );
-    res.json({ name, type: TRAINING_FILE_TYPES[ext], size: req.body.length });
+    if (!(await ownTrainingItem(req))) return res.status(404).json({ error: "item not found" });
+    const f = readTrainingUpload(req, res); if (!f) return;
+    await pool.query("DELETE FROM training_files WHERE item_id = $1", [req.params.id]);
+    await pool.query("INSERT INTO training_files (id, item_id, name, type, size, data, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)", [id(), req.params.id, f.name, f.type, f.size, f.data, Date.now()]);
+    res.json({ name: f.name, type: f.type, size: f.size });
   }
 );
 
 app.get("/api/training/:id/file", requireAuth, async (req, res) => {
   const { rows } = await pool.query(
-    "SELECT file_name, file_type, file_data FROM training_items WHERE id = $1 AND restaurant_id = $2",
+    `SELECT f.name, f.type, f.data FROM training_files f JOIN training_items i ON i.id = f.item_id
+      WHERE i.id = $1 AND i.restaurant_id = $2 ORDER BY f.created_at, f.id LIMIT 1`,
     [req.params.id, req.restaurantId]
   );
-  if (rows.length === 0 || !rows[0].file_data) return res.status(404).json({ error: "no file attached" });
-  res.set({
-    "Content-Type": rows[0].file_type || "application/octet-stream",
-    "Content-Disposition": `attachment; filename="${rows[0].file_name.replace(/[^\x20-\x7e]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(rows[0].file_name)}`,
-    "X-Content-Type-Options": "nosniff",
-  });
-  res.send(rows[0].file_data);
+  if (rows.length === 0) return res.status(404).json({ error: "no file attached" });
+  sendTrainingFile(res, rows[0], false);
 });
 
 app.delete("/api/training/:id/file", requireAuth, async (req, res) => {
-  const result = await pool.query(
-    "UPDATE training_items SET file_name = NULL, file_type = NULL, file_size = NULL, file_data = NULL WHERE id = $1 AND restaurant_id = $2",
-    [req.params.id, req.restaurantId]
-  );
-  if (result.rowCount === 0) return res.status(404).json({ error: "item not found" });
+  if (!(await ownTrainingItem(req))) return res.status(404).json({ error: "item not found" });
+  await pool.query("DELETE FROM training_files WHERE item_id = $1", [req.params.id]);
   res.json({ ok: true });
 });
 
@@ -3795,42 +3873,50 @@ const INLINE_VIEW_TYPES = /^(application\/pdf|image\/(png|jpeg)|video\/(mp4|quic
 
 app.get("/api/staff-auth/training", requireStaffAuth, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT i.id, i.kind, i.title, i.minutes, i.created_at, i.file_name, i.file_type, i.file_size, i.link_url, a.completed_at
+    `SELECT i.id, i.kind, i.title, i.minutes, i.created_at, i.link_url, a.completed_at
        FROM training_assignments a JOIN training_items i ON i.id = a.item_id
       WHERE a.staff_id = $1 AND i.restaurant_id = $2
       ORDER BY (a.completed_at IS NOT NULL) ASC, i.created_at DESC`,
     [req.staffId, req.restaurantId]
   );
-  const items = rows.map((r) => ({
-    id: r.id,
-    kind: r.kind,
-    title: r.title,
-    minutes: r.minutes,
-    file: r.file_name ? { name: r.file_name, type: r.file_type, size: r.file_size, viewable: INLINE_VIEW_TYPES.test(r.file_type || "") } : null,
-    link: r.link_url || null,
-    done: !!r.completed_at,
-  }));
+  const ids = rows.map((r) => r.id);
+  const { rows: fileRows } = ids.length
+    ? await pool.query("SELECT id, item_id, name, type, size FROM training_files WHERE item_id = ANY($1) ORDER BY created_at, id", [ids])
+    : { rows: [] };
+  const items = rows.map((r) => {
+    const files = fileRows.filter((f) => f.item_id === r.id).map((f) => ({ id: f.id, name: f.name, type: f.type, size: f.size, viewable: INLINE_VIEW_TYPES.test(f.type || "") }));
+    return {
+      id: r.id,
+      kind: r.kind,
+      title: r.title,
+      minutes: r.minutes,
+      file: files.length ? { name: files[0].name, type: files[0].type, size: files[0].size, viewable: files[0].viewable } : null,
+      files,
+      link: r.link_url || null,
+      done: !!r.completed_at,
+    };
+  });
   res.json({ items, todoCount: items.filter((i) => !i.done).length });
 });
 
-// Only items actually assigned to this person can be downloaded.
-app.get("/api/staff-auth/training/:id/file", requireStaffAuth, async (req, res) => {
+// Only items actually assigned to this person can be downloaded. One file by id, or (older screens) the first file.
+async function staffTrainingFile(req, res) {
+  const params = [req.params.id, req.restaurantId, req.staffId];
+  let where = "";
+  if (req.params.fileId) { params.push(req.params.fileId); where = "AND f.id = $4"; }
   const { rows } = await pool.query(
-    `SELECT i.file_name, i.file_type, i.file_data FROM training_items i
+    `SELECT f.name, f.type, f.data FROM training_files f
+       JOIN training_items i ON i.id = f.item_id
        JOIN training_assignments a ON a.item_id = i.id
-      WHERE i.id = $1 AND i.restaurant_id = $2 AND a.staff_id = $3`,
-    [req.params.id, req.restaurantId, req.staffId]
+      WHERE i.id = $1 AND i.restaurant_id = $2 AND a.staff_id = $3 ${where}
+      ORDER BY f.created_at, f.id LIMIT 1`,
+    params
   );
-  if (rows.length === 0 || !rows[0].file_data) return res.status(404).json({ error: "no file attached" });
-  const inline = req.query.view === "1" && INLINE_VIEW_TYPES.test(rows[0].file_type || "");
-  res.set({
-    "Content-Type": rows[0].file_type || "application/octet-stream",
-    "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${rows[0].file_name.replace(/[^\x20-\x7e]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(rows[0].file_name)}`,
-    "X-Content-Type-Options": "nosniff",
-    "Content-Security-Policy": "sandbox",
-  });
-  res.send(rows[0].file_data);
-});
+  if (rows.length === 0) return res.status(404).json({ error: "no file attached" });
+  sendTrainingFile(res, rows[0], req.query.view === "1" && INLINE_VIEW_TYPES.test(rows[0].type || ""));
+}
+app.get("/api/staff-auth/training/:id/file", requireStaffAuth, staffTrainingFile);
+app.get("/api/staff-auth/training/:id/files/:fileId", requireStaffAuth, staffTrainingFile);
 
 app.post("/api/staff-auth/training/:id/done", requireStaffAuth, async (req, res) => {
   const done = !(req.body && req.body.done === false);
