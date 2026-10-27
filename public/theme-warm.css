@@ -1,0 +1,114 @@
+/* "Warm and friendly" layer. Sits on top of theme-clean.css (same layout and navigation), changing only the feel:
+   soft cream ground, rounded shapes, filled amber buttons, a little colour per area, a rounder typeface.
+   Demo restaurant only (see demo-banner.js). Add ?theme=clean to the address to see the plain version instead. */
+@import url("https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap");
+
+body.theme-clean.theme-warm {
+  --bg: #F6F0E6;
+  --panel: #FFFCF7;
+  --panel-light: #F6F0E6;
+  --row-alt: #FBF6EE;
+  --paper: #FFFCF7;
+  --ink: #2C2620;
+  --amber: #E8A33D;
+  --green: #3E8A5F;
+  --red: #C4452F;
+  --rail: #EADFCE;
+  --text-dim: #7B6F61;
+  --text-bright: #2C2620;
+  --hiring: #8A6BB5;
+  --staffcolor: #D9733F;
+  --training: #3C8FA3;
+  --comms: #3C8FA3;
+  --payroll: #3E8A5F;
+  --scheduling: #D9902B;
+  --grid-bg: #FFFCF7;
+  --grid-alt: #FBF6EE;
+  --grid-border: #EADFCE;
+  --grid-text: #2C2620;
+  --grid-dim: #7B6F61;
+  background: var(--bg);
+}
+body.theme-clean.theme-warm *:not(.num):not(code):not(pre),
+body.theme-clean.theme-warm .num { font-family: 'Figtree', 'IBM Plex Sans', system-ui, sans-serif !important; }
+body.theme-clean.theme-warm h1, body.theme-clean.theme-warm h2, body.theme-clean.theme-warm h3 { letter-spacing: -0.015em !important; font-weight: 650; }
+
+/* ---------- navigation: rounded pills ---------- */
+body.theme-clean.theme-warm #sidebar, body.theme-clean.theme-warm nav.sections { background: #FFFCF7; border-bottom: 1px solid var(--rail); gap: 6px; min-height: 62px; }
+body.theme-clean.theme-warm .cn-tab { padding: 9px 16px; border-radius: 999px; box-shadow: none; font-size: 14.5px; color: var(--text-dim); }
+body.theme-clean.theme-warm .cn-tab:hover, body.theme-clean.theme-warm .cn-tab[aria-expanded="true"] { background: #F3EBDD; color: var(--ink); }
+body.theme-clean.theme-warm .cn-tab.active { background: #FBE7C2; color: #5A3A05; box-shadow: none; font-weight: 650; }
+body.theme-clean.theme-warm .cn-panel { background: #FFFCF7; border: 1px solid var(--rail); border-radius: 18px; padding: 8px; box-shadow: 0 16px 40px rgba(90, 58, 5, 0.16); }
+body.theme-clean.theme-warm .cn-item { border-radius: 12px; padding: 10px 14px; }
+body.theme-clean.theme-warm .cn-item:hover { background: #F6EDDD; }
+body.theme-clean.theme-warm .cn-item.on { background: #FBE7C2; color: #5A3A05; }
+body.theme-clean.theme-warm .cn-trigger { border-radius: 999px; }
+body.theme-clean.theme-warm .cn-trigger:hover, body.theme-clean.theme-warm .cn-trigger[aria-expanded="true"] { background: #F3EBDD; }
+body.theme-clean.theme-warm .cn-panel .top-chip, body.theme-clean.theme-warm .cn-panel #logoutBtn { border-radius: 12px; }
+body.theme-clean.theme-warm .topbar-mark, body.theme-clean.theme-warm nav.sections .brand-mark { border-radius: 12px; background: var(--amber); }
+body.theme-clean.theme-warm .cn-sep { background: var(--rail); }
+
+/* ---------- cards ---------- */
+body.theme-clean.theme-warm .stub, body.theme-clean.theme-warm .ticket, body.theme-clean.theme-warm .card,
+body.theme-clean.theme-warm .overview-card, body.theme-clean.theme-warm .rev-card, body.theme-clean.theme-warm .ai-sched,
+body.theme-clean.theme-warm .avail-req {
+  background: #FFFCF7; border: 1px solid var(--rail); border-radius: 22px; box-shadow: 0 2px 10px rgba(90, 58, 5, 0.06);
+}
+body.theme-clean.theme-warm .stub { padding: 22px 22px 20px; }
+body.theme-clean.theme-warm .overview-card:hover { box-shadow: 0 6px 18px rgba(90, 58, 5, 0.12); }
+body.theme-clean.theme-warm .stub .tag, body.theme-clean.theme-warm .stamp { background: #F6EDDD; color: #6E5530; }
+body.theme-clean.theme-warm .stamp.filled { background: #DDF0E4; color: #25693F; }
+body.theme-clean.theme-warm .snap-tile { background: #FBF4E8; border: none; border-radius: 16px; }
+body.theme-clean.theme-warm .snap-head, body.theme-clean.theme-warm .snap-head .eyebrow-s { border-color: var(--rail); }
+body.theme-clean.theme-warm .ov-greet { font-size: 24px; font-weight: 650; }
+body.theme-clean.theme-warm .ov-day { border-radius: 14px; border-color: var(--rail); background: #FFFCF7; }
+body.theme-clean.theme-warm .ov-day.sel { background: var(--amber); border-color: var(--amber); color: #2C2620; }
+body.theme-clean.theme-warm .ov-day.sel span { color: #5A3A05; }
+body.theme-clean.theme-warm .pay-row, body.theme-clean.theme-warm .assign-row, body.theme-clean.theme-warm .snap-mgr, body.theme-clean.theme-warm .rev-line { border-color: #F1E8D8; }
+body.theme-clean.theme-warm .staff-row, body.theme-clean.theme-warm .rank-row { border-bottom-color: #F1E8D8; }
+
+/* section colour: a small coloured dot-title keeps each area recognisable without noise */
+body.theme-clean.theme-warm .module-header h2 { color: var(--ink); }
+body.theme-clean.theme-warm .module-header:has(h2) { padding-left: 14px; border-left: 4px solid var(--accent, var(--amber)); border-radius: 2px; }
+body.theme-clean.theme-warm #panelPayroll .module-header { --accent: var(--payroll); }
+body.theme-clean.theme-warm #panelStaff .module-header { --accent: var(--staffcolor); }
+body.theme-clean.theme-warm #panelTraining .module-header { --accent: var(--training); }
+body.theme-clean.theme-warm #panelHiring .module-header { --accent: var(--hiring); }
+body.theme-clean.theme-warm #panelComms .module-header { --accent: var(--comms); }
+
+/* ---------- buttons and fields ---------- */
+body.theme-clean.theme-warm button.primary, body.theme-clean.theme-warm button.primary.amber, body.theme-clean.theme-warm button.primary-action,
+body.theme-clean.theme-warm .stub .mini, body.theme-clean.theme-warm button.action, body.theme-clean.theme-warm .enter-btn, body.theme-clean.theme-warm .assign-btn {
+  background: var(--amber); color: #2C2620; border-radius: 999px; font-weight: 650; box-shadow: 0 1px 0 rgba(90, 58, 5, 0.18);
+}
+body.theme-clean.theme-warm button.primary:hover, body.theme-clean.theme-warm button.primary-action:hover, body.theme-clean.theme-warm .stub .mini:hover,
+body.theme-clean.theme-warm button.action:hover { background: #F0B253; }
+body.theme-clean.theme-warm .stub .mini.outline, body.theme-clean.theme-warm button.ghost, body.theme-clean.theme-warm .secondary-btn,
+body.theme-clean.theme-warm .edit-btn, body.theme-clean.theme-warm #logoutBtn, body.theme-clean.theme-warm .top-chip, body.theme-clean.theme-warm .lang-btn,
+body.theme-clean.theme-warm .ov-arrow, body.theme-clean.theme-warm .ov-today {
+  background: #FFFCF7; border: 1px solid #E3D6C0; border-radius: 999px; box-shadow: none; color: var(--ink);
+}
+body.theme-clean.theme-warm .stub .mini.outline:hover, body.theme-clean.theme-warm button.ghost:hover, body.theme-clean.theme-warm .edit-btn:hover { background: #F6EDDD; border-color: #D8C7AB; }
+body.theme-clean.theme-warm .lang-btn.active, body.theme-clean.theme-warm .top-chip.amber { background: #FBE7C2; color: #5A3A05; border-color: #F0CF8E; }
+body.theme-clean.theme-warm .role-pill, body.theme-clean.theme-warm .tab-btn, body.theme-clean.theme-warm .house-btn { background: #FFFCF7; border-color: #E3D6C0; color: #6E5530; }
+body.theme-clean.theme-warm .role-pill.active, body.theme-clean.theme-warm .tab-btn.active, body.theme-clean.theme-warm .house-btn.active { background: var(--amber); border-color: var(--amber); color: #2C2620; }
+body.theme-clean.theme-warm .staff-roles span, body.theme-clean.theme-warm .role-chip { background: #F6EDDD; color: #6E5530; }
+body.theme-clean.theme-warm input[type="text"], body.theme-clean.theme-warm input[type="tel"], body.theme-clean.theme-warm input[type="email"],
+body.theme-clean.theme-warm input[type="password"], body.theme-clean.theme-warm input[type="date"], body.theme-clean.theme-warm input[type="time"],
+body.theme-clean.theme-warm input[type="number"], body.theme-clean.theme-warm input[type="url"], body.theme-clean.theme-warm select, body.theme-clean.theme-warm textarea,
+body.theme-clean.theme-warm .stub input, body.theme-clean.theme-warm .stub select { background: #FFFEFB; border: 1px solid #E3D6C0; border-radius: 14px; }
+body.theme-clean.theme-warm td input[type="text"], body.theme-clean.theme-warm td input[type="tel"], body.theme-clean.theme-warm td input[type="date"] { border-radius: 10px; }
+body.theme-clean.theme-warm input:focus, body.theme-clean.theme-warm select:focus, body.theme-clean.theme-warm textarea:focus { border-color: var(--amber); box-shadow: 0 0 0 4px rgba(232, 163, 61, 0.28); }
+body.theme-clean.theme-warm ::placeholder { color: #A3957F; }
+
+/* ---------- tables, banners, tour ---------- */
+body.theme-clean.theme-warm table { background: #FFFCF7; border-color: var(--rail); border-radius: 18px; }
+body.theme-clean.theme-warm thead th, body.theme-clean.theme-warm table.sales-grid thead th { background: #F6EDDD; color: #6E5530; }
+body.theme-clean.theme-warm tbody tr:nth-child(even) { background: #FCF8F1; }
+body.theme-clean.theme-warm .pub-bar { border-radius: 16px; background: #FFF1D2; color: #6B4600; }
+body.theme-clean.theme-warm .banner.success { background: #DDF0E4; color: #25693F; border-radius: 14px; }
+body.theme-clean.theme-warm .banner.warn { background: #FFF1D2; color: #6B4600; border-radius: 14px; }
+body.theme-clean.theme-warm .osr-cl { background: #FFF6E3; border: 1px solid #F0DDB5; border-left: 5px solid var(--amber); border-radius: 18px; }
+body.theme-clean.theme-warm .osr-bub { background: #FFFCF7; border-radius: 20px; border: 1px solid var(--rail); }
+body.theme-clean.theme-warm .osr-bub button.osr-primary { background: var(--amber); border-color: var(--amber); color: #2C2620; border-radius: 999px; }
+body.theme-clean.theme-warm .osr-bub button { border-radius: 999px; }

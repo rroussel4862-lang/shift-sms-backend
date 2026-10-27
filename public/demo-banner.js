@@ -14,6 +14,17 @@
       document.head.appendChild(l);
     }
     document.body.classList.add("theme-clean");
+    /* design experiment: "warm" is the default look in the demo; add ?theme=clean to the address for the plain one */
+    var plain = false;
+    try { var q = new URLSearchParams(location.search).get("theme"); if (q) sessionStorage.setItem("osr-theme", q); plain = sessionStorage.getItem("osr-theme") === "clean"; } catch (e) {}
+    if (!plain) {
+      document.body.classList.add("theme-warm");
+      if (!document.getElementById("themeWarmCss")) {
+        var w = document.createElement("link");
+        w.id = "themeWarmCss"; w.rel = "stylesheet"; w.href = "/theme-warm.css";
+        document.head.appendChild(w);
+      }
+    }
     if (!document.getElementById("themeCleanJs")) {
       var sc = document.createElement("script");
       sc.id = "themeCleanJs"; sc.src = "/theme-clean.js";
