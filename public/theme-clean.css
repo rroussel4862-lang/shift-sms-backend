@@ -289,9 +289,6 @@ body.theme-clean #sidebar .nav-stub { flex: none; width: auto; }
 body.theme-clean #sidebar, body.theme-clean nav.sections { position: relative; z-index: 40; overflow: visible; }
 @media (max-width: 640px) {
   body.theme-clean #sidebar, body.theme-clean nav.sections { padding: 0 0 0 10px; overflow-x: auto; scrollbar-width: none; }
-  body.theme-clean .cn-more { position: sticky; right: 0; background: #FFFFFF; padding: 0 8px 0 6px; box-shadow: -8px 0 8px -4px #FFFFFF; }
-  body.theme-clean #sidebar .topbar-mark { display: none; }
-  body.theme-clean nav.sections .header-left h1 { display: none; }
 }
 
 /* ---------- phones ---------- */
@@ -335,3 +332,21 @@ body.theme-clean.theme-warm .topbar-mark, body.theme-clean.theme-warm nav.sectio
 body.theme-clean .landing-mark span { visibility: hidden; }
 body.theme-clean .topbar-mark, body.theme-clean nav.sections .brand-mark { width: 36px; height: 36px; flex: none; }
 body.theme-clean #sidebar .brand { display: none; }
+
+
+/* ---------- logo + restaurant name always visible; on phones the tabs move to their own row ---------- */
+body.theme-clean .cn-brand, body.theme-clean nav.sections .header-left { display: flex; align-items: center; gap: 10px; flex: none; margin-right: 12px; min-width: 0; }
+body.theme-clean .cn-name, body.theme-clean nav.sections .header-left h1 { font-size: 15px; font-weight: 650; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; color: var(--ink); }
+body.theme-clean .cn-tabs { display: flex; align-items: center; gap: 4px; flex: 1 1 auto; min-width: 0; }
+body.theme-clean .cn-more { margin-left: auto; }
+@media (max-width: 760px) {
+  body.theme-clean #sidebar, body.theme-clean nav.sections { flex-wrap: wrap; overflow: visible; padding: 8px 12px 0; min-height: 0; row-gap: 0; }
+  body.theme-clean .cn-brand, body.theme-clean nav.sections .header-left { order: 1; flex: 1 1 0; margin-right: 0; }
+  body.theme-clean .cn-name, body.theme-clean nav.sections .header-left h1 { max-width: none; font-size: 16px; }
+  body.theme-clean .cn-more { order: 2; margin-left: 0; padding: 0; }
+  body.theme-clean .cn-tabs { order: 3; flex: 0 0 100%; overflow-x: auto; scrollbar-width: none; margin: 4px -12px 0; padding: 0 8px; }
+  body.theme-clean .cn-tabs::-webkit-scrollbar { display: none; }
+  body.theme-clean .cn-tab { padding: 12px 10px 10px; font-size: 14px; flex: none; }
+  body.theme-clean.theme-warm .cn-tab { padding: 8px 14px; margin: 4px 0 8px; }
+  body.theme-clean .cn-chev { display: inline; }
+}

@@ -68,12 +68,13 @@
 
   function build(bar) {
     var tabs = [];
+    var strip = document.createElement("div"); strip.className = "cn-tabs"; bar.appendChild(strip);
     GROUPS.forEach(function (g) {
       var one = g.items.length === 1;
       var btn = document.createElement("button"); btn.type = "button"; btn.className = "cn-tab";
       var label = document.createElement("span"); btn.appendChild(label);
       if (!one) btn.insertAdjacentHTML("beforeend", '<svg class="cn-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>');
-      bar.appendChild(btn);
+      strip.appendChild(btn);
       var panel = null, rows = [];
       if (one) btn.addEventListener("click", function () { closeAll(); go(g.items[0]); });
       else {
@@ -123,7 +124,16 @@
     var bar = document.getElementById("sidebar"), top = document.getElementById("topbarNew");
     if (!bar || !top || bar.querySelector(".cn-tab")) return false;
     here = "mi";
-    var mark = top.querySelector(".topbar-mark"); if (mark) bar.insertBefore(mark, bar.firstChild);
+    var mark = top.querySelector(".topbar-mark");
+    var brand = document.createElement("div"); brand.className = "cn-brand header-left";
+    if (mark) brand.appendChild(mark);
+    var nm = document.createElement("span"); nm.className = "cn-name"; brand.appendChild(nm);
+    bar.insertBefore(brand, bar.firstChild);
+    var src = document.getElementById("sidebarRestaurantName");
+    function setName() { var n = ""; try { n = (typeof restaurantName === "string" && restaurantName) || ""; } catch (e) {} nm.textContent = n || (src && src.textContent) || "Open Shift Rail"; }
+    setName();
+    if (src) new MutationObserver(setName).observe(src, { childList: true, characterData: true, subtree: true });
+    setTimeout(setName, 600); setTimeout(setName, 2500);
     build(bar);
     settings(bar, document.getElementById("topbarRight"), true);
     return true;
