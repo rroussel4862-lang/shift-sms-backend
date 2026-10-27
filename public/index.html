@@ -643,6 +643,10 @@
   .assign-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px dashed rgba(35,38,31,0.2); font-size: 13px; }
   .sales-grid { display: grid; grid-template-columns: 56px 1fr 1fr; gap: 6px 8px; align-items: center; }
   .sales-day { display: contents; }
+  .sales-day-head { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(35,38,31,0.6); margin-top: 8px; font-weight: 600; }
+  .sales-svc-label { font-size: 12px; color: rgba(35,38,31,0.7); }
+  .pay-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 0 16px; flex-wrap: wrap; }
+  .pay-nav .pay-week-label { font-weight: 600; min-width: 150px; text-align: center; }
   .sales-day-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(35,38,31,0.6); }
   .sales-col { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(35,38,31,0.6); }
   .sales-grid input { width: 100%; min-width: 0; }
@@ -998,17 +1002,18 @@ const T = {
       bannerCreatedUploadFailed: err => `Created, but the file didn't upload: ${err}`, confirmRemoveFile: "Remove the attached file?",
     },
     payroll: {
-      eyebrow: "Payroll & Sales", h2: "This week's numbers",
+      eyebrow: "Payroll & Sales", h2: "Numbers for the week",
       p: "Food and beverage sales against labor cost — plus payroll that's already forecasted for next period.",
       liveTag: "Live", salesLine: (total, labor) => labor === null ? `$${total} total` : `$${total} total · ${labor}% labor cost`,
-      noSales: "No sales entered yet — add this week's daily sales below.", enterSales: "Daily sales", saveSales: "Save sales",
-      pnlTag: "Sales mix", costBreakdown: "Sales breakdown", pctOfSales: "Share of this week's sales",
+      noSales: "No sales entered yet for this week — add the daily sales below.", enterSales: "Daily sales", saveSales: "Save sales",
+      pnlTag: "Sales mix", costBreakdown: "Sales breakdown", pctOfSales: "Share of the week's sales",
       foodSales: "Food sales", bevSales: "Beverage sales", notSplit: "Not split into food / beverage", totalSales: "Total sales", laborCost: "Labor cost", afterLabor: "Sales after labor",
       foodShort: "Food", bevShort: "Bev", needSales: "—",
       forecastTag: "Forecast", nextPeriod: "Next pay period estimate", forecastNote: "Based on scheduled hours × hourly rate, next 14 days",
-      hoursTag: "Hours", staffPayHeader: "Staff pay this week", hoursBasis: "Based on scheduled hours × hourly rate",
-      noHours: "No scheduled shifts this week yet.", noRate: "no rate set",
+      hoursTag: "Hours", staffPayHeader: "Staff pay for the week", hoursBasis: "Based on scheduled hours × hourly rate",
+      noHours: "No scheduled shifts for this week.", noRate: "no rate set",
       bannerSalesSaved: "Sales saved",
+      prevWeek: "Previous week", nextWeek: "Next week", thisWeek: "This week", laborTag: "Labor", laborByDay: "Labor cost by day", laborByDayNote: "Scheduled hours × hourly rate, against each day's sales", weekTotal: "Week total", posNote: "Days filled in by your POS can't be edited here.",
     },
     ovExtra: { coursesInProgress: "Courses in progress", coursesSub: n => `${n} course${n === 1 ? "" : "s"} total`, salesWeek: "Sales this week", laborPct: p => `${p}% labor cost`, laborUnknown: "Tap to add sales", },
     topbar: { backOffice: "Back Office", logout: "Log out", allRestaurants: "← Restaurants" },
@@ -1161,9 +1166,10 @@ const T = {
       foodSales: "Ventes de nourriture", bevSales: "Ventes de boissons", notSplit: "Non réparti nourriture / boissons", totalSales: "Ventes totales", laborCost: "Coût de main-d'œuvre", afterLabor: "Ventes après main-d'œuvre",
       foodShort: "Nourr.", bevShort: "Boiss.", needSales: "—",
       forecastTag: "Prévision", nextPeriod: "Estimation de la prochaine paie", forecastNote: "Basé sur les heures prévues × taux horaire, 14 prochains jours",
-      hoursTag: "Heures", staffPayHeader: "Paie du personnel cette semaine", hoursBasis: "Basé sur les heures prévues × taux horaire",
-      noHours: "Aucun quart prévu cette semaine pour l'instant.", noRate: "aucun taux",
+      hoursTag: "Heures", staffPayHeader: "Paie du personnel pour la semaine", hoursBasis: "Basé sur les heures prévues × taux horaire",
+      noHours: "Aucun quart prévu pour cette semaine.", noRate: "aucun taux",
       bannerSalesSaved: "Ventes enregistrées",
+      prevWeek: "Semaine précédente", nextWeek: "Semaine suivante", thisWeek: "Cette semaine", laborTag: "Main-d'œuvre", laborByDay: "Coût de main-d'œuvre par jour", laborByDayNote: "Heures prévues × taux horaire, par rapport aux ventes de chaque jour", weekTotal: "Total de la semaine", posNote: "Les jours remplis par votre caisse ne peuvent pas être modifiés ici.",
     },
     ovExtra: { coursesInProgress: "Cours en cours", coursesSub: n => `${n} cours au total`, salesWeek: "Ventes cette semaine", laborPct: p => `${p}% coût de main-d'œuvre`, laborUnknown: "Touchez pour ajouter des ventes", },
     topbar: { backOffice: "Back Office", logout: "Déconnexion", allRestaurants: "← Restaurants" },
@@ -1308,17 +1314,18 @@ const T = {
       bannerCreatedUploadFailed: err => `Creado, pero el archivo no se subió: ${err}`, confirmRemoveFile: "¿Quitar el archivo adjunto?",
     },
     payroll: {
-      eyebrow: "Nómina y Ventas", h2: "Los números de esta semana",
+      eyebrow: "Nómina y Ventas", h2: "Los números de la semana",
       p: "Ventas de comida y bebidas frente al costo de mano de obra — además de una nómina ya pronosticada para el próximo período.",
       liveTag: "En vivo", salesLine: (total, labor) => labor === null ? `$${total} total` : `$${total} total · ${labor}% costo de mano de obra`,
-      noSales: "Aún no hay ventas — agrega las ventas diarias de esta semana abajo.", enterSales: "Ventas diarias", saveSales: "Guardar ventas",
-      pnlTag: "Mezcla de ventas", costBreakdown: "Desglose de ventas", pctOfSales: "Parte de las ventas de esta semana",
+      noSales: "Aún no hay ventas — agrega abajo las ventas diarias de la semana.", enterSales: "Ventas diarias", saveSales: "Guardar ventas",
+      pnlTag: "Mezcla de ventas", costBreakdown: "Desglose de ventas", pctOfSales: "Parte de las ventas de la semana",
       foodSales: "Ventas de comida", bevSales: "Ventas de bebidas", notSplit: "Sin dividir en comida / bebidas", totalSales: "Ventas totales", laborCost: "Costo de mano de obra", afterLabor: "Ventas después de mano de obra",
       foodShort: "Comida", bevShort: "Bebida", needSales: "—",
       forecastTag: "Pronóstico", nextPeriod: "Estimado del próximo período de pago", forecastNote: "Basado en horas programadas × tarifa por hora, próximos 14 días",
-      hoursTag: "Horas", staffPayHeader: "Pago del personal esta semana", hoursBasis: "Basado en horas programadas × tarifa por hora",
-      noHours: "Aún no hay turnos programados esta semana.", noRate: "sin tarifa",
+      hoursTag: "Horas", staffPayHeader: "Pago del personal de la semana", hoursBasis: "Basado en horas programadas × tarifa por hora",
+      noHours: "No hay turnos programados para esta semana.", noRate: "sin tarifa",
       bannerSalesSaved: "Ventas guardadas",
+      prevWeek: "Semana anterior", nextWeek: "Semana siguiente", thisWeek: "Esta semana", laborTag: "Mano de obra", laborByDay: "Costo de mano de obra por día", laborByDayNote: "Horas programadas × tarifa por hora, frente a las ventas de cada día", weekTotal: "Total de la semana", posNote: "Los días llenados por tu POS no se pueden editar aquí.",
     },
     ovExtra: { coursesInProgress: "Cursos en progreso", coursesSub: n => `${n} curso${n === 1 ? "" : "s"} en total`, salesWeek: "Ventas esta semana", laborPct: p => `${p}% costo de mano de obra`, laborUnknown: "Toca para agregar ventas", },
     topbar: { backOffice: "Back Office", logout: "Cerrar sesión", allRestaurants: "← Restaurantes" },
@@ -2777,18 +2784,29 @@ function hoursBetween(start, end) {
   return diff / 60;
 }
 
+// The week shown in Payroll & Sales: null means this week; otherwise the Monday (YYYY-MM-DD) that was navigated to.
+let payrollMonday = null;
+function payrollMon() { return payrollMonday ? new Date(payrollMonday + "T00:00:00") : mondayOf(new Date()); }
+function shiftPayrollWeek(delta) {
+  payrollMonday = isoLocal(addDaysLocal(payrollMon(), delta * 7));
+  if (payrollMonday === isoLocal(mondayOf(new Date()))) payrollMonday = null;
+  payroll = null; renderPayroll(true); loadPayroll();
+}
+function goPayrollThisWeek() { payrollMonday = null; payroll = null; renderPayroll(true); loadPayroll(); }
+
 async function loadPayroll() {
-  const mon = mondayOf(new Date());
+  const mon = payrollMon();
   const start = isoLocal(mon);
   const sunday = isoLocal(addDaysLocal(mon, 6));
-  const lastDay = isoLocal(addDaysLocal(mon, 20)); // this week + the next 14-day pay period
+  const lastDay = isoLocal(addDaysLocal(mon, 20)); // the week + the next 14-day pay period
   const [sch, sal] = await Promise.all([
     api(`/api/schedule?start=${start}&end=${lastDay}`),
     api(`/api/actual-sales?start=${start}&end=${sunday}`),
   ]);
   if (!sch.ok || !sal.ok) return;
+  if (isoLocal(payrollMon()) !== start) return; // the manager moved to another week while this was loading
   const sales = {};
-  sal.data.forEach(r => { sales[r.date] = { amount: r.amount, food: r.foodAmount, bev: r.bevAmount }; });
+  sal.data.forEach(r => { sales[r.date] = { amount: r.amount, food: r.foodAmount, bev: r.bevAmount, split: r.serviceSplit || {}, source: r.source }; });
   payroll = {
     weekStart: start,
     sales,
@@ -2799,19 +2817,22 @@ async function loadPayroll() {
 }
 
 function payrollNumbers() {
-  const mon = mondayOf(new Date());
+  const mon = payrollMon();
   const weekDates = Array.from({ length: 7 }, (_, i) => isoLocal(addDaysLocal(mon, i)));
   const nextStart = isoLocal(addDaysLocal(mon, 7));
   const nextEnd = isoLocal(addDaysLocal(mon, 20));
   const rateOf = sid => { const p = staffAll.find(s => s.id === sid); return p && p.hourlyRate != null ? p.hourlyRate : null; };
   const perStaff = {};
+  const dayLabor = weekDates.map(() => 0);
   let laborCost = 0, nextPeriod = 0;
   const shifts = payroll ? payroll.shifts : [];
   shifts.forEach(s => {
     const hrs = hoursBetween(s.startTime, s.endTime);
     const rate = rateOf(s.staffId) || 0;
-    if (weekDates.includes(s.date)) {
+    const di = weekDates.indexOf(s.date);
+    if (di >= 0) {
       laborCost += hrs * rate;
+      dayLabor[di] += hrs * rate;
       const e = perStaff[s.staffId] || (perStaff[s.staffId] = { hours: 0 });
       e.hours += hrs;
     } else if (s.date >= nextStart && s.date <= nextEnd) {
@@ -2824,9 +2845,11 @@ function payrollNumbers() {
   const foodSales = weekDates.reduce((a, dt) => a + (day(dt).food || 0), 0);
   const bevSales = weekDates.reduce((a, dt) => a + (day(dt).bev || 0), 0);
   const unsplit = Math.max(0, Math.round((totalSales - foodSales - bevSales) * 100) / 100); // days entered as one total (e.g. from a POS)
-  const laborPct = totalSales > 0 ? Math.round(laborCost / totalSales * 1000) / 10 : null; // % of sales, one decimal
+  const pctOf = (cost, sales) => (sales > 0 ? Math.round(cost / sales * 1000) / 10 : null); // % of sales, one decimal
+  const laborPct = pctOf(laborCost, totalSales);
+  const dayLaborPct = dayLabor.map((l, i) => pctOf(l, daily[i]));
   const afterLabor = totalSales > 0 ? totalSales - laborCost : null;
-  return { weekDates, daily, totalSales, foodSales, bevSales, unsplit, laborCost, laborPct, afterLabor, nextPeriod, perStaff };
+  return { weekDates, daily, totalSales, foodSales, bevSales, unsplit, laborCost, laborPct, dayLabor, dayLaborPct, afterLabor, nextPeriod, perStaff };
 }
 
 function money(n) { return Math.round(n).toLocaleString(localeForLang()); }
@@ -2835,6 +2858,12 @@ function money(n) { return Math.round(n).toLocaleString(localeForLang()); }
 let payrollDraft = {};
 function dv(inputId, saved) {
   return escapeHtml(inputId in payrollDraft ? payrollDraft[inputId] : saved);
+}
+
+function payrollWeekLabel(mon) {
+  const end = addDaysLocal(mon, 6);
+  const short = d => d.toLocaleDateString(localeForLang(), { month: "short", day: "numeric" });
+  return `${short(mon)} – ${short(end)}, ${end.getFullYear()}`;
 }
 
 function renderPayroll(force) {
@@ -2855,19 +2884,42 @@ function renderPayroll(force) {
       : `${hrs}h · ${t("payroll.noRate")}`;
     return `<div class="pay-row"><span>${escapeHtml(p.name)}${role}</span><span class="num">${right}</span></div>`;
   }).join("");
-  const dayOf = dt => (payroll && payroll.sales[dt]) || { amount: null, food: null, bev: null };
-  const salesInputs = n.weekDates.map((dt, i) => `
-    <div class="sales-day">
-      <span class="sales-day-label">${days[i]} ${Number(dt.slice(8))}</span>
-      <input type="text" inputmode="decimal" id="foodInput-${dt}" value="${dv("foodInput-" + dt, dayOf(dt).food != null ? dayOf(dt).food : "")}" placeholder="${escapeHtml(t("payroll.foodShort"))}" aria-label="${escapeHtml(t("payroll.foodSales"))}" />
-      <input type="text" inputmode="decimal" id="bevInput-${dt}" value="${dv("bevInput-" + dt, dayOf(dt).bev != null ? dayOf(dt).bev : "")}" placeholder="${escapeHtml(t("payroll.bevShort"))}" aria-label="${escapeHtml(t("payroll.bevSales"))}" />
-    </div>`).join("");
+  const dayOf = dt => (payroll && payroll.sales[dt]) || { amount: null, food: null, bev: null, split: {} };
+  // One Food and one Beverage box per service and day: the very same cells as Back Office > Sales, so what is typed here
+  // shows there (and in the schedule's sales boxes and the Overview), and the other way round.
+  const multi = SERVICE_LIST.length > 1;
+  let anyLocked = false;
+  const salesInputs = n.weekDates.map((dt, i) => {
+    const rec = dayOf(dt);
+    const locked = !!(rec.source && rec.source !== "manual");
+    if (locked) anyLocked = true;
+    const rowFor = (sv, label) => {
+      const cur = (rec.split || {})[sv.id] || {};
+      const fid = `foodInput-${dt}-${sv.id}`, bid = `bevInput-${dt}-${sv.id}`;
+      return `${label}
+      <input type="text" inputmode="decimal" id="${fid}" ${locked ? "readonly" : ""} value="${dv(fid, cur.food != null ? cur.food : "")}" placeholder="${escapeHtml(t("payroll.foodShort"))}" aria-label="${escapeHtml(t("payroll.foodShort"))}" />
+      <input type="text" inputmode="decimal" id="${bid}" ${locked ? "readonly" : ""} value="${dv(bid, cur.bev != null ? cur.bev : "")}" placeholder="${escapeHtml(t("payroll.bevShort"))}" aria-label="${escapeHtml(t("payroll.bevShort"))}" />`;
+    };
+    if (!multi) {
+      return `<div class="sales-day">${rowFor(SERVICE_LIST[0], `<span class="sales-day-label">${days[i]} ${Number(dt.slice(8))}</span>`)}</div>`;
+    }
+    return `<div class="sales-day"><span class="sales-day-head">${days[i]} ${Number(dt.slice(8))}</span>
+      ${SERVICE_LIST.map(sv => rowFor(sv, `<span class="sales-svc-label">${escapeHtml(svcLabel(sv))}</span>`)).join("")}</div>`;
+  }).join("");
   const share = v => (n.totalSales > 0 ? ` · ${Math.round(v / n.totalSales * 100)}%` : "");
+  const laborAmt = (amt, pct) => (amt > 0 ? `$${money(amt)}${pct !== null ? ` · ${pct}%` : ""}` : "—");
+  const isThisWeek = payrollMonday === null;
   el.innerHTML = `
     <div class="module-header" style="--accent:var(--payroll)">
       <div class="eyebrow">${t("payroll.eyebrow")}</div>
       <h2 style="font-family:'Oswald',sans-serif;font-size:22px;margin:0 0 6px">${t("payroll.h2")}</h2>
       <p>${t("payroll.p")}</p>
+    </div>
+    <div class="pay-nav">
+      <button class="mini outline" onclick="shiftPayrollWeek(-1)" aria-label="${escapeHtml(t("payroll.prevWeek"))}" title="${escapeHtml(t("payroll.prevWeek"))}">‹</button>
+      <span class="pay-week-label">${escapeHtml(payrollWeekLabel(payrollMon()))}</span>
+      <button class="mini outline" onclick="shiftPayrollWeek(1)" aria-label="${escapeHtml(t("payroll.nextWeek"))}" title="${escapeHtml(t("payroll.nextWeek"))}">›</button>
+      ${isThisWeek ? "" : `<button class="mini" onclick="goPayrollThisWeek()">${t("payroll.thisWeek")}</button>`}
     </div>
     <div class="stub" style="--accent:var(--payroll)">
       <div class="tag">${t("payroll.liveTag")}</div>
@@ -2887,6 +2939,7 @@ function renderPayroll(force) {
         <span></span><span class="sales-col">${t("payroll.foodShort")}</span><span class="sales-col">${t("payroll.bevShort")}</span>
         ${salesInputs}
       </div>
+      ${anyLocked ? `<div class="meta" style="margin-top:8px">${t("payroll.posNote")}</div>` : ""}
       <div style="margin-top:12px"><button class="mini" onclick="saveWeekSales()">${t("payroll.saveSales")}</button></div>
     </div>
     <div class="stub" style="--accent:var(--payroll)">
@@ -2897,8 +2950,15 @@ function renderPayroll(force) {
       <div class="pay-row"><span>${t("payroll.bevSales")}</span><span class="num">$${money(n.bevSales)}${share(n.bevSales)}</span></div>
       ${n.unsplit > 0 ? `<div class="pay-row"><span style="opacity:0.7">${t("payroll.notSplit")}</span><span class="num">$${money(n.unsplit)}${share(n.unsplit)}</span></div>` : ""}
       <div class="pay-row"><span><strong>${t("payroll.totalSales")}</strong></span><span class="num"><strong>$${money(n.totalSales)}</strong></span></div>
-      <div class="pay-row"><span>${t("payroll.laborCost")}</span><span class="num">${n.laborPct !== null ? `${n.laborPct}%` : "—"}</span></div>
+      <div class="pay-row"><span>${t("payroll.laborCost")}</span><span class="num">${laborAmt(n.laborCost, n.laborPct)}</span></div>
       <div class="pay-row"><span><strong>${t("payroll.afterLabor")}</strong></span><span class="num"><strong>${n.afterLabor !== null ? "$" + money(n.afterLabor) : t("payroll.needSales")}</strong></span></div>
+    </div>
+    <div class="stub" style="--accent:var(--payroll)">
+      <div class="tag">${t("payroll.laborTag")}</div>
+      <h3>${t("payroll.laborByDay")}</h3>
+      <div class="meta">${t("payroll.laborByDayNote")}</div>
+      ${n.weekDates.map((dt, i) => `<div class="pay-row"><span>${days[i]} ${Number(dt.slice(8))}</span><span class="num">${laborAmt(n.dayLabor[i], n.dayLaborPct[i])}</span></div>`).join("")}
+      <div class="pay-row"><span><strong>${t("payroll.weekTotal")}</strong></span><span class="num"><strong>${laborAmt(n.laborCost, n.laborPct)}</strong></span></div>
     </div>
     <div class="stub" style="--accent:var(--payroll)">
       <div class="tag">${t("payroll.forecastTag")}</div>
@@ -2916,17 +2976,28 @@ function renderPayroll(force) {
 }
 
 async function saveWeekSales() {
-  const mon = mondayOf(new Date());
-  const dates = Array.from({ length: 7 }, (_, i) => isoLocal(addDaysLocal(mon, i)));
-  const clean = id => document.getElementById(id).value.trim().replace(/[$,\s]/g, "");
+  if (!payroll) return;
+  const dates = Array.from({ length: 7 }, (_, i) => isoLocal(addDaysLocal(new Date(payroll.weekStart + "T00:00:00"), i)));
+  const clean = id => { const el = document.getElementById(id); return el ? el.value.trim().replace(/[$,\s]/g, "") : null; };
   const writes = [];
   for (const dt of dates) {
-    const food = clean(`foodInput-${dt}`), bev = clean(`bevInput-${dt}`);
-    const prev = (payroll && payroll.sales[dt]) || {};
-    const prevFood = prev.food != null ? String(prev.food) : "", prevBev = prev.bev != null ? String(prev.bev) : "";
-    if (food === prevFood && bev === prevBev) continue; // untouched day (also leaves POS-style totals alone)
-    writes.push(api("/api/actual-sales", { method: "PUT", body: JSON.stringify({ date: dt, foodAmount: food === "" ? null : food, bevAmount: bev === "" ? null : bev, source: "manual" }) }));
+    const rec = payroll.sales[dt] || {};
+    if (rec.source && rec.source !== "manual") continue; // a POS day is read-only
+    const split = {};
+    for (const sv of SERVICE_LIST) {
+      const cur = (rec.split || {})[sv.id] || {};
+      const cell = {};
+      for (const [kind, prefix] of [["food", "foodInput"], ["bev", "bevInput"]]) {
+        const raw = clean(`${prefix}-${dt}-${sv.id}`);
+        if (raw === null) continue;
+        const prev = cur[kind] != null ? Number(cur[kind]) : null;
+        if (raw === "" ? prev !== null : Number(raw) !== prev) cell[kind] = raw === "" ? null : raw;
+      }
+      if (Object.keys(cell).length) split[sv.id] = cell;
+    }
+    if (Object.keys(split).length) writes.push(api("/api/actual-sales", { method: "PUT", body: JSON.stringify({ date: dt, source: "manual", serviceSplit: split }) }));
   }
+  if (!writes.length) { showBanner(t("payroll.bannerSalesSaved"), "success"); return; }
   const results = await Promise.all(writes);
   const failed = results.find(r => !r.ok);
   if (failed) return showBanner(failed.error, "warn");
@@ -2934,6 +3005,7 @@ async function saveWeekSales() {
   payrollDraft = {};
   await loadPayroll();
   renderPayroll(true);
+  loadDaySnapshot(); // the Overview's sales and labor % pick the new numbers up right away
 }
 
 function formatHireDate(dateStr) {
