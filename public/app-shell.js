@@ -109,6 +109,10 @@
   var brand = document.createElement("div"); brand.className = "cn-brand header-left";
   brand.innerHTML = '<div class="topbar-mark" aria-hidden="true"></div><span class="cn-name"></span>';
   bar.appendChild(brand);
+  /* owners with several restaurants: a visible way back to the list of restaurants */
+  var backLink = document.createElement("a"); backLink.href = "/owner.html"; backLink.className = "cn-back"; backLink.hidden = true;
+  backLink.style.cssText = "flex:none;align-self:center;margin:0 8px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;font:600 13px/1 inherit;text-decoration:none;color:inherit;white-space:nowrap";
+  bar.appendChild(backLink);
   var strip = document.createElement("div"); strip.className = "cn-tabs"; bar.appendChild(strip);
   var tabs = GROUPS.map(function (g) {
     var one = g.items.length === 1;
@@ -167,7 +171,7 @@
   function refresh() {
     var l = lang();
     document.documentElement.lang = l;
-    tourBtn.textContent = "? " + tx("tour"); allBtn.textContent = tx("all"); outBtn.textContent = tx("logout");
+    tourBtn.textContent = "? " + tx("tour"); allBtn.textContent = tx("all"); backLink.textContent = tx("all"); outBtn.textContent = tx("logout");
     langRow.querySelectorAll(".lang-btn").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-l") === l); });
     document.getElementById("demoBar").textContent = tx("demo");
     tabs.forEach(function (t) {
@@ -225,7 +229,7 @@
   /* the name and the sign-in check */
   fetch("/api/auth/me", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
     if (!me || !me.newDesign) { clearFlag(); location.replace("/"); return; }
-    owner = !!me.viaOwner; allBtn.hidden = !(me.viaOwner && me.canSwitch);
+    owner = !!me.viaOwner; allBtn.hidden = !(me.viaOwner && me.canSwitch); backLink.hidden = allBtn.hidden;
     document.getElementById("demoBar").style.display = me.demo ? "block" : "none";
     var n = (me.restaurant && me.restaurant.name) || "Open Shift Rail";
     bar.querySelector(".cn-name").textContent = n; document.title = n + " — Open Shift Rail";
