@@ -1,0 +1,270 @@
+/* "Clean and neutral" look. Loaded only inside the demo restaurant (see demo-banner.js), so real restaurants keep the current design.
+   Everything is scoped under body.theme-clean, so removing the class (or this file) restores the classic look exactly.
+
+   Palette   ground #F3F4F6 · surface #FFFFFF · line #E3E6EB · text #161B22 · muted #5E6775 · amber #E2A33B (active states only)
+   Type      IBM Plex Sans throughout, sentence case, tabular numbers. Weight and size carry the hierarchy.
+   Surfaces  flat white cards, 12px corners, one hairline border, almost no shadow. */
+
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap");
+
+body.theme-clean {
+  --bg: #F3F4F6;
+  --panel: #FFFFFF;
+  --panel-light: #F3F4F6;
+  --row-alt: #F8F9FA;
+  --paper: #FFFFFF;
+  --ink: #161B22;
+  --amber: #E2A33B;
+  --green: #2F7D55;
+  --red: #C0392B;
+  --rail: #E3E6EB;
+  --text-dim: #5E6775;
+  --text-bright: #161B22;
+  /* the seven section colours collapse to one quiet slate; money stays green, scheduling stays amber */
+  --hiring: #3D4A5C;
+  --staffcolor: #3D4A5C;
+  --training: #3D4A5C;
+  --comms: #3D4A5C;
+  --payroll: #2F7D55;
+  --scheduling: #C98A1B;
+  --grid-bg: #FFFFFF;
+  --grid-alt: #F8F9FA;
+  --grid-border: #E3E6EB;
+  --grid-text: #161B22;
+  --grid-dim: #5E6775;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* ---------- type: one family, sentence case, no stamped capitals ---------- */
+body.theme-clean *:not(.num):not(code):not(pre) {
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+body.theme-clean .num { font-family: 'IBM Plex Sans', system-ui, sans-serif !important; font-variant-numeric: tabular-nums; letter-spacing: normal !important; text-transform: none !important; }
+body.theme-clean h1, body.theme-clean h2, body.theme-clean h3 { font-weight: 600; letter-spacing: -0.01em !important; }
+body.theme-clean label { font-size: 12px; font-weight: 500; color: var(--text-dim); margin-top: 12px; }
+
+/* ---------- top bars and navigation ---------- */
+body.theme-clean header,
+body.theme-clean #sidebar,
+body.theme-clean nav.sections,
+body.theme-clean #topbarNew {
+  background: #FFFFFF;
+  border-bottom: 1px solid var(--rail);
+  box-shadow: none;
+}
+body.theme-clean #sidebar { gap: 2px; padding: 0 20px; }
+body.theme-clean .nav-stub,
+body.theme-clean .section-btn {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 14px 14px 12px;
+  box-shadow: inset 0 -2px 0 transparent;
+  transition: color .12s ease, box-shadow .12s ease;
+}
+body.theme-clean nav.sections { padding: 0 28px; gap: 2px; }
+body.theme-clean .nav-stub .dot { display: none; }
+body.theme-clean .nav-stub:hover,
+body.theme-clean .section-btn:hover { color: var(--ink); }
+body.theme-clean .nav-stub.active,
+body.theme-clean .section-btn.active {
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--amber);
+}
+body.theme-clean .nav-badge { background: var(--amber); color: var(--ink); font-weight: 600; }
+body.theme-clean .topbar-mark,
+body.theme-clean .landing-mark {
+  transform: none;
+  border: none;
+  border-radius: 9px;
+  background: var(--amber);
+  color: var(--ink);
+}
+body.theme-clean .topbar-mark { width: 34px; height: 34px; font-size: 11px; color: var(--ink); }
+body.theme-clean #topbarNew h1, body.theme-clean header h1 { font-size: 18px; }
+
+/* ---------- surfaces ---------- */
+body.theme-clean #contentWrap { padding: 28px 32px 72px; }
+body.theme-clean .stub,
+body.theme-clean .ticket,
+body.theme-clean .card,
+body.theme-clean .overview-card,
+body.theme-clean .rev-card,
+body.theme-clean .ai-sched,
+body.theme-clean .avail-req {
+  background: #FFFFFF;
+  background-image: none;
+  color: var(--ink);
+  border: 1px solid var(--rail);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+body.theme-clean .stub { padding: 20px 20px 18px; margin-bottom: 16px; }
+body.theme-clean .overview-card:hover { transform: none; box-shadow: 0 2px 8px rgba(16, 24, 40, 0.08); }
+body.theme-clean .stub, body.theme-clean .ticket {
+  --grid-alt: #F8F9FA;
+  --grid-border: #E3E6EB;
+  --grid-text: #161B22;
+  --grid-dim: #5E6775;
+}
+body.theme-clean .stub h3 { font-size: 16px; padding-right: 90px; }
+body.theme-clean .stub .meta { opacity: 1; color: var(--text-dim); font-size: 12.5px; }
+
+/* the rotated "stamp" tags become small quiet chips */
+body.theme-clean .stub .tag,
+body.theme-clean .stamp,
+body.theme-clean .stamp.filled {
+  transform: none;
+  border: none;
+  background: #F3F4F6;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+body.theme-clean .stamp { top: 14px; right: 14px; }
+body.theme-clean .stamp.filled { background: #E6F2EB; color: var(--green); }
+
+/* ---------- controls ---------- */
+body.theme-clean input[type="text"], body.theme-clean input[type="tel"], body.theme-clean input[type="email"],
+body.theme-clean input[type="password"], body.theme-clean input[type="date"], body.theme-clean input[type="time"],
+body.theme-clean input[type="number"], body.theme-clean input[type="url"], body.theme-clean select, body.theme-clean textarea,
+body.theme-clean .stub input, body.theme-clean .stub select {
+  background: #FFFFFF;
+  color: var(--ink);
+  border: 1px solid #D5D9E0;
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+body.theme-clean td input[type="text"], body.theme-clean td input[type="tel"], body.theme-clean td input[type="date"] { padding: 6px 8px; border-radius: 6px; }
+body.theme-clean input:focus, body.theme-clean select:focus, body.theme-clean textarea:focus {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(226, 163, 59, 0.25);
+}
+body.theme-clean ::placeholder { color: #8A93A1; opacity: 1; }
+
+body.theme-clean button.primary,
+body.theme-clean button.primary.amber,
+body.theme-clean button.primary-action,
+body.theme-clean .stub .mini,
+body.theme-clean button.action,
+body.theme-clean .enter-btn,
+body.theme-clean .assign-btn {
+  background: var(--ink);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+}
+body.theme-clean button.primary { padding: 11px 14px; }
+body.theme-clean .stub .mini { padding: 7px 12px; }
+body.theme-clean button.primary:hover, body.theme-clean button.primary-action:hover,
+body.theme-clean .stub .mini:hover, body.theme-clean button.action:hover { background: #2B3340; }
+body.theme-clean .stub .mini.outline,
+body.theme-clean button.ghost,
+body.theme-clean .secondary-btn,
+body.theme-clean .edit-btn,
+body.theme-clean #logoutBtn,
+body.theme-clean .top-chip,
+body.theme-clean .lang-btn,
+body.theme-clean .ov-arrow,
+body.theme-clean .ov-today {
+  background: #FFFFFF;
+  color: var(--ink);
+  border: 1px solid #D5D9E0;
+  border-radius: 8px;
+  font-weight: 500;
+}
+body.theme-clean .stub .mini.outline:hover, body.theme-clean button.ghost:hover, body.theme-clean .secondary-btn:hover,
+body.theme-clean .edit-btn:hover, body.theme-clean .top-chip:hover { background: #F3F4F6; border-color: #C3C9D2; }
+body.theme-clean .lang-btn.active, body.theme-clean .top-chip.amber { background: var(--amber); color: var(--ink); border-color: var(--amber); }
+body.theme-clean .del-btn { color: var(--text-dim); }
+body.theme-clean .del-btn:hover { color: var(--red); }
+body.theme-clean .role-pill, body.theme-clean .tab-btn, body.theme-clean .house-btn {
+  background: #FFFFFF; color: var(--text-dim); border: 1px solid #D5D9E0; border-radius: 999px; font-weight: 500; font-size: 12.5px; padding: 6px 12px;
+}
+body.theme-clean .role-pill.active, body.theme-clean .tab-btn.active, body.theme-clean .house-btn.active {
+  background: var(--ink); color: #FFFFFF; border-color: var(--ink);
+}
+body.theme-clean .staff-roles span, body.theme-clean .role-chip {
+  border: none; background: #F3F4F6; color: var(--text-dim); border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 500;
+}
+
+/* ---------- lists, rows, dividers: solid hairlines instead of dashes ---------- */
+body.theme-clean .pay-row, body.theme-clean .assign-row, body.theme-clean .snap-mgr, body.theme-clean .rev-line, body.theme-clean .ai-sched .prop-line {
+  border-bottom-style: solid; border-top-style: solid; border-color: #EEF0F3;
+}
+body.theme-clean .staff-row, body.theme-clean .rank-row { border-bottom-color: #EEF0F3; }
+body.theme-clean .progress-track { background: #EEF0F3; }
+body.theme-clean .bar-chart .bar { border-radius: 6px 6px 0 0; opacity: 1; }
+body.theme-clean .video-thumb { border-radius: 8px; }
+
+/* ---------- Overview ---------- */
+body.theme-clean .snap-head { border-bottom: 1px solid var(--rail); padding-bottom: 12px; }
+body.theme-clean .snap-head .eyebrow-s { font-size: 19px; font-weight: 600; }
+body.theme-clean .snap-head .date { opacity: 1; color: var(--text-dim); }
+body.theme-clean .snap-h { font-size: 12.5px; font-weight: 600; opacity: 1; color: var(--text-dim); }
+body.theme-clean .snap-sec { margin-top: 22px; }
+body.theme-clean .ov-greet { font-size: 22px; font-weight: 600; }
+body.theme-clean .ov-day { border-color: #D5D9E0; background: #FFFFFF; border-radius: 8px; }
+body.theme-clean .ov-day span { opacity: 1; color: var(--text-dim); }
+body.theme-clean .ov-day.sel { background: var(--ink); color: #FFFFFF; border-color: var(--ink); }
+body.theme-clean .ov-day.sel span { color: #C9CFD8; }
+body.theme-clean .snap-tile { background: #F8F9FA; border: 1px solid #EEF0F3; border-radius: 10px; }
+body.theme-clean .snap-tile .lbl { color: var(--text-dim); opacity: 1; }
+body.theme-clean .house-head, body.theme-clean .svc-head { font-weight: 600; background: transparent; }
+body.theme-clean .snap-warn { border-radius: 8px; }
+
+/* ---------- tables and the schedule grid (Back Office) ---------- */
+body.theme-clean table { background: #FFFFFF; border: 1px solid var(--rail); border-radius: 12px; }
+body.theme-clean thead th { background: #F8F9FA; color: var(--text-dim); font-weight: 600; font-size: 12px; }
+body.theme-clean tbody tr { border-bottom-color: #EEF0F3; }
+body.theme-clean tbody tr:nth-child(even) { background: #FBFBFC; }
+body.theme-clean table.sales-grid thead th { background: #F3F4F6; color: var(--ink); font-weight: 600; }
+body.theme-clean table.sales-grid td.lbl { font-weight: 500; }
+body.theme-clean .toolbar h2 { font-size: 20px; }
+body.theme-clean .ai-sched textarea { background: #FFFFFF; color: var(--ink); border: 1px solid #D5D9E0; }
+body.theme-clean .pub-bar { border-radius: 10px; }
+body.theme-clean .week-label { font-weight: 600; }
+body.theme-clean .pct.up { color: var(--green); }
+body.theme-clean .pct.down { color: var(--red); }
+
+/* ---------- banners ---------- */
+body.theme-clean .banner.success { background: #E6F2EB; color: #1F5A3B; }
+body.theme-clean .banner.warn { background: #FFF1D6; color: #7A4F00; }
+
+
+/* ---------- guided tour bubble and setup checklist ---------- */
+body.theme-clean .osr-cl { background: #FFFFFF; border: 1px solid var(--rail); border-left: 3px solid var(--amber); border-radius: 12px; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04); }
+body.theme-clean .osr-cl-bar { background: #E3E6EB; }
+body.theme-clean .osr-bub { background: #FFFFFF; color: var(--ink); border: 1px solid var(--rail); border-radius: 14px; box-shadow: 0 12px 32px rgba(16, 24, 40, 0.22); }
+body.theme-clean .osr-bub h4 { font-weight: 600; font-size: 17px; }
+body.theme-clean .osr-bub p { color: var(--text-dim); }
+body.theme-clean .osr-bub .osr-dots i { background: #D5D9E0; }
+body.theme-clean .osr-bub button { border-color: #D5D9E0; border-radius: 8px; }
+body.theme-clean .osr-bub button.osr-primary { background: var(--ink); border-color: var(--ink); color: #FFFFFF; }
+
+/* ---------- phones ---------- */
+@media (max-width: 640px) {
+  body.theme-clean #contentWrap { padding: 16px 14px 64px; }
+  body.theme-clean .stub { padding: 16px 16px 14px; }
+  body.theme-clean #sidebar { padding: 0 8px; }
+  body.theme-clean .nav-stub { padding: 12px 11px 10px; font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.theme-clean * { transition: none !important; }
+}

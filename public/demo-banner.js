@@ -7,12 +7,19 @@
   };
   window.showDemoBanner = function () {
     if (document.getElementById("demoBanner")) return;
+    /* design experiment: the clean theme is loaded for the demo restaurant only */
+    if (!document.getElementById("themeCleanCss")) {
+      var l = document.createElement("link");
+      l.id = "themeCleanCss"; l.rel = "stylesheet"; l.href = "/theme-clean.css";
+      document.head.appendChild(l);
+    }
+    document.body.classList.add("theme-clean");
     var lang = "en";
     try { lang = localStorage.getItem("osr-lang") || "en"; } catch (e) {}
     var bar = document.createElement("div");
     bar.id = "demoBanner";
     bar.textContent = TEXT[lang] || TEXT.en;
-    bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#23261f;color:#f4e9c9;font:600 12px/1.3 system-ui,sans-serif;text-align:center;padding:6px 10px;letter-spacing:.02em";
+    bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#161B22;color:#F3F4F6;font:600 12px/1.3 system-ui,sans-serif;text-align:center;padding:6px 10px;letter-spacing:.02em";
     document.body.appendChild(bar);
     document.body.style.paddingBottom = "30px";
   };
