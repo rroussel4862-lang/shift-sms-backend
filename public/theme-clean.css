@@ -417,3 +417,12 @@ body.theme-clean #sidebar, body.theme-clean nav.sections { min-height: 68px; }
   body.theme-clean .cn-name, body.theme-clean nav.sections .header-left h1 { font-size: 20px; }
   body.theme-clean #sidebar, body.theme-clean nav.sections { padding-top: 12px; }
 }
+
+
+/* ---------- counts for swaps and requests, in the menu and on the tab ---------- */
+body.theme-clean .cn-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+body.theme-clean .cn-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--amber); color: #2C2620; font-size: 12px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+body.theme-clean .cn-badge[hidden] { display: none; }
+body.theme-clean .cn-tab .cn-dot { min-width: 18px; height: 18px; margin-left: 6px; font-size: 11px; }
+body.theme-clean.theme-warm .cn-badge { background: #D9732F; color: #FFFFFF; }
+body.theme-clean .snap-warn a { color: inherit; font-weight: 600; text-decoration: underline; }

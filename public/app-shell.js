@@ -49,6 +49,13 @@
     var w = win(item.page); if (!w) return;
     try { if (item.page === "mi") w.switchTab(item.key); else w.showSection(item.key); } catch (e) {}
   }
+  var BADGE = { tabBtnShifts: "shiftsBadge", tabBtnStaff: "staffBadge" };   // the main app already keeps these counts up to date
+  function countOf(item) {
+    var id = BADGE[item.btn]; if (!id || item.page !== "mi") return 0;
+    var d = doc("mi"), b = d && d.getElementById(id);
+    if (!b || b.style.display === "none") return 0;
+    return parseInt(b.textContent, 10) || 0;
+  }
   function isActive(item) {
     if (item.page !== here) return false;
     var d = doc(item.page), b = d && d.getElementById(item.btn);
@@ -106,6 +113,7 @@
     var one = g.items.length === 1;
     var btn = document.createElement("button"); btn.type = "button"; btn.className = "cn-tab";
     var label = document.createElement("span"); btn.appendChild(label);
+    var tabBadge = document.createElement("span"); tabBadge.className = "cn-badge cn-dot"; tabBadge.hidden = true; btn.appendChild(tabBadge);
     if (!one) btn.insertAdjacentHTML("beforeend", '<svg class="cn-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>');
     strip.appendChild(btn);
     var rows = [];
@@ -115,11 +123,12 @@
       g.items.forEach(function (it) {
         var r = document.createElement("button"); r.type = "button"; r.className = "cn-item";
         r.addEventListener("click", function () { go(it); });
+        r.innerHTML = '<span class="cn-lbl"></span><span class="cn-badge" hidden></span>';
         panel.appendChild(r); rows.push({ el: r, item: it });
       });
       attach(btn, panel, false);
     }
-    return { g: g, btn: btn, label: label, rows: rows };
+    return { g: g, btn: btn, label: label, rows: rows, tabBadge: tabBadge };
   });
 
   /* settings menu: tour, language, log out */
@@ -160,7 +169,13 @@
     tabs.forEach(function (t) {
       var one = t.g.items.length === 1, any = false;
       t.label.textContent = tx(one ? (t.g.id === "messages" ? "messages" : "today") : t.g.id);
-      t.rows.forEach(function (r) { r.el.textContent = tx(r.item.k); var a = isActive(r.item); r.el.classList.toggle("on", a); if (a) any = true; });
+      var total = 0;
+      t.rows.forEach(function (r) {
+        r.el.querySelector(".cn-lbl").textContent = tx(r.item.k);
+        var a = isActive(r.item); r.el.classList.toggle("on", a); if (a) any = true;
+        var n = countOf(r.item), bd = r.el.querySelector(".cn-badge"); bd.hidden = !n; bd.textContent = n || ""; total += n;
+      });
+      t.tabBadge.hidden = !total; t.tabBadge.textContent = total || "";
       if (one) any = isActive(t.g.items[0]);
       t.btn.classList.toggle("active", any);
     });
