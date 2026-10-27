@@ -1,6 +1,7 @@
-/* Runs first thing in <body> on the main app, Back Office and staff portal. If this browser tab is inside the demo
-   restaurant, it puts the demo look on straight away, so moving between pages doesn't flash the old design first.
-   It does nothing for real restaurants. (The demo flag lives only in this tab's session storage.) */
+/* Runs first thing in <body> on the main app, Back Office and staff portal. If this browser last signed in to a
+   restaurant that uses the new layout and design, it puts that look on straight away, so moving between pages doesn't
+   flash the old design first. The server has the final say: every page checks with it and corrects the flag
+   (see osrDesign / osrNotDemo). The flag is kept in this browser's local storage. */
 (function () {
   var KEY = "osr-demo-theme";
   var embedded = false;
@@ -17,7 +18,8 @@
     location.replace("/app.html?v=" + v + (k ? "&k=" + encodeURIComponent(k) : ""));
   }
   if (embedded) { document.body.classList.add("embed"); document.documentElement.classList.add("embed"); }
-  function flagged() { try { return sessionStorage.getItem(KEY) === "1"; } catch (e) { return false; } }
+  function flagged() { try { return localStorage.getItem(KEY) === "1"; } catch (e) { return false; } }
+  function setFlag(on) { try { if (on) localStorage.setItem(KEY, "1"); else localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); } catch (e) {} }
   function plain() { try { var q = new URLSearchParams(location.search).get("theme"); if (q) sessionStorage.setItem("osr-theme", q); return sessionStorage.getItem("osr-theme") === "clean"; } catch (e) { return false; } }
   function add(tag, id, attrs) {
     if (document.getElementById(id)) return;
@@ -25,7 +27,7 @@
     else { var el = document.createElement(tag); el.id = id; attrs.replace(/(\w+)="([^"]*)"/g, function (m, k, v) { el.setAttribute(k, v); }); (tag === "script" ? document.body : document.head).appendChild(el); if (tag === "script") el.onload = function () { if (window.cleanNav) window.cleanNav(); }; }
   }
   window.osrApplyTheme = function () {
-    try { sessionStorage.setItem(KEY, "1"); } catch (e) {}
+    setFlag(true);
     if (!embedded && (isMain || isBo)) { toShell(); return; }
     document.body.classList.add("theme-clean");
     add("link", "themeCleanCss", 'rel="stylesheet" href="/theme-clean.css"');
@@ -35,7 +37,13 @@
     else if (window.cleanNav) window.cleanNav();
   };
   /* this tab was in the demo a moment ago, so assume it still is; the page confirms or corrects this once it hears from the server */
-  window.osrNotDemo = function () { if (flagged()) { try { sessionStorage.removeItem(KEY); } catch (e) {} location.reload(); } };
+  window.osrNotDemo = function () { if (flagged()) { setFlag(false); location.reload(); } };
+  /* every page calls this once the server has said who is signed in: new design on -> apply it (and the demo bar in the demo); off -> classic */
+  window.osrDesign = function (me) {
+    if (me && me.newDesign) { if (me.demo && window.showDemoBanner) window.showDemoBanner(); else window.osrApplyTheme(); }
+    else window.osrNotDemo();
+  };
+  window.osrClearDesign = function () { setFlag(false); };
   /* in a demo tab, show the app frame straight away (instead of the login screen or an empty page until the server
      answers) and open the tab you picked, so moving between main app and Back Office doesn't flash or re-draw */
   function showFrame() {
@@ -58,7 +66,7 @@
   }
   /* the server says nobody is signed in after all: put the pages back the way they were */
   window.osrNoSession = function () {
-    try { sessionStorage.removeItem(KEY); } catch (e) {}
+    setFlag(false);
     if (embedded) { try { window.top.location.href = "/"; } catch (e) {} return; }
     var landing = document.getElementById("landing"), shell = document.getElementById("appShell"), app = document.getElementById("app");
     if (landing && shell) { landing.style.display = ""; shell.style.display = "none"; }

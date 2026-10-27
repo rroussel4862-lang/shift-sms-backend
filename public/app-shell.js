@@ -1,19 +1,19 @@
-/* One page for the whole app (demo restaurant). The main app and the Back Office stay loaded side by side inside this
+/* One page for the whole app (any restaurant that uses the new layout). The main app and the Back Office stay loaded side by side inside this
    page and the navigation bar lives here, so moving between them is instant: nothing reloads, nothing flashes, and each
    screen is exactly where you left it. The two pages themselves are unchanged; they just hide their own top bars. */
 (function () {
   var L = {
     en: { today: "Today", schedule: "Schedule", people: "People", money: "Money", messages: "Messages", menu: "Menu",
       overview: "Overview", week: "Weekly schedule", open: "Open shifts & swaps", punch: "Punch clock", team: "Team & requests", pay: "Pay & tenure",
-      training: "Training", hiring: "Hiring", payroll: "Payroll & sales", sales: "Daily sales entry", revenue: "Revenue history", tour: "Take the tour", logout: "Log out",
+      training: "Training", hiring: "Hiring", payroll: "Payroll & sales", sales: "Daily sales entry", revenue: "Revenue history", tour: "Take the tour", all: "← All restaurants", logout: "Log out",
       demo: "Demo: made-up restaurant and sample data. It resets every night." },
     fr: { today: "Aujourd'hui", schedule: "Horaire", people: "Équipe", money: "Argent", messages: "Messages", menu: "Menu",
       overview: "Aperçu", week: "Horaire de la semaine", open: "Quarts ouverts et échanges", punch: "Pointage", team: "Personnel et demandes", pay: "Salaires et ancienneté",
-      training: "Formation", hiring: "Embauche", payroll: "Paie et ventes", sales: "Saisie des ventes", revenue: "Historique des revenus", tour: "Visite guidée", logout: "Déconnexion",
+      training: "Formation", hiring: "Embauche", payroll: "Paie et ventes", sales: "Saisie des ventes", revenue: "Historique des revenus", tour: "Visite guidée", all: "← Restaurants", logout: "Déconnexion",
       demo: "Démo : restaurant fictif et données d'exemple. Réinitialisé chaque nuit." },
     es: { today: "Hoy", schedule: "Horario", people: "Equipo", money: "Dinero", messages: "Mensajes", menu: "Menú",
       overview: "Resumen", week: "Horario semanal", open: "Turnos abiertos y cambios", punch: "Reloj", team: "Personal y solicitudes", pay: "Pago y antigüedad",
-      training: "Capacitación", hiring: "Contratación", payroll: "Nómina y ventas", sales: "Registro de ventas", revenue: "Historial de ingresos", tour: "Recorrido guiado", logout: "Cerrar sesión",
+      training: "Capacitación", hiring: "Contratación", payroll: "Nómina y ventas", sales: "Registro de ventas", revenue: "Historial de ingresos", tour: "Recorrido guiado", all: "← Restaurantes", logout: "Cerrar sesión",
       demo: "Demo: restaurante ficticio con datos de ejemplo. Se reinicia cada noche." }
   };
   function lang() { try { return localStorage.getItem("osr-lang") || "en"; } catch (e) { return "en"; } }
@@ -36,6 +36,7 @@
       { k: "revenue", page: "bo", key: "revenue", btn: "sectionBtnRevenue" }] },
     { id: "messages", items: [{ k: "messages", page: "mi", key: "comms", btn: "tabBtnComms" }] }
   ];
+  function clearFlag() { try { localStorage.removeItem("osr-demo-theme"); sessionStorage.removeItem("osr-demo-theme"); } catch (e) {} }
   var FRAME = { mi: document.getElementById("fMi"), bo: document.getElementById("fBo") };
   var URLS = { mi: "/index.html?embed=1", bo: "/backoffice.html?embed=1" };
   var here = "mi";
@@ -150,20 +151,23 @@
     });
     langRow.appendChild(b);
   });
+  var owner = false;
+  var allBtn = document.createElement("button"); allBtn.type = "button"; allBtn.className = "cn-item"; allBtn.hidden = true;
+  allBtn.addEventListener("click", function () { location.href = "/owner.html"; });
   var outBtn = document.createElement("button"); outBtn.type = "button"; outBtn.className = "cn-item";
   outBtn.addEventListener("click", function () {
     closeAll();
-    var w = win("mi"); try { w.api("/api/auth/logout", { method: "POST" }).then(done, done); } catch (e) { done(); }
-    function done() { try { sessionStorage.removeItem("osr-demo-theme"); } catch (e) {} location.href = "/"; }
+    var w = win("mi"); try { w.api(owner ? "/api/owner-auth/logout" : "/api/auth/logout", { method: "POST" }).then(done, done); } catch (e) { done(); }
+    function done() { clearFlag(); location.href = owner ? "/owner.html" : "/"; }
   });
-  spanel.appendChild(tourBtn); spanel.appendChild(langRow); spanel.appendChild(outBtn);
+  spanel.appendChild(tourBtn); spanel.appendChild(allBtn); spanel.appendChild(langRow); spanel.appendChild(outBtn);
   attach(mbtn, spanel, true);
   mbtn.setAttribute("aria-label", "Menu");
 
   function refresh() {
     var l = lang();
     document.documentElement.lang = l;
-    tourBtn.textContent = "? " + tx("tour"); outBtn.textContent = tx("logout");
+    tourBtn.textContent = "? " + tx("tour"); allBtn.textContent = tx("all"); outBtn.textContent = tx("logout");
     langRow.querySelectorAll(".lang-btn").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-l") === l); });
     document.getElementById("demoBar").textContent = tx("demo");
     tabs.forEach(function (t) {
@@ -189,7 +193,7 @@
   GROUPS.forEach(function (g) { g.items.forEach(function (it) { if (it.page === start.v && it.key === start.k) firstItem = it; }); });
   if (!firstItem) firstItem = start.v === "bo" ? GROUPS[1].items[0] : GROUPS[0].items[0];
   if (firstItem.page === "mi") { try { sessionStorage.setItem("osr-mi-tab", firstItem.key); } catch (e) {} }
-  try { sessionStorage.setItem("osr-demo-theme", "1"); } catch (e) {}
+  try { localStorage.setItem("osr-demo-theme", "1"); } catch (e) {}
 
   function boSection() { try { return new URLSearchParams(win("bo").location.search).get("section"); } catch (e) { return null; } }
   function load(p, extra) { FRAME[p].src = URLS[p] + (extra || ""); }
@@ -204,7 +208,11 @@
       load(p);                                                  // put this frame back where it was
       var target = p === "mi" ? "bo" : "mi";
       var item = null; GROUPS.forEach(function (g) { g.items.forEach(function (it) { if (it.page === target && (!sec || it.key === sec)) item = item || it; }); });
-      if (item) go(item);
+      if (item) {
+        go(item);
+        /* load the other page afresh, so a guided tour that sent you there picks up where it left off */
+        if (ready[target]) { ready[target] = false; try { win(target).location.reload(); } catch (e) {} }
+      }
       return;
     }
     ready[p] = true; watchFrame(p); refresh();
@@ -216,7 +224,9 @@
   FRAME[first].addEventListener("load", function once() { FRAME[first].removeEventListener("load", once); setTimeout(function () { load(second, second === "bo" ? "&section=schedule" : ""); }, 200); });
   /* the name and the sign-in check */
   fetch("/api/auth/me", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
-    if (!me || !me.demo) { try { sessionStorage.removeItem("osr-demo-theme"); } catch (e) {} location.replace("/"); return; }
+    if (!me || !me.newDesign) { clearFlag(); location.replace("/"); return; }
+    owner = !!me.viaOwner; allBtn.hidden = !(me.viaOwner && me.canSwitch);
+    document.getElementById("demoBar").style.display = me.demo ? "block" : "none";
     var n = (me.restaurant && me.restaurant.name) || "Open Shift Rail";
     bar.querySelector(".cn-name").textContent = n; document.title = n + " — Open Shift Rail";
     try { sessionStorage.setItem("osr-demo-name", n); } catch (e) {}

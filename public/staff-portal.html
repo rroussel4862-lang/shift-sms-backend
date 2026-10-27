@@ -875,7 +875,7 @@ I18N.apply();
   const result = await api("/api/staff-auth/me");
   if (result.ok) {
     window.__myStaffId = result.data.id;
-    if (result.data.demo && window.showDemoBanner) showDemoBanner(); else if (window.osrNotDemo) osrNotDemo();
+    if (window.osrDesign) osrDesign(result.data);
     enterApp(result.data.name);
   }
 })();

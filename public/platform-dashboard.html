@@ -170,7 +170,7 @@
         <table>
           <thead>
             <tr>
-              <th>Name</th><th>Twilio number</th><th>Staff</th><th>Shifts (open)</th><th>Open postings</th><th>Activity (7d)</th><th>Last activity</th><th>Signed up</th><th></th>
+              <th>Name</th><th>Twilio number</th><th>Staff</th><th>Shifts (open)</th><th>Open postings</th><th>Activity (7d)</th><th>Last activity</th><th>Signed up</th><th>New design</th><th></th>
             </tr>
           </thead>
           <tbody id="restaurantsBody"></tbody>
@@ -410,7 +410,7 @@ async function loadRestaurants() {
   renderOwnerChecks();
   const body = document.getElementById("restaurantsBody");
   body.innerHTML = restaurants.length === 0
-    ? `<tr><td colspan="9" class="empty">No restaurants signed up yet.</td></tr>`
+    ? `<tr><td colspan="10" class="empty">No restaurants signed up yet.</td></tr>`
     : restaurants.map(r => `
         <tr onclick="document.getElementById('filterRestaurant').value='${r.id}'; loadActivity();">
           <td class="restaurant-name">${escapeHtml(r.name)}${r.isDemo ? ' <span style="color:var(--amber);font-size:11px">DEMO</span>' : ""}</td>
@@ -426,6 +426,7 @@ async function loadRestaurants() {
           <td class="num">${r.activityLast7d}</td>
           <td>${timeAgo(r.lastActivityAt)}</td>
           <td>${formatDate(r.createdAt)}</td>
+          <td onclick="event.stopPropagation()"><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" ${r.newDesign ? "checked" : ""} onchange="saveDesign('${r.id}', this)"> <span style="font-size:11px;color:var(--text-dim)">${r.newDesign ? "On" : "Classic"}</span></label></td>
           <td onclick="event.stopPropagation()"><button class="ghost" style="padding:5px 9px;font-size:11px;color:#e5645a" onclick="deleteRestaurant('${r.id}')">Delete</button></td>
         </tr>
       `).join("");
@@ -439,6 +440,15 @@ async function deleteRestaurant(id) {
   const result = await api(`/api/platform/restaurants/${id}`, { method: "DELETE", body: JSON.stringify({ confirmName: typed }) });
   if (!result.ok) return alert(result.error);
   loadRestaurants();
+}
+
+async function saveDesign(restaurantId, box) {
+  const result = await api(`/api/platform/restaurants/${restaurantId}/design`, {
+    method: "PATCH",
+    body: JSON.stringify({ newDesign: box.checked }),
+  });
+  if (!result.ok) { box.checked = !box.checked; alert(result.error); return; }
+  box.nextElementSibling.textContent = result.data.newDesign ? "On" : "Classic";
 }
 
 async function saveTwilioNumber(restaurantId) {

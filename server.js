@@ -84,6 +84,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS twilio_phone_number TEXT UNIQUE;`);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT false;`);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS demo_seeded_on TEXT;`);
+  // The warm layout (one-page shell + unified navigation). On for everyone; switchable per restaurant from the dashboard.
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS new_design BOOLEAN NOT NULL DEFAULT true;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -927,7 +929,7 @@ app.post("/api/auth/login", loginLimiter, loginEmailLimiter, async (req, res) =>
   if (!email || !password) return res.status(400).json({ error: "email and password are required" });
 
   const { rows } = await pool.query(
-    `SELECT users.*, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address FROM users
+    `SELECT users.*, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address, restaurants.new_design AS restaurant_new_design FROM users
      JOIN restaurants ON restaurants.id = users.restaurant_id
      WHERE users.email = $1`,
     [email.toLowerCase()]
@@ -942,13 +944,13 @@ app.post("/api/auth/login", loginLimiter, loginEmailLimiter, async (req, res) =>
       await pool.query("UPDATE owners SET last_login_at = $1 WHERE id = $2", [Date.now(), owner.id]);
       res.cookie("owner_token", signToken({ ownerId: owner.id }), COOKIE_OPTS);
       const { rows: rs } = await pool.query(
-        "SELECT r.id, r.name, r.address FROM owner_restaurants x JOIN restaurants r ON r.id = x.restaurant_id WHERE x.owner_id = $1 ORDER BY r.name",
+        "SELECT r.id, r.name, r.address, r.new_design FROM owner_restaurants x JOIN restaurants r ON r.id = x.restaurant_id WHERE x.owner_id = $1 ORDER BY r.name",
         [owner.id]
       );
       logActivity({ restaurantId: rs.length === 1 ? rs[0].id : null, eventType: "login_success", detail: `${owner.role === "manager" ? "manager" : "owner"} login via main page: ${owner.email} [${deviceLabel(req)}]` });
       if (rs.length !== 1) return res.json({ redirect: "/owner.html" });
       res.cookie("token", signToken({ restaurantId: rs[0].id, ownerId: owner.id }), COOKIE_OPTS);
-      return res.json({ restaurant: { id: rs[0].id, name: rs[0].name, address: rs[0].address || "" }, email: owner.email, viaOwner: true });
+      return res.json({ restaurant: { id: rs[0].id, name: rs[0].name, address: rs[0].address || "" }, email: owner.email, viaOwner: true, canSwitch: false, demo: demoIds.has(rs[0].id), newDesign: demoIds.has(rs[0].id) || rs[0].new_design !== false });
     }
     logActivity({ eventType: "login_failed", level: "warn", detail: `manager login failed: ${email.toLowerCase()} (${owner ? "wrong password" : "no such account"}) [main page, ${deviceLabel(req)}]` });
     return res.status(401).json({ error: "incorrect email or password" });
@@ -963,7 +965,7 @@ app.post("/api/auth/login", loginLimiter, loginEmailLimiter, async (req, res) =>
   const token = signToken({ userId: user.id, restaurantId: user.restaurant_id });
   res.cookie("token", token, COOKIE_OPTS);
   logActivity({ restaurantId: user.restaurant_id, eventType: "login_success", detail: `manager login: ${email.toLowerCase()} [main page, ${deviceLabel(req)}]` });
-  res.json({ restaurant: { id: user.restaurant_id, name: user.restaurant_name, address: user.restaurant_address || "" }, email: user.email });
+  res.json({ restaurant: { id: user.restaurant_id, name: user.restaurant_name, address: user.restaurant_address || "" }, email: user.email, demo: demoIds.has(user.restaurant_id), newDesign: demoIds.has(user.restaurant_id) || user.restaurant_new_design !== false });
 });
 
 app.post("/api/auth/logout", (req, res) => {
@@ -975,7 +977,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   if (req.ownerId) {
     // An owner opened one of their restaurants: same access as the manager login.
     const { rows } = await pool.query(
-      `SELECT o.email, o.name AS user_name, r.id AS restaurant_id, r.name AS restaurant_name, r.address AS restaurant_address
+      `SELECT o.email, o.name AS user_name, r.id AS restaurant_id, r.name AS restaurant_name, r.address AS restaurant_address, r.new_design AS restaurant_new_design
        FROM owners o JOIN owner_restaurants x ON x.owner_id = o.id JOIN restaurants r ON r.id = x.restaurant_id
        WHERE o.id = $1 AND r.id = $2`,
       [req.ownerId, req.restaurantId]
@@ -986,11 +988,13 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
       email: rows[0].email,
       name: rows[0].user_name || "",
       viaOwner: true,
+      demo: demoIds.has(rows[0].restaurant_id),
+      newDesign: demoIds.has(rows[0].restaurant_id) || rows[0].restaurant_new_design !== false,
       canSwitch: (await pool.query("SELECT COUNT(*) AS n FROM owner_restaurants WHERE owner_id = $1", [req.ownerId])).rows[0].n > 1,
     });
   }
   const { rows } = await pool.query(
-    `SELECT users.email, users.name AS user_name, restaurants.id AS restaurant_id, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address
+    `SELECT users.email, users.name AS user_name, restaurants.id AS restaurant_id, restaurants.name AS restaurant_name, restaurants.address AS restaurant_address, restaurants.new_design AS restaurant_new_design
      FROM users JOIN restaurants ON restaurants.id = users.restaurant_id
      WHERE users.id = $1`,
     [req.userId]
@@ -1001,6 +1005,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
     email: rows[0].email,
     name: rows[0].user_name || "",
     demo: demoIds.has(rows[0].restaurant_id),
+    newDesign: demoIds.has(rows[0].restaurant_id) || rows[0].restaurant_new_design !== false,
   });
 });
 
@@ -1708,11 +1713,11 @@ app.post("/api/staff-auth/logout", (req, res) => {
 
 app.get("/api/staff-auth/me", requireStaffAuth, async (req, res) => {
   const { rows } = await pool.query(
-    "SELECT staff.*, restaurants.name AS restaurant_name FROM staff JOIN restaurants ON restaurants.id = staff.restaurant_id WHERE staff.id = $1",
+    "SELECT staff.*, restaurants.name AS restaurant_name, restaurants.new_design AS restaurant_new_design FROM staff JOIN restaurants ON restaurants.id = staff.restaurant_id WHERE staff.id = $1",
     [req.staffId]
   );
   if (rows.length === 0) return res.status(401).json({ error: "not logged in" });
-  res.json({ ...staffRowToJson(rows[0]), restaurantName: rows[0].restaurant_name, demo: demoIds.has(rows[0].restaurant_id) });
+  res.json({ ...staffRowToJson(rows[0]), restaurantName: rows[0].restaurant_name, demo: demoIds.has(rows[0].restaurant_id), newDesign: demoIds.has(rows[0].restaurant_id) || rows[0].restaurant_new_design !== false });
 });
 
 // ---------- staff portal: schedule, availability, open shifts (staff, authenticated) ----------
@@ -4506,7 +4511,7 @@ app.get("/api/platform-auth/me", requirePlatformAuth, async (req, res) => {
 app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
   const { rows } = await pool.query(`
     SELECT
-      r.id, r.name, r.created_at, r.twilio_phone_number, r.is_demo,
+      r.id, r.name, r.created_at, r.twilio_phone_number, r.is_demo, r.new_design,
       (SELECT COUNT(*) FROM staff s WHERE s.restaurant_id = r.id AND s.archived_at IS NULL) AS staff_count,
       (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id) AS shift_count,
       (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id AND sh.status = 'open') AS open_shift_count,
@@ -4523,6 +4528,7 @@ app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
     createdAt: Number(r.created_at),
     twilioPhoneNumber: r.twilio_phone_number || "",
     isDemo: !!r.is_demo,
+    newDesign: r.new_design !== false,
     staffCount: Number(r.staff_count),
     shiftCount: Number(r.shift_count),
     openShiftCount: Number(r.open_shift_count),
@@ -4676,6 +4682,16 @@ app.patch("/api/platform/restaurants/:id/twilio-number", requirePlatformAuth, as
     console.error("Error assigning Twilio number:", e.message);
     res.status(500).json({ error: "Something went wrong saving that number." });
   }
+});
+
+// Per-restaurant switch for the new layout and design. Turning it off sends that restaurant back to the classic look.
+app.patch("/api/platform/restaurants/:id/design", requirePlatformAuth, async (req, res) => {
+  const on = req.body && req.body.newDesign;
+  if (typeof on !== "boolean") return res.status(400).json({ error: "newDesign must be true or false" });
+  const { rows } = await pool.query("UPDATE restaurants SET new_design = $1 WHERE id = $2 RETURNING id, new_design", [on, req.params.id]);
+  if (rows.length === 0) return res.status(404).json({ error: "restaurant not found" });
+  logActivity({ restaurantId: rows[0].id, eventType: "design_switched", detail: on ? "New layout and design turned on" : "New layout and design turned off (classic look)" });
+  res.json({ id: rows[0].id, newDesign: rows[0].new_design });
 });
 
 // Raw activity rows are kept this long, then rolled up into activity_daily.
