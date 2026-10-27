@@ -426,3 +426,21 @@ body.theme-clean .cn-badge[hidden] { display: none; }
 body.theme-clean .cn-tab .cn-dot { min-width: 18px; height: 18px; margin-left: 6px; font-size: 11px; }
 body.theme-clean.theme-warm .cn-badge { background: #D9732F; color: #FFFFFF; }
 body.theme-clean .snap-warn a { color: inherit; font-weight: 600; text-decoration: underline; }
+
+/* ---------- desktop layout: use the whole screen instead of a phone-width column ---------- */
+@media (min-width: 1000px) {
+  body.theme-clean #contentWrap, body.theme-clean #contentWrap:has(#panelOverview.active), body.theme-clean #contentWrap:has(#panelComms.active) { max-width: 1240px; margin: 0 auto; padding: 30px 36px 80px; }
+  body.theme-clean main { padding: 0; margin: 0; max-width: none; }
+  body.theme-clean .tab-panel.active:not(#panelOverview) { column-count: 2; column-gap: 28px; }
+  body.theme-clean .tab-panel.active:not(#panelOverview) > * { break-inside: avoid; }
+  body.theme-clean .tab-panel.active > .module-header { column-span: all; margin-bottom: 22px; }
+  body.theme-clean .tab-panel.active:not(#panelOverview) h3, body.theme-clean .tab-panel.active:not(#panelOverview) .section-h, body.theme-clean .tab-panel.active:not(#panelOverview) h4 { break-after: avoid; }
+  body.theme-clean .module-header p { max-width: 70ch; }
+  /* Overview: one wide card, content in two columns, the four numbers across the top */
+  body.theme-clean #panelOverview { max-width: 1100px; margin: 0 auto; }
+  body.theme-clean #panelOverview .snapshot { display: grid; grid-template-columns: 1fr 1fr; column-gap: 40px; align-content: start; padding: 28px 32px 26px; }
+  body.theme-clean #panelOverview .snapshot > * { grid-column: 1 / -1; min-width: 0; }
+  body.theme-clean #panelOverview .snapshot > .snap-sec { grid-column: auto; }
+  body.theme-clean #panelOverview .snap-tiles { grid-template-columns: repeat(4, 1fr); }
+  body.theme-clean #panelOverview .snap-picker, body.theme-clean #panelOverview .ov-picker { max-width: none; }
+}

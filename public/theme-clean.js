@@ -181,7 +181,9 @@
   };
   function sv(k) { return (SV[lang()] || SV.en)[k]; }
   var phoneMode = false, dayIdx = null;
-  function savedMode() { try { var m = localStorage.getItem("osr-sched-view"); if (m) return m === "phone"; } catch (e) {} return window.innerWidth < 760; }
+  /* the choice is remembered separately for small and large screens, so trying phone view on a computer never makes your phone (or the next visit on a computer) look wrong */
+  function viewKey() { return "osr-sched-view-" + (window.innerWidth < 760 ? "narrow" : "wide"); }
+  function savedMode() { try { var m = localStorage.getItem(viewKey()); if (m) return m === "phone"; } catch (e) {} return window.innerWidth < 760; }
   function esc(x) { return String(x == null ? "" : x).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function fmtT(t) { try { return formatTime(t); } catch (e) { return t; } }
   function money(v) { return "$" + Math.round(v).toLocaleString("en-US"); }
@@ -227,7 +229,7 @@
     if (a) a.textContent = sv("phone"); if (b) b.textContent = sv("desk");
     if (phoneMode) renderPhone();
   }
-  function setMode(m) { phoneMode = m; try { localStorage.setItem("osr-sched-view", m ? "phone" : "desk"); } catch (e) {} applyMode(); }
+  function setMode(m) { phoneMode = m; try { localStorage.setItem(viewKey(), m ? "phone" : "desk"); } catch (e) {} applyMode(); }
   function scheduleViews() {
     var tog = document.querySelector(".house-toggle"), wrap = document.querySelector(".grid-wrap");
     if (!tog || !wrap || document.getElementById("phoneSched")) return;
