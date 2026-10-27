@@ -325,3 +325,13 @@ body.theme-clean .cn-trigger { padding: 8px; }
   body.theme-clean .cn-more { padding: 0 4px; }
   body.theme-clean .cn-trigger { padding: 8px 6px; }
 }
+
+/* ---------- the real Open Shift Rail logo (the app icon) instead of a text box ---------- */
+body.theme-clean .topbar-mark, body.theme-clean .brand-mark, body.theme-clean .landing-mark,
+body.theme-clean.theme-warm .topbar-mark, body.theme-clean.theme-warm nav.sections .brand-mark {
+  background: #1C201D url("/icons/icon-192.png") center / cover no-repeat;
+  color: transparent; font-size: 0; border: none; transform: none; border-radius: 10px; overflow: hidden;
+}
+body.theme-clean .landing-mark span { visibility: hidden; }
+body.theme-clean .topbar-mark, body.theme-clean nav.sections .brand-mark { width: 36px; height: 36px; flex: none; }
+body.theme-clean #sidebar .brand { display: none; }

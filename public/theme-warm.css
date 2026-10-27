@@ -45,7 +45,7 @@ body.theme-clean.theme-warm .cn-item.on { background: #FBE7C2; color: #5A3A05; }
 body.theme-clean.theme-warm .cn-trigger { border-radius: 999px; }
 body.theme-clean.theme-warm .cn-trigger:hover, body.theme-clean.theme-warm .cn-trigger[aria-expanded="true"] { background: #F3EBDD; }
 body.theme-clean.theme-warm .cn-panel .top-chip, body.theme-clean.theme-warm .cn-panel #logoutBtn { border-radius: 12px; }
-body.theme-clean.theme-warm .topbar-mark, body.theme-clean.theme-warm nav.sections .brand-mark { border-radius: 12px; background: var(--amber); }
+body.theme-clean.theme-warm .topbar-mark, body.theme-clean.theme-warm nav.sections .brand-mark { border-radius: 12px; }
 body.theme-clean.theme-warm .cn-sep { background: var(--rail); }
 
 /* ---------- cards ---------- */
