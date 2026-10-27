@@ -400,3 +400,20 @@ body.theme-clean #sidebar, body.theme-clean nav.sections { view-transition-name:
 /* ---------- inside /app.html: the two pages hide their own top bars (the outer page has the only bar) ---------- */
 body.embed #sidebar, body.embed #topbarNew, body.embed header, body.embed nav.sections, body.embed #demoBanner { display: none !important; }
 body.embed #shell { display: block; }
+
+/* logo size: a little bigger */
+body.theme-clean .topbar-mark, body.theme-clean nav.sections .brand-mark { width: 46px; height: 46px; border-radius: 13px; }
+body.theme-clean .cn-name, body.theme-clean nav.sections .header-left h1 { font-size: 16px; }
+body.theme-clean #sidebar, body.theme-clean nav.sections { min-height: 68px; }
+@media (max-width: 760px) {
+  body.theme-clean .topbar-mark, body.theme-clean nav.sections .brand-mark { width: 48px; height: 48px; }
+  body.theme-clean .cn-name, body.theme-clean nav.sections .header-left h1 { font-size: 17px; }
+}
+
+/* phones: logo clearly bigger */
+@media (max-width: 760px) {
+  body.theme-clean .topbar-mark, body.theme-clean nav.sections .brand-mark { width: 64px; height: 64px; border-radius: 16px; }
+  body.theme-clean .cn-brand, body.theme-clean nav.sections .header-left { gap: 14px; }
+  body.theme-clean .cn-name, body.theme-clean nav.sections .header-left h1 { font-size: 20px; }
+  body.theme-clean #sidebar, body.theme-clean nav.sections { padding-top: 12px; }
+}
