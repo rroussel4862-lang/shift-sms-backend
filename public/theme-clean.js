@@ -10,10 +10,16 @@
     btn.innerHTML = '<span class="cn-label"></span><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="13" cy="8" r="1.4"/></svg>';
     btn.querySelector(".cn-label").textContent = MORE[lang()] || MORE.en;
     var panel = document.createElement("div"); panel.className = "cn-panel"; panel.hidden = true;
-    wrap.appendChild(btn); wrap.appendChild(panel); bar.appendChild(wrap);
+    wrap.appendChild(btn); bar.appendChild(wrap);
+    /* the panel lives on <body> and is placed under the button, so no scrolling or clipping bar can hide it (phones included) */
+    document.body.appendChild(panel);
+    function mark() { btn.classList.toggle("on", !!panel.querySelector(".nav-stub.active")); }
+    new MutationObserver(mark).observe(panel, { attributes: true, subtree: true, attributeFilter: ["class"] });
+    function place() { var r = btn.getBoundingClientRect(); panel.style.top = (r.bottom + 6) + "px"; panel.style.right = Math.max(8, window.innerWidth - r.right) + "px"; }
     function close() { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); }
-    btn.addEventListener("click", function (e) { e.stopPropagation(); panel.hidden = !panel.hidden; btn.setAttribute("aria-expanded", String(!panel.hidden)); });
-    document.addEventListener("click", function (e) { if (!wrap.contains(e.target)) close(); });
+    btn.addEventListener("click", function (e) { e.stopPropagation(); if (panel.hidden) { place(); panel.hidden = false; } else { panel.hidden = true; } btn.setAttribute("aria-expanded", String(!panel.hidden)); });
+    window.addEventListener("resize", function () { if (!panel.hidden) place(); });
+    document.addEventListener("click", function (e) { if (!panel.contains(e.target) && !btn.contains(e.target)) close(); });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
     panel.addEventListener("click", function (e) { if (e.target.closest(".nav-stub, a, #logoutBtn")) close(); });
     return panel;
@@ -28,7 +34,11 @@
     ["tabBtnTraining", "tabBtnHiring"].forEach(function (id) { var b = document.getElementById(id); if (b) panel.appendChild(b); });
     sep(panel);
     var right = document.getElementById("topbarRight");
-    if (right) { while (right.firstChild) panel.appendChild(right.firstChild); }
+    if (right) {
+      while (right.firstChild) panel.appendChild(right.firstChild);
+      /* anything added later (for example the "?" tour button) joins the menu too */
+      new MutationObserver(function () { while (right.firstChild) panel.appendChild(right.firstChild); }).observe(right, { childList: true });
+    }
     return true;
   }
   function backOffice() {

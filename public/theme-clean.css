@@ -270,8 +270,8 @@ body.theme-clean .nav-stub, body.theme-clean .section-btn { white-space: nowrap;
 body.theme-clean .cn-more { margin-left: auto; position: relative; flex: none; }
 body.theme-clean .cn-trigger { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--text-dim); font-size: 13.5px; font-weight: 500; padding: 7px 10px; cursor: pointer; }
 body.theme-clean .cn-trigger svg { fill: currentColor; }
-body.theme-clean .cn-trigger:hover, body.theme-clean .cn-trigger[aria-expanded="true"], body.theme-clean .cn-more:has(.nav-stub.active) .cn-trigger { background: #F3F4F6; color: var(--ink); }
-body.theme-clean .cn-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 50; min-width: 230px; background: #FFFFFF; border: 1px solid var(--rail); border-radius: 12px; box-shadow: 0 12px 32px rgba(16, 24, 40, 0.16); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+body.theme-clean .cn-trigger:hover, body.theme-clean .cn-trigger[aria-expanded="true"], body.theme-clean .cn-trigger.on { background: #F3F4F6; color: var(--ink); }
+body.theme-clean .cn-panel { position: fixed; z-index: 9000; min-width: 230px; background: #FFFFFF; border: 1px solid var(--rail); border-radius: 12px; box-shadow: 0 12px 32px rgba(16, 24, 40, 0.16); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
 body.theme-clean .cn-panel[hidden] { display: none; }
 body.theme-clean .cn-panel .nav-stub { text-align: left; border-radius: 8px; padding: 9px 12px; box-shadow: none; width: 100%; justify-content: flex-start; }
 body.theme-clean .cn-panel .nav-stub:hover { background: #F3F4F6; }
@@ -289,11 +289,9 @@ body.theme-clean #sidebar .nav-stub { flex: none; width: auto; }
 body.theme-clean #sidebar, body.theme-clean nav.sections { position: relative; z-index: 40; overflow: visible; }
 @media (max-width: 640px) {
   body.theme-clean #sidebar, body.theme-clean nav.sections { padding: 0 0 0 10px; overflow-x: auto; scrollbar-width: none; }
-  body.theme-clean .cn-panel { z-index: 60; }
   body.theme-clean .cn-more { position: sticky; right: 0; background: #FFFFFF; padding: 0 8px 0 6px; box-shadow: -8px 0 8px -4px #FFFFFF; }
   body.theme-clean #sidebar .topbar-mark { display: none; }
   body.theme-clean nav.sections .header-left h1 { display: none; }
-  body.theme-clean .cn-panel { position: fixed; right: 10px; top: 58px; }
 }
 
 /* ---------- phones ---------- */
