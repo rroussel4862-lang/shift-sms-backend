@@ -388,3 +388,15 @@ body.theme-clean .ps-edit { margin-top: 10px; background: transparent; border: n
   body.theme-clean .view-toggle { margin-left: 0; padding-left: 0; border-left: none; flex: 0 0 100%; }
   body.theme-clean .ps-card { grid-template-columns: 96px 1fr auto; padding: 11px 12px; }
 }
+
+
+/* ---------- moving between the main app and Back Office: the bar stays put and the page cross-fades ---------- */
+@view-transition { navigation: auto; }
+body.theme-clean #sidebar, body.theme-clean nav.sections { view-transition-name: topnav; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 140ms; }
+::view-transition-group(topnav) { animation-duration: 0s; }
+
+
+/* ---------- inside /app.html: the two pages hide their own top bars (the outer page has the only bar) ---------- */
+body.embed #sidebar, body.embed #topbarNew, body.embed header, body.embed nav.sections, body.embed #demoBanner { display: none !important; }
+body.embed #shell { display: block; }

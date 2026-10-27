@@ -8,6 +8,7 @@
   window.showDemoBanner = function () {
     if (document.getElementById("demoBanner")) return;
     if (window.osrApplyTheme) window.osrApplyTheme();
+    try { if (window.top !== window) return; } catch (e) { return; }   // inside the one-page app, the outer page shows the banner
     var lang = "en";
     try { lang = localStorage.getItem("osr-lang") || "en"; } catch (e) {}
     var bar = document.createElement("div");

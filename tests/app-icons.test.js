@@ -5,7 +5,7 @@ const { app, pool } = require("../server.js");
 
 afterAll(async () => { await pool.end(); });
 
-const PAGES = ["index", "backoffice", "owner", "platform-dashboard", "demo", "staff-portal", "staff-claim", "apply"];
+const PAGES = ["index", "backoffice", "app", "owner", "platform-dashboard", "demo", "staff-portal", "staff-claim", "apply"];
 
 describe("home-screen app icon", () => {
   test("every icon file is served as a PNG without logging in", async () => {

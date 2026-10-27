@@ -790,12 +790,15 @@ app.disable("x-powered-by");
 // Security headers on every response: no content sniffing, no embedding in other sites' frames, HTTPS only once seen over HTTPS,
 // and a minimal Content-Security-Policy that blocks framing, plugins and form posts to other sites (it does not restrict scripts).
 app.use((req, res, next) => {
+  // The one exception: our own app shell (/app.html) shows the main app and the Back Office in frames of the same site.
+  // Only those two pages, only when asked for with ?embed=1, and only by pages from our own origin.
+  const ownFrame = req.query.embed === "1" && (req.path === "/index.html" || req.path === "/backoffice.html");
   res.set({
     "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
+    "X-Frame-Options": ownFrame ? "SAMEORIGIN" : "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
-    "Content-Security-Policy": "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'",
+    "Content-Security-Policy": `frame-ancestors ${ownFrame ? "'self'" : "'none'"}; base-uri 'self'; object-src 'none'; form-action 'self'`,
   });
   if (req.secure) res.set("Strict-Transport-Security", "max-age=15552000");
   next();

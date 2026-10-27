@@ -2231,6 +2231,7 @@ function renderScheduleGrid() {
   const me = await api("/api/auth/me");
   if (!me.ok) {
     document.getElementById("authGate").style.display = "flex";
+    if (window.osrNoSession) osrNoSession();
     return;
   }
   document.getElementById("app").style.display = "block";

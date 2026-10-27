@@ -234,5 +234,8 @@
     phoneMode = savedMode(); applyMode();
   }
 
-  window.cleanNav = function () { if (!mainApp()) backOffice(); };
+  var embedded = false;
+  try { embedded = window.top !== window || /[?&]embed=1/.test(location.search); } catch (e) { embedded = true; }
+  /* inside /app.html the bar belongs to the outer page; the Back Office still gets its phone/desktop schedule toggle */
+  window.cleanNav = function () { if (embedded) { if (document.querySelector("nav.sections")) { here = "bo"; scheduleViews(); } return; } if (!mainApp()) backOffice(); };
 })();

@@ -3510,7 +3510,7 @@ function enterApp() {
     if (result.data.demo && window.showDemoBanner) showDemoBanner(); else if (window.osrNotDemo) osrNotDemo();
     document.getElementById("ownerBackLink").style.display = viaOwner && result.data.canSwitch ? "inline-block" : "none";
     enterApp();
-  }
+  } else if (window.osrNoSession) osrNoSession();
 })();
 </script>
 </body>
