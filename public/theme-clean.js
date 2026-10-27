@@ -145,7 +145,87 @@
     var left = head.querySelector(".header-left"); if (left) bar.insertBefore(left, bar.firstChild);
     build(bar);
     settings(bar, document.getElementById("hdrRight"), true);
+    scheduleViews();
     return true;
   }
+
+  /* ------------------------------------------------------------------------------------------------
+     Schedule: "Phone view" (one day at a time, as a list) and "Desktop view" (the full week grid).
+     The grid itself is untouched; phone view is a second way of looking at the same data.            */
+  var SV = {
+    en: { phone: "Phone view", desk: "Desktop view", empty: "Nobody is scheduled this day.", hrs: "h", labor: "Labor", forecast: "Forecast", shifts: "shifts", edit: "Edit in desktop view", people: "scheduled", hours: "Hours" },
+    fr: { phone: "Vue mobile", desk: "Vue bureau", empty: "Personne n'est à l'horaire ce jour-là.", hrs: "h", labor: "Main-d'œuvre", forecast: "Prévision", shifts: "quarts", edit: "Modifier en vue bureau", people: "à l'horaire", hours: "Heures" },
+    es: { phone: "Vista móvil", desk: "Vista escritorio", empty: "Nadie está programado ese día.", hrs: "h", labor: "Mano de obra", forecast: "Pronóstico", shifts: "turnos", edit: "Editar en vista escritorio", people: "programados", hours: "Horas" }
+  };
+  function sv(k) { return (SV[lang()] || SV.en)[k]; }
+  var phoneMode = false, dayIdx = null;
+  function savedMode() { try { var m = localStorage.getItem("osr-sched-view"); if (m) return m === "phone"; } catch (e) {} return window.innerWidth < 760; }
+  function esc(x) { return String(x == null ? "" : x).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function fmtT(t) { try { return formatTime(t); } catch (e) { return t; } }
+  function money(v) { return "$" + Math.round(v).toLocaleString("en-US"); }
+
+  function renderPhone() {
+    var box = document.getElementById("phoneSched"); if (!box) return;
+    var dates = [];
+    for (var i = 0; i < 7; i++) { var d = new Date(weekStart); d.setDate(d.getDate() + i); dates.push(d); }
+    if (dayIdx === null || dayIdx > 6) { var t = toISODate(new Date()), f = dates.findIndex(function (d) { return toISODate(d) === t; }); dayIdx = f >= 0 ? f : 0; }
+    var groups = viewGroups(), ids = {}; groups.forEach(function (g) { g.people.forEach(function (p) { ids[p.id] = p; }); });
+    var mine = scheduleShifts.filter(function (s) { return ids[s.staffId]; });
+    var perDay = dates.map(function (d) { var ds = toISODate(d); return mine.filter(function (s) { return s.date === ds; }); });
+    var strip = dates.map(function (d, i) {
+      return '<button type="button" class="ps-day' + (i === dayIdx ? " on" : "") + '" data-i="' + i + '"><span>' + esc(tr("days." + i)) + '</span><b>' + d.getDate() + '</b><i>' + (perDay[i].length || "") + '</i></button>';
+    }).join("");
+    var ds = toISODate(dates[dayIdx]), day = perDay[dayIdx].slice().sort(function (a, b) { return (a.startTime || "").localeCompare(b.startTime || ""); });
+    var hours = 0, cost = 0;
+    day.forEach(function (s) { var h = computeHours(s.startTime, s.endTime); hours += h; cost += h * ((ids[s.staffId] && ids[s.staffId].hourlyRate) || 0); });
+    var fc = salesProjections[ds];
+    var pct = (fc && cost) ? Math.round(cost / fc * 1000) / 10 + "%" : "";
+    var summary = '<div class="ps-sum"><div><b>' + day.length + '</b><span>' + sv("people") + '</span></div><div><b>' + (Math.round(hours * 10) / 10) + '</b><span>' + sv("hours") + '</span></div><div><b>' + money(cost) + '</b><span>' + sv("labor") + (pct ? " · " + pct : "") + '</span></div>' + (fc ? '<div><b>' + money(fc) + '</b><span>' + sv("forecast") + '</span></div>' : "") + '</div>';
+    var body = "";
+    groups.forEach(function (g) {
+      var rows = day.filter(function (s) { return (s.role || "") === g.role || ((!s.role) && (ids[s.staffId].roles || [])[0] === g.role); });
+      rows.forEach(function (s) { s.__g = 1; });
+      if (!rows.length) return;
+      body += '<div class="ps-role">' + esc(g.role) + '</div>' + rows.map(card).join("");
+    });
+    var rest = day.filter(function (s) { return !s.__g; });
+    if (rest.length) body += '<div class="ps-role">·</div>' + rest.map(card).join("");
+    day.forEach(function (s) { delete s.__g; });
+    if (!day.length) body = '<div class="ps-empty">' + sv("empty") + '</div>';
+    function card(s) {
+      var p = ids[s.staffId], h = Math.round(computeHours(s.startTime, s.endTime) * 10) / 10;
+      return '<button type="button" class="ps-card" data-id="' + esc(s.id) + '"><span class="ps-time">' + esc(fmtT(s.startTime)) + ' – ' + esc(fmtT(s.endTime)) + '</span><span class="ps-who"><b>' + esc(p.name) + '</b><i>' + esc(s.role || "") + '</i></span><span class="ps-h">' + h + sv("hrs") + '</span></button>';
+    }
+    box.innerHTML = '<div class="ps-strip">' + strip + '</div>' + summary + '<div class="ps-list">' + body + '</div><button type="button" class="ps-edit">' + sv("edit") + '</button>';
+  }
+  function applyMode() {
+    document.body.classList.toggle("sched-phone", phoneMode);
+    var a = document.getElementById("viewBtnPhone"), b = document.getElementById("viewBtnDesk");
+    if (a) a.classList.toggle("active", phoneMode); if (b) b.classList.toggle("active", !phoneMode);
+    if (a) a.textContent = sv("phone"); if (b) b.textContent = sv("desk");
+    if (phoneMode) renderPhone();
+  }
+  function setMode(m) { phoneMode = m; try { localStorage.setItem("osr-sched-view", m ? "phone" : "desk"); } catch (e) {} applyMode(); }
+  function scheduleViews() {
+    var tog = document.querySelector(".house-toggle"), wrap = document.querySelector(".grid-wrap");
+    if (!tog || !wrap || document.getElementById("phoneSched")) return;
+    var vt = document.createElement("span"); vt.className = "view-toggle";
+    vt.innerHTML = '<button type="button" class="house-btn" id="viewBtnPhone"></button><button type="button" class="house-btn" id="viewBtnDesk"></button>';
+    tog.appendChild(vt);
+    vt.querySelector("#viewBtnPhone").addEventListener("click", function () { setMode(true); });
+    vt.querySelector("#viewBtnDesk").addEventListener("click", function () { setMode(false); });
+    var box = document.createElement("div"); box.id = "phoneSched"; var anchor = document.getElementById("pubBar"); if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(box, anchor.nextSibling); else wrap.parentNode.insertBefore(box, wrap);
+    box.addEventListener("click", function (e) {
+      var d = e.target.closest(".ps-day"); if (d) { dayIdx = +d.getAttribute("data-i"); renderPhone(); return; }
+      var c = e.target.closest(".ps-card");
+      if (c) { setMode(false); try { editShift(c.getAttribute("data-id")); } catch (x) {} return; }
+      if (e.target.closest(".ps-edit")) setMode(false);
+    });
+    /* redraw the list whenever the grid is redrawn (week change, house change, saves...) */
+    var orig = window.renderScheduleGrid;
+    if (typeof orig === "function") window.renderScheduleGrid = function () { var r = orig.apply(this, arguments); if (phoneMode) { try { renderPhone(); } catch (x) {} } return r; };
+    phoneMode = savedMode(); applyMode();
+  }
+
   window.cleanNav = function () { if (!mainApp()) backOffice(); };
 })();
