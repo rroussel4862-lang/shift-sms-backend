@@ -14,6 +14,12 @@
       document.head.appendChild(l);
     }
     document.body.classList.add("theme-clean");
+    if (!document.getElementById("themeCleanJs")) {
+      var sc = document.createElement("script");
+      sc.id = "themeCleanJs"; sc.src = "/theme-clean.js";
+      sc.onload = function () { if (window.cleanNav) window.cleanNav(); };
+      document.head.appendChild(sc);
+    }
     var lang = "en";
     try { lang = localStorage.getItem("osr-lang") || "en"; } catch (e) {}
     var bar = document.createElement("div");

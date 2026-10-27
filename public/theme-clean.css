@@ -257,6 +257,45 @@ body.theme-clean .osr-bub .osr-dots i { background: #D5D9E0; }
 body.theme-clean .osr-bub button { border-color: #D5D9E0; border-radius: 8px; }
 body.theme-clean .osr-bub button.osr-primary { background: var(--ink); border-color: var(--ink); color: #FFFFFF; }
 
+
+/* ---------- one slim navigation bar ---------- */
+body.theme-clean #topbarNew, body.theme-clean header { display: none; }
+body.theme-clean #sidebar, body.theme-clean nav.sections { display: flex; align-items: center; flex-wrap: nowrap; gap: 4px; padding: 0 20px; min-height: 56px; border-bottom: 1px solid var(--rail); background: #FFFFFF; }
+body.theme-clean #sidebar .topbar-mark { margin-right: 14px; flex: none; }
+body.theme-clean nav.sections .header-left { display: flex; align-items: center; gap: 10px; margin-right: 16px; flex: none; }
+body.theme-clean nav.sections .brand-mark { width: 30px; height: 30px; border-radius: 8px; border: none; background: var(--amber); color: var(--ink); display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; transform: none; }
+body.theme-clean nav.sections .header-left h1 { font-size: 14px; font-weight: 600; margin: 0; white-space: nowrap; }
+body.theme-clean nav.sections .header-left .sub { display: none; }
+body.theme-clean .nav-stub, body.theme-clean .section-btn { white-space: nowrap; padding: 18px 12px 16px; }
+body.theme-clean .cn-more { margin-left: auto; position: relative; flex: none; }
+body.theme-clean .cn-trigger { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--text-dim); font-size: 13.5px; font-weight: 500; padding: 7px 10px; cursor: pointer; }
+body.theme-clean .cn-trigger svg { fill: currentColor; }
+body.theme-clean .cn-trigger:hover, body.theme-clean .cn-trigger[aria-expanded="true"], body.theme-clean .cn-more:has(.nav-stub.active) .cn-trigger { background: #F3F4F6; color: var(--ink); }
+body.theme-clean .cn-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 50; min-width: 230px; background: #FFFFFF; border: 1px solid var(--rail); border-radius: 12px; box-shadow: 0 12px 32px rgba(16, 24, 40, 0.16); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+body.theme-clean .cn-panel[hidden] { display: none; }
+body.theme-clean .cn-panel .nav-stub { text-align: left; border-radius: 8px; padding: 9px 12px; box-shadow: none; width: 100%; justify-content: flex-start; }
+body.theme-clean .cn-panel .nav-stub:hover { background: #F3F4F6; }
+body.theme-clean .cn-panel .nav-stub.active { background: #F3F4F6; box-shadow: none; }
+body.theme-clean .cn-sep { height: 1px; background: var(--rail); margin: 4px 6px; }
+body.theme-clean .cn-panel #topbarRight, body.theme-clean .cn-panel #hdrRight { flex-direction: column; align-items: stretch; }
+body.theme-clean .cn-panel .top-chip, body.theme-clean .cn-panel #logoutBtn, body.theme-clean .cn-panel .back-link { display: block; text-align: left; border: none; background: transparent; border-radius: 8px; padding: 9px 12px; font-size: 13.5px; color: var(--ink); text-decoration: none; cursor: pointer; width: 100%; box-sizing: border-box; }
+body.theme-clean .cn-panel .top-chip:hover, body.theme-clean .cn-panel #logoutBtn:hover, body.theme-clean .cn-panel .back-link:hover { background: #F3F4F6; }
+body.theme-clean .cn-panel .osr-help { width: auto; height: auto; border: none; border-radius: 8px; padding: 9px 12px; color: var(--ink); font-size: 13.5px; font-weight: 500; text-align: left; display: block; }
+body.theme-clean .cn-panel .osr-help::after { content: " Take the tour"; }
+body.theme-clean .cn-panel .osr-help:hover { background: #F3F4F6; color: var(--ink); }
+body.theme-clean .cn-panel .lang-switch, body.theme-clean .cn-panel .i18n-switch { display: flex; gap: 6px; padding: 6px 12px; }
+body.theme-clean .module-header .eyebrow { display: none; }
+body.theme-clean #sidebar .nav-stub { flex: none; width: auto; }
+body.theme-clean #sidebar, body.theme-clean nav.sections { position: relative; z-index: 40; overflow: visible; }
+@media (max-width: 640px) {
+  body.theme-clean #sidebar, body.theme-clean nav.sections { padding: 0 0 0 10px; overflow-x: auto; scrollbar-width: none; }
+  body.theme-clean .cn-panel { z-index: 60; }
+  body.theme-clean .cn-more { position: sticky; right: 0; background: #FFFFFF; padding: 0 8px 0 6px; box-shadow: -8px 0 8px -4px #FFFFFF; }
+  body.theme-clean #sidebar .topbar-mark { display: none; }
+  body.theme-clean nav.sections .header-left h1 { display: none; }
+  body.theme-clean .cn-panel { position: fixed; right: 10px; top: 58px; }
+}
+
 /* ---------- phones ---------- */
 @media (max-width: 640px) {
   body.theme-clean #contentWrap { padding: 16px 14px 64px; }
