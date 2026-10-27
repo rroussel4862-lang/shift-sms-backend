@@ -4,15 +4,15 @@
 (function () {
   var L = {
     en: { today: "Today", schedule: "Schedule", people: "People", money: "Money", messages: "Messages", menu: "Menu",
-      overview: "Overview", week: "Weekly schedule", open: "Open shifts", punch: "Punch clock", team: "Team", pay: "Pay & tenure",
+      overview: "Overview", week: "Weekly schedule", open: "Open shifts & swaps", punch: "Punch clock", team: "Team & requests", pay: "Pay & tenure",
       training: "Training", hiring: "Hiring", payroll: "Payroll & sales", sales: "Daily sales entry", revenue: "Revenue history", tour: "Take the tour", logout: "Log out",
       demo: "Demo: made-up restaurant and sample data. It resets every night." },
     fr: { today: "Aujourd'hui", schedule: "Horaire", people: "Équipe", money: "Argent", messages: "Messages", menu: "Menu",
-      overview: "Aperçu", week: "Horaire de la semaine", open: "Quarts ouverts", punch: "Pointage", team: "Personnel", pay: "Salaires et ancienneté",
+      overview: "Aperçu", week: "Horaire de la semaine", open: "Quarts ouverts et échanges", punch: "Pointage", team: "Personnel et demandes", pay: "Salaires et ancienneté",
       training: "Formation", hiring: "Embauche", payroll: "Paie et ventes", sales: "Saisie des ventes", revenue: "Historique des revenus", tour: "Visite guidée", logout: "Déconnexion",
       demo: "Démo : restaurant fictif et données d'exemple. Réinitialisé chaque nuit." },
     es: { today: "Hoy", schedule: "Horario", people: "Equipo", money: "Dinero", messages: "Mensajes", menu: "Menú",
-      overview: "Resumen", week: "Horario semanal", open: "Turnos abiertos", punch: "Reloj", team: "Personal", pay: "Pago y antigüedad",
+      overview: "Resumen", week: "Horario semanal", open: "Turnos abiertos y cambios", punch: "Reloj", team: "Personal y solicitudes", pay: "Pago y antigüedad",
       training: "Capacitación", hiring: "Contratación", payroll: "Nómina y ventas", sales: "Registro de ventas", revenue: "Historial de ingresos", tour: "Recorrido guiado", logout: "Cerrar sesión",
       demo: "Demo: restaurante ficticio con datos de ejemplo. Se reinicia cada noche." }
   };

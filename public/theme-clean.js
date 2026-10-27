@@ -5,13 +5,13 @@
 (function () {
   var L = {
     en: { today: "Today", schedule: "Schedule", people: "People", money: "Money", messages: "Messages", menu: "Menu",
-      overview: "Overview", week: "Weekly schedule", open: "Open shifts", punch: "Punch clock", team: "Team", pay: "Pay & tenure",
+      overview: "Overview", week: "Weekly schedule", open: "Open shifts & swaps", punch: "Punch clock", team: "Team & requests", pay: "Pay & tenure",
       training: "Training", hiring: "Hiring", payroll: "Payroll & sales", sales: "Daily sales entry", revenue: "Revenue history", tour: "Take the tour" },
     fr: { today: "Aujourd'hui", schedule: "Horaire", people: "Équipe", money: "Argent", messages: "Messages", menu: "Menu",
-      overview: "Aperçu", week: "Horaire de la semaine", open: "Quarts ouverts", punch: "Pointage", team: "Personnel", pay: "Salaires et ancienneté",
+      overview: "Aperçu", week: "Horaire de la semaine", open: "Quarts ouverts et échanges", punch: "Pointage", team: "Personnel et demandes", pay: "Salaires et ancienneté",
       training: "Formation", hiring: "Embauche", payroll: "Paie et ventes", sales: "Saisie des ventes", revenue: "Historique des revenus", tour: "Visite guidée" },
     es: { today: "Hoy", schedule: "Horario", people: "Equipo", money: "Dinero", messages: "Mensajes", menu: "Menú",
-      overview: "Resumen", week: "Horario semanal", open: "Turnos abiertos", punch: "Reloj", team: "Personal", pay: "Pago y antigüedad",
+      overview: "Resumen", week: "Horario semanal", open: "Turnos abiertos y cambios", punch: "Reloj", team: "Personal y solicitudes", pay: "Pago y antigüedad",
       training: "Capacitación", hiring: "Contratación", payroll: "Nómina y ventas", sales: "Registro de ventas", revenue: "Historial de ingresos", tour: "Recorrido guiado" }
   };
   function lang() { try { return localStorage.getItem("osr-lang") || "en"; } catch (e) { return "en"; } }
@@ -234,8 +234,36 @@
     phoneMode = savedMode(); applyMode();
   }
 
+
+  /* The demo's navigation has new names, so the main app's own pointers ("Review in Scheduling", "Back Office › Schedule"...)
+     are reworded to match where things now are. Only the demo loads this file. */
+  var RELABEL = {
+    en: { "snap.swapWaitLink": "Review swaps", "snap.availWaitLink": "Review requests",
+      "snap.noAiForecast": "Generate it in Schedule › Weekly schedule", "snap.noForecast": "Enter today's forecast in Schedule › Weekly schedule", "snap.noLastYear": "Add it in Schedule › Weekly schedule",
+      "snap.needAddressLink": "Add it in People › Hiring", "snap.geoFailed": "We couldn't locate that address — check it in People › Hiring.",
+      "scheduling.todayEmptyHint": "Build the week in Schedule › Weekly schedule.", "scheduling.openBackOffice": "Open weekly schedule", "comms.schedOpenBo": "Open weekly schedule" },
+    fr: { "snap.swapWaitLink": "Voir les échanges", "snap.availWaitLink": "Voir les demandes",
+      "snap.noAiForecast": "À générer dans Horaire › Horaire de la semaine", "snap.noForecast": "Entrez la prévision du jour dans Horaire › Horaire de la semaine", "snap.noLastYear": "À ajouter dans Horaire › Horaire de la semaine",
+      "snap.needAddressLink": "À ajouter dans Équipe › Embauche", "snap.geoFailed": "Adresse introuvable — vérifiez-la dans Équipe › Embauche.",
+      "scheduling.todayEmptyHint": "Préparez la semaine dans Horaire › Horaire de la semaine.", "scheduling.openBackOffice": "Ouvrir l'horaire de la semaine", "comms.schedOpenBo": "Ouvrir l'horaire de la semaine" },
+    es: { "snap.swapWaitLink": "Revisar cambios", "snap.availWaitLink": "Revisar solicitudes",
+      "snap.noAiForecast": "Genéralo en Horario › Horario semanal", "snap.noForecast": "Ingresa la proyección de hoy en Horario › Horario semanal", "snap.noLastYear": "Agrégalo en Horario › Horario semanal",
+      "snap.needAddressLink": "Agrégala en Equipo › Contratación", "snap.geoFailed": "No pudimos ubicar esa dirección — revísala en Equipo › Contratación.",
+      "scheduling.todayEmptyHint": "Arma la semana en Horario › Horario semanal.", "scheduling.openBackOffice": "Abrir horario semanal", "comms.schedOpenBo": "Abrir horario semanal" }
+  };
+  function relabel() {
+    if (typeof T === "undefined") return;
+    try {
+      Object.keys(RELABEL).forEach(function (l) {
+        if (!T[l]) return;
+        Object.keys(RELABEL[l]).forEach(function (path) { var p = path.split("."); if (T[l][p[0]] && p[1] in T[l][p[0]]) T[l][p[0]][p[1]] = RELABEL[l][path]; });
+      });
+      if (typeof renderOverview === "function" && document.getElementById("overviewGrid") && document.getElementById("overviewGrid").innerHTML) renderOverview();
+    } catch (e) {}
+  }
+
   var embedded = false;
   try { embedded = window.top !== window || /[?&]embed=1/.test(location.search); } catch (e) { embedded = true; }
   /* inside /app.html the bar belongs to the outer page; the Back Office still gets its phone/desktop schedule toggle */
-  window.cleanNav = function () { if (embedded) { if (document.querySelector("nav.sections")) { here = "bo"; scheduleViews(); } return; } if (!mainApp()) backOffice(); };
+  window.cleanNav = function () { relabel(); if (embedded) { if (document.querySelector("nav.sections")) { here = "bo"; scheduleViews(); } return; } if (!mainApp()) backOffice(); };
 })();
