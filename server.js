@@ -1166,6 +1166,7 @@ app.post("/api/billing/checkout", requireAuth, async (req, res) => {
       success_url: `${base}/?billing=success`,
       cancel_url: `${base}/?billing=canceled`,
     };
+    if (taxRates.length) params.automatic_tax = { enabled: false }; // manual rates and automatic tax can't be mixed; newer Stripe accounts may default automatic tax on
     if (!taxRates.length && process.env.STRIPE_AUTOMATIC_TAX === "1") {
       params.automatic_tax = { enabled: true };
       params.billing_address_collection = "required";
