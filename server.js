@@ -945,7 +945,7 @@ async function applyStripeEvent(event) {
   } else if (type === "customer.subscription.created" || type === "customer.subscription.updated" || type === "customer.subscription.deleted") {
     restaurantId = await restaurantForStripe({ restaurantId: obj.metadata && obj.metadata.restaurant_id, customerId: obj.customer });
     status = type === "customer.subscription.deleted" ? "canceled" : SUBSCRIPTION_STATUS[obj.status] || null;
-    extra = { customer: obj.customer || null, subscription: obj.id || null, periodEnd: obj.current_period_end ? obj.current_period_end * 1000 : null };
+    extra = { customer: obj.customer || null, subscription: obj.id || null, periodEnd: (() => { const t = obj.current_period_end || (obj.items && obj.items.data && obj.items.data[0] && obj.items.data[0].current_period_end); return t ? t * 1000 : null; })() };
   } else if (type === "invoice.payment_failed" || type === "invoice.paid") {
     restaurantId = await restaurantForStripe({ customerId: obj.customer });
     status = type === "invoice.paid" ? "active" : "past_due";
