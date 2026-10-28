@@ -767,6 +767,12 @@ async function requireStaffAuth(req, res, next) {
   } catch (e) {
     console.error("Staff session check failed:", e.message);
   }
+  // A restaurant that hasn't paid is held back from staff too, with a neutral answer: staff never see anything about payment.
+  try {
+    if ((await getBilling(payload.restaurantId)).blocked) return res.status(402).json({ error: "unavailable", code: "restaurant_unavailable" });
+  } catch (e) {
+    console.error("Billing check failed:", e.message);
+  }
   req.staffId = payload.staffId;
   req.restaurantId = payload.restaurantId;
   next();
@@ -1926,6 +1932,11 @@ app.post("/api/staff-auth/login", loginLimiter, loginEmailLimiter, async (req, r
     return res.status(401).json({ error: "incorrect email or password" });
   }
 
+  try {
+    if ((await getBilling(staffer.restaurant_id)).blocked) return res.status(402).json({ error: "unavailable", code: "restaurant_unavailable" });
+  } catch (e) {
+    console.error("Billing check failed:", e.message);
+  }
   const sessionToken = signToken({ staffId: staffer.id, restaurantId: staffer.restaurant_id });
   res.cookie("staff_token", sessionToken, COOKIE_OPTS);
   logActivity({ restaurantId: staffer.restaurant_id, eventType: "login_success", detail: `staff login: ${email.toLowerCase()} [${deviceLabel(req)}]` });
@@ -5428,4 +5439,4 @@ app.get("/api/owner/overview", requireOwnerAuth, async (req, res) => {
   });
 });
 
-module.exports = { verifyStripeSignature, stripeForm, app, pool, initDb, seedDemoNow, ensureFreshDemo, demoIds, makeErrorCode, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates, cleanAvailability };
+module.exports = { verifyStripeSignature, stripeForm, clearBillingCache, app, pool, initDb, seedDemoNow, ensureFreshDemo, demoIds, makeErrorCode, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates, cleanAvailability };

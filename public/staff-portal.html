@@ -251,7 +251,7 @@ I18N.add({
     "landing.title": "My Shifts", "landing.sub": "Your schedule, your availability, and open shifts you can pick up — log in to get started.",
     "landing.email": "Email", "landing.password": "Password", "landing.login": "Log in",
     "landing.errMissing": "Enter your email and password",
-    "app.logout": "Log out", "app.hi": n => `Hi, ${n}`, "app.myShifts": "My Shifts",
+    "app.logout": "Log out", "off.h": "Not available right now", "off.b": "This schedule isn’t available at the moment. Please see your manager.", "app.hi": n => `Hi, ${n}`, "app.myShifts": "My Shifts",
     "tabs.schedule": "My Schedule", "tabs.availability": "Availability", "tabs.open": "Open Shifts",
     "schedule.h2": "Upcoming shifts", "schedule.loading": "Loading…",
     "schedule.count": n => `${n} upcoming shift${n === 1 ? "" : "s"}`,
@@ -288,7 +288,7 @@ I18N.add({
     "landing.title": "Mes quarts", "landing.sub": "Votre horaire, vos disponibilités et les quarts ouverts que vous pouvez prendre — connectez-vous pour commencer.",
     "landing.email": "Courriel", "landing.password": "Mot de passe", "landing.login": "Se connecter",
     "landing.errMissing": "Entrez votre courriel et votre mot de passe",
-    "app.logout": "Déconnexion", "app.hi": n => `Salut, ${n}`, "app.myShifts": "Mes quarts",
+    "app.logout": "Déconnexion", "off.h": "Indisponible pour le moment", "off.b": "Cet horaire n’est pas disponible pour le moment. Veuillez voir votre gestionnaire.", "app.hi": n => `Salut, ${n}`, "app.myShifts": "Mes quarts",
     "tabs.schedule": "Mon horaire", "tabs.availability": "Disponibilités", "tabs.open": "Quarts ouverts",
     "schedule.h2": "Prochains quarts", "schedule.loading": "Chargement…",
     "schedule.count": n => `${n} quart${n === 1 ? "" : "s"} à venir`,
@@ -325,7 +325,7 @@ I18N.add({
     "landing.title": "Mis turnos", "landing.sub": "Tu horario, tu disponibilidad y los turnos abiertos que puedes tomar — inicia sesión para empezar.",
     "landing.email": "Correo", "landing.password": "Contraseña", "landing.login": "Iniciar sesión",
     "landing.errMissing": "Ingresa tu correo y contraseña",
-    "app.logout": "Cerrar sesión", "app.hi": n => `Hola, ${n}`, "app.myShifts": "Mis turnos",
+    "app.logout": "Cerrar sesión", "off.h": "No disponible por ahora", "off.b": "Este horario no está disponible en este momento. Por favor, habla con tu gerente.", "app.hi": n => `Hola, ${n}`, "app.myShifts": "Mis turnos",
     "tabs.schedule": "Mi horario", "tabs.availability": "Disponibilidad", "tabs.open": "Turnos abiertos",
     "schedule.h2": "Próximos turnos", "schedule.loading": "Cargando…",
     "schedule.count": n => `${n} turno${n === 1 ? "" : "s"} próximo${n === 1 ? "" : "s"}`,
@@ -378,11 +378,27 @@ async function api(path, options) {
     const res = await fetch(path, { headers: { "Content-Type": "application/json" }, credentials: "same-origin", ...options });
     let body = null;
     try { body = await res.json(); } catch (e) {}
+    if (res.status === 402 && body && body.code === "restaurant_unavailable") { showUnavailable(); return { ok: false, error: "" }; }
     if (!res.ok) return { ok: false, error: (body && body.error) || `HTTP ${res.status}` };
     return { ok: true, data: body };
   } catch (e) {
     return { ok: false, error: tr("err.network") };
   }
+}
+
+function showUnavailable() {
+  if (document.getElementById("osrOff")) return;
+  const o = document.createElement("div");
+  o.id = "osrOff";
+  o.setAttribute("role", "dialog");
+  o.style.cssText = "position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(44,38,32,.55);backdrop-filter:blur(6px)";
+  o.innerHTML = '<div style="max-width:420px;width:100%;background:#fff;color:#2C2620;border-radius:16px;padding:28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:inherit"><h2 style="margin:0 0 10px;font-size:20px"></h2><p style="margin:0 0 18px;line-height:1.5"></p><button type="button" style="padding:9px 18px;border:1px solid #d8d2c8;background:#fff;border-radius:10px;font:inherit;cursor:pointer"></button></div>';
+  o.querySelector("h2").textContent = tr("off.h");
+  o.querySelector("p").textContent = tr("off.b");
+  const b = o.querySelector("button");
+  b.textContent = tr("app.logout");
+  b.onclick = async () => { try { await fetch("/api/staff-auth/logout", { method: "POST", credentials: "same-origin" }); } catch (e) {} location.reload(); };
+  document.body.appendChild(o);
 }
 
 function escapeHtml(str) {
