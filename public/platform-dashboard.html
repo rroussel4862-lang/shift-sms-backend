@@ -170,7 +170,7 @@
         <table>
           <thead>
             <tr>
-              <th>Name</th><th>Twilio number</th><th>Staff</th><th>Shifts (open)</th><th>Open postings</th><th>Activity (7d)</th><th>Last activity</th><th>Signed up</th><th>Billing</th><th></th>
+              <th>Name</th><th>Twilio number</th><th>Staff</th><th>Shifts (open)</th><th>Open postings</th><th>Activity (7d)</th><th>Last activity</th><th>Signed up</th><th>Billing</th><th>POS</th><th></th>
             </tr>
           </thead>
           <tbody id="restaurantsBody"></tbody>
@@ -410,7 +410,7 @@ async function loadRestaurants() {
   renderOwnerChecks();
   const body = document.getElementById("restaurantsBody");
   body.innerHTML = restaurants.length === 0
-    ? `<tr><td colspan="10" class="empty">No restaurants signed up yet.</td></tr>`
+    ? `<tr><td colspan="11" class="empty">No restaurants signed up yet.</td></tr>`
     : restaurants.map(r => `
         <tr onclick="document.getElementById('filterRestaurant').value='${r.id}'; loadActivity();">
           <td class="restaurant-name">${escapeHtml(r.name)}${r.isDemo ? ' <span style="color:var(--amber);font-size:11px">DEMO</span>' : ""}</td>
@@ -427,6 +427,7 @@ async function loadRestaurants() {
           <td>${timeAgo(r.lastActivityAt)}</td>
           <td>${formatDate(r.createdAt)}</td>
           <td onclick="event.stopPropagation()">${billingCell(r)}</td>
+          <td onclick="event.stopPropagation()"><button class="ghost" style="padding:5px 9px;font-size:11px" onclick="openPos('${r.id}')">POS…</button></td>
           <td onclick="event.stopPropagation()"><button class="ghost" style="padding:5px 9px;font-size:11px;color:#e5645a" onclick="deleteRestaurant('${r.id}')">Delete</button></td>
         </tr>
       `).join("");
@@ -464,6 +465,61 @@ async function saveBilling(restaurantId) {
   const result = await api(`/api/platform/restaurants/${restaurantId}/billing`, { method: "PATCH", body: JSON.stringify({ mode, freeUntil }) });
   if (!result.ok) return alert(result.error);
   loadRestaurants();
+}
+
+// ---------- POS (Veloce) connection ----------
+let posFor = null;
+function posEl(id) { return document.getElementById(id); }
+async function openPos(restaurantId) {
+  posFor = restaurantId;
+  const r = restaurants.find(x => x.id === restaurantId);
+  posEl("posTitle").textContent = "POS connection — " + (r ? r.name : "");
+  posEl("posMsg").textContent = ""; posEl("posPass").value = "";
+  posEl("posModal").style.display = "flex";
+  await refreshPos();
+}
+function closePos() { posEl("posModal").style.display = "none"; posEl("posPass").value = ""; posFor = null; }
+async function refreshPos() {
+  const res = await api(`/api/platform/restaurants/${posFor}/pos`);
+  if (!res.ok) { posEl("posMsg").textContent = res.error; return; }
+  const d = res.data;
+  posEl("posLicence").value = d.licenceNumber || "";
+  posEl("posEmail").value = d.email || "";
+  posEl("posPass").placeholder = d.connected ? "•••••••• (saved — leave blank to keep)" : "Veloce password";
+  const bits = [];
+  if (!d.configured) bits.push("⚠ POS_SECRET_KEY is not set in Render yet, so nothing can be saved.");
+  bits.push(d.connected ? `Status: ${d.status}${d.locationName ? " — " + d.locationName : ""}` : "Not connected");
+  if (d.lastError) bits.push("Last error: " + d.lastError);
+  if (d.lastOkAt) bits.push("Last success: " + new Date(d.lastOkAt).toLocaleString());
+  posEl("posStatus").innerHTML = bits.map(b => `<div>${escapeHtml(b)}</div>`).join("");
+}
+async function savePos() {
+  posEl("posMsg").textContent = "Saving…";
+  const res = await api(`/api/platform/restaurants/${posFor}/pos`, { method: "PUT", body: JSON.stringify({ licenceNumber: posEl("posLicence").value.trim(), email: posEl("posEmail").value.trim(), password: posEl("posPass").value }) });
+  posEl("posPass").value = "";
+  posEl("posMsg").textContent = res.ok ? "Saved. Now click Test connection." : res.error;
+  if (res.ok) refreshPos();
+}
+async function testPos() {
+  posEl("posMsg").textContent = "Testing…";
+  const res = await api(`/api/platform/restaurants/${posFor}/pos/test`, { method: "POST" });
+  posEl("posMsg").textContent = res.ok ? "Connected ✓ Found: " + (res.data.locationName || "location") : res.error;
+  refreshPos();
+}
+async function previewPos() {
+  posEl("posMsg").textContent = "Reading yesterday’s sales…";
+  const day = posEl("posDay").value;
+  const res = await api(`/api/platform/restaurants/${posFor}/pos/preview-sales`, { method: "POST", body: JSON.stringify(day ? { date: day } : {}) });
+  if (!res.ok) { posEl("posMsg").textContent = res.error; return; }
+  const d = res.data, f = n => Number(n).toLocaleString("en-CA", { style: "currency", currency: "CAD" });
+  posEl("posMsg").textContent = `${d.date}: net sales ${f(d.netSales)} · gross ${f(d.grossSales)} · ${d.checks} checks · ${d.customers} guests (${d.rows} rows). Nothing was saved in the app.`;
+  refreshPos();
+}
+async function removePos() {
+  if (!confirm("Remove the saved Veloce login for this restaurant?")) return;
+  const res = await api(`/api/platform/restaurants/${posFor}/pos`, { method: "DELETE" });
+  posEl("posMsg").textContent = res.ok ? "Removed." : res.error;
+  refreshPos();
 }
 
 async function saveTwilioNumber(restaurantId) {
@@ -717,5 +773,26 @@ async function loadHistory() {
   if (result.ok) enterApp(result.data.email);
 })();
 </script>
+<div id="posModal" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.6);padding:16px" onclick="if(event.target===this)closePos()">
+  <div style="background:var(--surface,#1c1a17);color:var(--text-bright);border:1px solid var(--rail);border-radius:12px;padding:20px;width:100%;max-width:440px;display:flex;flex-direction:column;gap:10px">
+    <h3 id="posTitle" style="margin:0;font-size:16px">POS connection</h3>
+    <div style="font-size:12px;color:var(--text-dim)">Veloce login for this restaurant. The password is encrypted and never shown again.</div>
+    <label style="font-size:12px">Licence number<input id="posLicence" inputmode="numeric" style="width:100%;margin-top:3px;background:var(--bg);border:1px solid var(--rail);color:var(--text-bright);border-radius:6px;padding:7px;font-size:13px"></label>
+    <label style="font-size:12px">Veloce login email<input id="posEmail" type="email" autocomplete="off" style="width:100%;margin-top:3px;background:var(--bg);border:1px solid var(--rail);color:var(--text-bright);border-radius:6px;padding:7px;font-size:13px"></label>
+    <label style="font-size:12px">Veloce password<input id="posPass" type="password" autocomplete="new-password" style="width:100%;margin-top:3px;background:var(--bg);border:1px solid var(--rail);color:var(--text-bright);border-radius:6px;padding:7px;font-size:13px"></label>
+    <div id="posStatus" style="font-size:12px;color:var(--text-dim);display:flex;flex-direction:column;gap:2px"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="ghost" onclick="savePos()">Save</button>
+      <button class="ghost" onclick="testPos()">Test connection</button>
+      <button class="ghost" style="color:#e5645a" onclick="removePos()">Remove</button>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px">
+      <input id="posDay" type="date" style="background:var(--bg);border:1px solid var(--rail);color:var(--text-bright);border-radius:6px;padding:5px;font-size:12px">
+      <button class="ghost" onclick="previewPos()">Read net sales (default: yesterday)</button>
+    </div>
+    <div id="posMsg" role="status" style="font-size:12px;min-height:16px"></div>
+    <button class="ghost" onclick="closePos()" style="align-self:flex-end">Close</button>
+  </div>
+</div>
 </body>
 </html>

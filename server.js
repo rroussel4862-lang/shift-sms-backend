@@ -95,6 +95,23 @@ async function initDb() {
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;`);
   await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS billing_period_end BIGINT;`);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS pos_connections (
+      restaurant_id TEXT PRIMARY KEY REFERENCES restaurants(id) ON DELETE CASCADE,
+      provider TEXT NOT NULL DEFAULT 'veloce',
+      licence_number TEXT,
+      location_id TEXT,
+      location_name TEXT,
+      email TEXT,
+      password_enc TEXT,
+      token_enc TEXT,
+      token_expires BIGINT,
+      status TEXT NOT NULL DEFAULT 'new',
+      last_error TEXT,
+      last_ok_at BIGINT,
+      updated_at BIGINT
+    );
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
@@ -4938,6 +4955,182 @@ app.patch("/api/platform/restaurants/:id/billing", requirePlatformAuth, async (r
   clearBillingCache(req.params.id);
   logActivity({ restaurantId: req.params.id, eventType: "billing_set", detail: mode === "free" ? `Free access until ${freeUntil}` : "Billing exempt" });
   res.json({ id: req.params.id, billingStatus: mode, freeUntil: until });
+});
+
+// ---------- POS connection (Veloce) ----------
+// Each restaurant has its own Veloce login + licence number. The password is encrypted (AES-256-GCM) with POS_SECRET_KEY, which lives only in Render,
+// and it is never sent to a browser. Nothing here runs until POS_SECRET_KEY is set and a connection is saved.
+const VELOCE_BASE = "https://api.posveloce.com/v2";
+function posKey() {
+  const k = String(process.env.POS_SECRET_KEY || "").trim();
+  if (!k) return null;
+  const b = /^[0-9a-f]{64}$/i.test(k) ? Buffer.from(k, "hex") : Buffer.from(k, "base64");
+  return b.length === 32 ? b : null;
+}
+function posEncrypt(text) {
+  const key = posKey();
+  if (!key) throw new Error("POS_SECRET_KEY is not set");
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const ct = Buffer.concat([c.update(String(text), "utf8"), c.final()]);
+  return ["v1", iv.toString("base64"), c.getAuthTag().toString("base64"), ct.toString("base64")].join(":");
+}
+function posDecrypt(blob) {
+  const key = posKey();
+  if (!key) throw new Error("POS_SECRET_KEY is not set");
+  const [v, iv, tag, ct] = String(blob || "").split(":");
+  if (v !== "v1" || !iv || !tag || !ct) throw new Error("stored credentials are unreadable");
+  const d = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64"));
+  d.setAuthTag(Buffer.from(tag, "base64"));
+  return Buffer.concat([d.update(Buffer.from(ct, "base64")), d.final()]).toString("utf8");
+}
+
+async function veloceRequest(method, path, { token, body, query } = {}) {
+  const url = new URL(VELOCE_BASE + path);
+  for (const [k, v] of Object.entries(query || {})) if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const res = await fetch(url, {
+      method,
+      signal: ctl.signal,
+      headers: { "Content-Type": "application/json", Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+    return { status: res.status, ok: res.ok, data };
+  } catch (e) {
+    const err = new Error(e.name === "AbortError" ? "Veloce did not answer in time" : "could not reach Veloce");
+    err.network = true;
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Logs in with the saved email + password and keeps the 7-day token (encrypted) so we don't log in on every request.
+async function veloceLogin(conn) {
+  const r = await veloceRequest("POST", "/users/authenticate", { body: { email: conn.email, password: posDecrypt(conn.password_enc) } });
+  if (!r.ok || !r.data || !r.data.token) {
+    const err = new Error(r.status === 401 || r.status === 403 || r.status === 400 ? "Veloce refused the email or password" : `Veloce login failed (HTTP ${r.status})`);
+    err.status = r.status;
+    throw err;
+  }
+  const expires = Date.now() + 6 * 24 * 3600 * 1000;
+  await pool.query("UPDATE pos_connections SET token_enc = $1, token_expires = $2 WHERE restaurant_id = $3", [posEncrypt(r.data.token), expires, conn.restaurant_id]);
+  conn.token_enc = null;
+  return r.data.token;
+}
+async function veloceGet(conn, path, query) {
+  let token = null;
+  if (conn.token_enc && Number(conn.token_expires) > Date.now() + 3600 * 1000) { try { token = posDecrypt(conn.token_enc); } catch (e) {} }
+  if (!token) token = await veloceLogin(conn);
+  let r = await veloceRequest("GET", path, { token, query });
+  if (r.status === 401) { token = await veloceLogin(conn); r = await veloceRequest("GET", path, { token, query }); }
+  return r;
+}
+async function loadPosConnection(restaurantId) {
+  const { rows } = await pool.query("SELECT * FROM pos_connections WHERE restaurant_id = $1", [restaurantId]);
+  return rows[0] || null;
+}
+function posPublic(c) {
+  if (!c) return { configured: !!posKey(), connected: false };
+  return { configured: !!posKey(), connected: !!(c.email && c.password_enc), provider: c.provider, licenceNumber: c.licence_number || "", email: c.email || "", locationName: c.location_name || "", status: c.status, lastError: c.last_error || "", lastOkAt: c.last_ok_at ? Number(c.last_ok_at) : null };
+}
+async function posFail(restaurantId, message) {
+  await pool.query("UPDATE pos_connections SET status = 'error', last_error = $1, updated_at = $2 WHERE restaurant_id = $3", [String(message).slice(0, 300), Date.now(), restaurantId]);
+}
+// "2026-10-27" in Toronto time -> RFC 3339 with the right UTC offset (handles daylight saving)
+function torontoDateTime(day, plusDays = 0) {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + plusDays);
+  const ymd = d.toISOString().slice(0, 10);
+  const part = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", timeZoneName: "longOffset" }).formatToParts(new Date(`${ymd}T12:00:00Z`)).find((p) => p.type === "timeZoneName");
+  const off = (part && part.value.replace("GMT", "")) || "-05:00";
+  return `${ymd}T00:00:00${off === "" ? "Z" : off}`;
+}
+function torontoYesterday() {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const d = new Date(`${parts}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+app.get("/api/platform/restaurants/:id/pos", requirePlatformAuth, async (req, res) => {
+  res.json(posPublic(await loadPosConnection(req.params.id)));
+});
+app.put("/api/platform/restaurants/:id/pos", requirePlatformAuth, async (req, res) => {
+  if (!posKey()) return res.status(503).json({ error: "POS_SECRET_KEY is not set in Render yet (it must be 64 hex characters)" });
+  const { rows: r } = await pool.query("SELECT id FROM restaurants WHERE id = $1", [req.params.id]);
+  if (!r.length) return res.status(404).json({ error: "restaurant not found" });
+  const licence = String((req.body || {}).licenceNumber || "").trim();
+  const email = String((req.body || {}).email || "").trim().toLowerCase();
+  const password = String((req.body || {}).password || "");
+  if (!/^\d{1,12}$/.test(licence)) return res.status(400).json({ error: "the licence number should be digits only" });
+  if (!email.includes("@") || email.length > 200) return res.status(400).json({ error: "enter the Veloce login email" });
+  const cur = await loadPosConnection(req.params.id);
+  if (!password && !(cur && cur.password_enc)) return res.status(400).json({ error: "enter the Veloce password" });
+  if (password.length > 200) return res.status(400).json({ error: "that password is too long" });
+  const passEnc = password ? posEncrypt(password) : cur.password_enc;
+  const changed = !cur || cur.email !== email || cur.licence_number !== licence || !!password;
+  await pool.query(
+    `INSERT INTO pos_connections (restaurant_id, provider, licence_number, email, password_enc, status, updated_at)
+     VALUES ($1,'veloce',$2,$3,$4,'new',$5)
+     ON CONFLICT (restaurant_id) DO UPDATE SET licence_number = $2, email = $3, password_enc = $4, updated_at = $5,
+       token_enc = CASE WHEN $6 THEN NULL ELSE pos_connections.token_enc END,
+       token_expires = CASE WHEN $6 THEN NULL ELSE pos_connections.token_expires END,
+       location_id = CASE WHEN $6 THEN NULL ELSE pos_connections.location_id END,
+       location_name = CASE WHEN $6 THEN NULL ELSE pos_connections.location_name END,
+       status = CASE WHEN $6 THEN 'new' ELSE pos_connections.status END,
+       last_error = CASE WHEN $6 THEN NULL ELSE pos_connections.last_error END`,
+    [req.params.id, licence, email, passEnc, Date.now(), changed]
+  );
+  logActivity({ restaurantId: req.params.id, eventType: "pos_saved", detail: `POS connection saved (licence ${licence}, ${email})` });
+  res.json(posPublic(await loadPosConnection(req.params.id)));
+});
+app.delete("/api/platform/restaurants/:id/pos", requirePlatformAuth, async (req, res) => {
+  await pool.query("DELETE FROM pos_connections WHERE restaurant_id = $1", [req.params.id]);
+  logActivity({ restaurantId: req.params.id, eventType: "pos_removed", detail: "POS connection removed" });
+  res.json(posPublic(null));
+});
+// Logs in to Veloce and finds the restaurant's location from its licence number.
+app.post("/api/platform/restaurants/:id/pos/test", requirePlatformAuth, async (req, res) => {
+  const conn = await loadPosConnection(req.params.id);
+  if (!conn || !conn.email || !conn.password_enc) return res.status(400).json({ error: "save the Veloce login first" });
+  if (!posKey()) return res.status(503).json({ error: "POS_SECRET_KEY is not set in Render yet" });
+  try {
+    const r = await veloceGet(conn, "/locations", { licenceNumber: conn.licence_number, limit: 5 });
+    if (!r.ok) throw Object.assign(new Error(`Veloce answered HTTP ${r.status} when looking up the licence`), { status: r.status });
+    const list = (Array.isArray(r.data) ? r.data : r.data && (r.data.content || r.data.locations || r.data.data || r.data.items)) || [];
+    const loc = list.find((l) => String(l.licenceNumber) === String(conn.licence_number)) || list[0];
+    if (!loc || !loc.id) throw new Error("this Veloce login can't see a location with that licence number");
+    await pool.query("UPDATE pos_connections SET location_id = $1, location_name = $2, status = 'ok', last_error = NULL, last_ok_at = $3, updated_at = $3 WHERE restaurant_id = $4", [loc.id, loc.reportingDisplayName || loc.name || "", Date.now(), req.params.id]);
+    logActivity({ restaurantId: req.params.id, eventType: "pos_test_ok", detail: `POS test OK: ${loc.name || loc.id}` });
+    res.json(posPublic(await loadPosConnection(req.params.id)));
+  } catch (e) {
+    await posFail(req.params.id, e.message);
+    logActivity({ restaurantId: req.params.id, eventType: "pos_test_failed", level: "warn", detail: `POS test failed: ${e.message}` });
+    res.status(502).json({ error: e.message });
+  }
+});
+// Reads one day's net sales from Veloce and shows it. It does NOT write anything into the app yet — this is for checking the numbers against the POS.
+app.post("/api/platform/restaurants/:id/pos/preview-sales", requirePlatformAuth, async (req, res) => {
+  const conn = await loadPosConnection(req.params.id);
+  if (!conn || !conn.location_id) return res.status(400).json({ error: "run Test connection first" });
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(String((req.body || {}).date || "")) ? req.body.date : torontoYesterday();
+  try {
+    const r = await veloceGet(conn, "/sales/net", { locationId: conn.location_id, currency: "CAD", from: torontoDateTime(day, 0), to: torontoDateTime(day, 1), date: torontoDateTime(day, 0), includeTotals: "true" });
+    if (!r.ok) throw new Error(`Veloce answered HTTP ${r.status} for net sales`);
+    const rowsArr = Array.isArray(r.data && r.data.sales) ? r.data.sales : [];
+    const sum = (k) => Math.round(rowsArr.reduce((a, x) => a + (Number(x[k]) || 0), 0) * 100) / 100;
+    const totals = (r.data && r.data.totals) || null;
+    await pool.query("UPDATE pos_connections SET last_ok_at = $1, status = 'ok', last_error = NULL WHERE restaurant_id = $2", [Date.now(), req.params.id]);
+    res.json({ date: day, rows: rowsArr.length, netSales: totals ? Number(totals.netSales) : sum("netSales"), grossSales: totals ? Number(totals.grossSales) : sum("grossSales"), checks: totals ? Number(totals.checks) : sum("checks"), customers: totals ? Number(totals.customers) : sum("customers") });
+  } catch (e) {
+    await posFail(req.params.id, e.message);
+    res.status(502).json({ error: e.message });
+  }
 });
 
 // Raw activity rows are kept this long, then rolled up into activity_daily.
