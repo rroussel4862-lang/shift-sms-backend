@@ -870,7 +870,7 @@ async function stripeApi(pathName, params = {}) {
     headers: {
       Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
       "Content-Type": "application/x-www-form-urlencoded",
-      "Stripe-Version": "2024-06-20",
+      "Stripe-Version": "2025-03-31.basil",
     },
     body: stripeForm(params).join("&"),
   });
