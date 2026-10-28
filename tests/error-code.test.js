@@ -16,6 +16,7 @@ describe("unexpected errors answer cleanly with a reference code", () => {
   });
 
   test("a failure inside a route returns a 500 with the code (no hanging) and logs the same code", async () => {
+    await A.agent.get("/api/staff"); // warm the billing check first, so the simulated failure lands inside the route itself
     const spy = jest.spyOn(pool, "query").mockRejectedValueOnce(new Error("boom: simulated database failure"));
     let res;
     try { res = await A.agent.get("/api/staff"); } finally { spy.mockRestore(); }

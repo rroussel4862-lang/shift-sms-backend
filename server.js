@@ -5013,7 +5013,9 @@ async function veloceRequest(method, path, { token, body, query } = {}) {
 async function veloceLogin(conn) {
   const r = await veloceRequest("POST", "/users/authenticate", { body: { email: conn.email, password: posDecrypt(conn.password_enc) } });
   if (!r.ok || !r.data || !r.data.token) {
-    const err = new Error(r.status === 401 || r.status === 403 || r.status === 400 ? "Veloce refused the email or password" : `Veloce login failed (HTTP ${r.status})`);
+    const said = r.data && (r.data.message || r.data.error || r.data.detail || r.data.title);
+    const why = typeof said === "string" ? ` — Veloce says: ${said.replace(/\s+/g, " ").slice(0, 160)}` : "";
+    const err = new Error(r.status === 401 || r.status === 403 || r.status === 400 ? `Veloce refused the email or password (HTTP ${r.status})${why}` : `Veloce login failed (HTTP ${r.status})${why}`);
     err.status = r.status;
     throw err;
   }

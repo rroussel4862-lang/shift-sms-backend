@@ -83,7 +83,7 @@ describe("POS connection", () => {
     });
     const t = await admin.post(url("/test"));
     expect(t.status).toBe(502);
-    expect(t.body.error).toMatch(/refused the email or password/);
+    expect(t.body.error).toMatch(/refused the email or password \(HTTP 401\) — Veloce says: bad credentials/);
     expect(JSON.stringify(t.body)).not.toContain("another-wrong-pass");
     const st = (await admin.get(url())).body;
     expect(st.status).toBe("error");
