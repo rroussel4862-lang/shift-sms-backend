@@ -63,3 +63,14 @@ describe("changes to a posted week", () => {
     expect((await request.agent(app).get(`/api/schedule/changes?weekStart=${WEEK}&house=foh`)).status).toBe(401);
   });
 });
+
+describe("the current (always live) week", () => {
+  test("changes are listed from the first time the week is opened", async () => {
+    const mon = mondayOf(new Date().toISOString().slice(0, 10));
+    const day = addDays(mon, 6); // Sunday: today or later unless we are past it, so use a far-enough day below
+    const target = day >= new Date().toISOString().slice(0, 10) ? day : addDays(day, 0);
+    expect((await A.agent.get(`/api/schedule/changes?weekStart=${mon}&house=foh`)).body).toMatchObject({ hasBaseline: true, total: 0 });
+    await A.agent.post("/api/schedule").send({ staffId: ann.id, date: target, startTime: "09:00", endTime: "13:00", role: "Server" });
+    expect((await A.agent.get(`/api/schedule/changes?weekStart=${mon}&house=foh`)).body.total).toBe(1);
+  });
+});

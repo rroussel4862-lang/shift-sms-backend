@@ -2819,7 +2819,15 @@ function diffPostedWeek(before, after, today) {
 }
 async function postedWeekChanges(restaurantId, weekStart, house) {
   const { rows } = await pool.query("SELECT shifts FROM schedule_snapshots WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [restaurantId, weekStart, house]);
-  if (!rows[0]) return { hasBaseline: false, people: [] };
+  if (!rows[0]) {
+    // Weeks staff already see but that were never "posted" through the app (the current week is always live) have no saved copy:
+    // take one now, so changes made from this moment on can be listed.
+    const live = weekStart <= mondayOfIso(ownerToday()) ||
+      (await pool.query("SELECT 1 FROM schedule_published WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [restaurantId, weekStart, house])).rows.length > 0;
+    if (!live) return { hasBaseline: false, people: [] };
+    await snapshotWeek(restaurantId, weekStart, house);
+    return { hasBaseline: true, people: [] };
+  }
   const current = await weekShiftsForHouse(restaurantId, weekStart, house);
   const diff = diffPostedWeek(Array.isArray(rows[0].shifts) ? rows[0].shifts : [], current, ownerToday());
   if (!diff.size) return { hasBaseline: true, people: [] };
