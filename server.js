@@ -2786,6 +2786,98 @@ app.delete("/api/schedule/publish/:weekStart", requireAuth, async (req, res) => 
   res.json({ weekStart, house, published: false, visibleToStaff: false });
 });
 
+// ---- telling staff about changes made after a week was posted ----
+// The week as it was posted is saved (schedule_snapshots). "Changes" = that copy compared with the grid now, for shifts from today on.
+// Nothing is texted automatically: the manager looks at the list and taps Notify (one text per person, all their changes in it) or Don't notify.
+const changeShiftKey = (x) => `${x.startTime}|${x.endTime}|${x.role || ""}|${x.station || ""}`;
+async function weekShiftsForHouse(restaurantId, weekStart, house) {
+  const { rows } = await pool.query(
+    `SELECT s.*, st.roles AS person_roles FROM schedule_shifts s JOIN staff st ON st.id = s.staff_id
+     WHERE s.restaurant_id = $1 AND s.shift_date >= $2 AND s.shift_date <= $3`,
+    [restaurantId, weekStart, addDaysIso(weekStart, 6)]
+  );
+  return rows.filter((r) => shiftHouse(r.role, r.person_roles) === house).map((r) => ({
+    staffId: r.staff_id, date: r.shift_date instanceof Date ? r.shift_date.toISOString().slice(0, 10) : String(r.shift_date).slice(0, 10),
+    startTime: r.scheduled_start || r.start_time, endTime: r.scheduled_end || r.end_time, role: r.role || "", station: r.station || "",
+  }));
+}
+function diffPostedWeek(before, after, today) {
+  const group = (list) => { const m = new Map(); for (const x of list) { const k = `${x.staffId}|${x.date}`; if (!m.has(k)) m.set(k, []); m.get(k).push(x); } return m; };
+  const b = group(before), a = group(after), out = new Map();
+  const add = (staffId, ch) => { if (!out.has(staffId)) out.set(staffId, []); out.get(staffId).push(ch); };
+  for (const k of new Set([...b.keys(), ...a.keys()])) {
+    const sep = k.indexOf("|"), staffId = k.slice(0, sep), date = k.slice(sep + 1);
+    if (date < today) continue;
+    const bl = [...(b.get(k) || [])], al = [...(a.get(k) || [])];
+    for (const x of [...bl]) { const i = al.findIndex((y) => changeShiftKey(y) === changeShiftKey(x)); if (i >= 0) { al.splice(i, 1); bl.splice(bl.indexOf(x), 1); } }
+    while (bl.length && al.length) add(staffId, { type: "changed", date, before: bl.shift(), after: al.shift() });
+    for (const x of bl) add(staffId, { type: "removed", date, before: x });
+    for (const x of al) add(staffId, { type: "added", date, after: x });
+  }
+  for (const list of out.values()) list.sort((p, q) => (p.date < q.date ? -1 : p.date > q.date ? 1 : 0));
+  return out;
+}
+async function postedWeekChanges(restaurantId, weekStart, house) {
+  const { rows } = await pool.query("SELECT shifts FROM schedule_snapshots WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [restaurantId, weekStart, house]);
+  if (!rows[0]) return { hasBaseline: false, people: [] };
+  const current = await weekShiftsForHouse(restaurantId, weekStart, house);
+  const diff = diffPostedWeek(Array.isArray(rows[0].shifts) ? rows[0].shifts : [], current, ownerToday());
+  if (!diff.size) return { hasBaseline: true, people: [] };
+  const { rows: staffRows } = await pool.query("SELECT id, name, phone FROM staff WHERE restaurant_id = $1 AND id = ANY($2::text[]) AND archived_at IS NULL", [restaurantId, [...diff.keys()]]);
+  const people = staffRows.map((p) => ({ staffId: p.id, name: p.name, hasPhone: !!p.phone, changes: diff.get(p.id) })).sort((p, q) => p.name.localeCompare(q.name));
+  return { hasBaseline: true, people };
+}
+app.get("/api/schedule/changes", requireAuth, async (req, res) => {
+  const weekStart = String(req.query.weekStart || "");
+  if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
+  const house = parseHouse(req.query.house);
+  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
+  const r = await postedWeekChanges(req.restaurantId, weekStart, house);
+  res.json({ weekStart, house, ...r, total: r.people.reduce((n, p) => n + p.changes.length, 0) });
+});
+function changeText(restaurantName, changes, link) {
+  const day = (iso, loc) => new Date(iso + "T12:00:00Z").toLocaleDateString(loc, { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+  const span = (x) => `${x.startTime}–${x.endTime}`;
+  const what = (x) => x.role || x.station || "";
+  const line = (ch, fr) => {
+    const d = day(ch.date, fr ? "fr-CA" : "en-CA");
+    if (ch.type === "removed") return fr ? `${d} : quart annulé (${span(ch.before)})` : `${d}: shift cancelled (${span(ch.before)})`;
+    if (ch.type === "added") return fr ? `${d} : nouveau quart ${span(ch.after)}${what(ch.after) ? " – " + what(ch.after) : ""}` : `${d}: new shift ${span(ch.after)}${what(ch.after) ? " – " + what(ch.after) : ""}`;
+    if (span(ch.before) === span(ch.after)) return fr ? `${d} : poste modifié – ${what(ch.after) || "—"}` : `${d}: now ${what(ch.after) || "—"}`;
+    return fr ? `${d} : maintenant ${span(ch.after)} (avant ${span(ch.before)})` : `${d}: now ${span(ch.after)} (was ${span(ch.before)})`;
+  };
+  const build = (fr) => {
+    const shown = changes.slice(0, 4).map((c) => line(c, fr));
+    const more = changes.length - shown.length;
+    if (more > 0) shown.push(fr ? `+ ${more} autre${more === 1 ? "" : "s"} changement${more === 1 ? "" : "s"}` : `+ ${more} more change${more === 1 ? "" : "s"}`);
+    return (fr ? `${restaurantName} : votre horaire a changé.\n` : `${restaurantName}: your schedule changed.\n`) + shown.join("\n") + (fr ? `\nConsultez-le : ${link}` : `\nView it: ${link}`);
+  };
+  return { fr: build(true), en: build(false) };
+}
+app.post("/api/schedule/changes/notify", requireAuth, async (req, res) => {
+  const weekStart = String((req.body && req.body.weekStart) || "");
+  if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
+  const house = parseHouse(req.body && req.body.house);
+  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
+  const action = req.body && req.body.action;
+  if (action !== "send" && action !== "dismiss") return res.status(400).json({ error: "action must be 'send' or 'dismiss'" });
+  const { hasBaseline, people } = await postedWeekChanges(req.restaurantId, weekStart, house);
+  if (!hasBaseline) return res.status(404).json({ error: "this week has no posted copy to compare with" });
+  let texted = 0;
+  if (action === "send" && people.length) {
+    const { rows: r } = await pool.query("SELECT name FROM restaurants WHERE id = $1", [req.restaurantId]);
+    const restaurantName = r[0] ? r[0].name : "your restaurant";
+    const link = `${PUBLIC_URL || `${req.protocol}://${req.get("host")}`}/staff-portal.html`;
+    const withPhone = people.filter((p) => p.hasPhone);
+    texted = withPhone.length;
+    Promise.all(withPhone.map((p) => { const t = changeText(restaurantName, p.changes, link); return notifyStaff(req.restaurantId, p.staffId, t.fr, t.en); }))
+      .catch((e) => console.error("schedule-change texts failed:", e.message));
+  }
+  await snapshotWeek(req.restaurantId, weekStart, house); // whatever was decided, this is now the version staff know about
+  logActivity({ restaurantId: req.restaurantId, eventType: action === "send" ? "schedule_changes_texted" : "schedule_changes_dismissed", detail: `week of ${weekStart} (${house.toUpperCase()}): ${people.reduce((n, p) => n + p.changes.length, 0)} change(s), ${texted} text(s)` });
+  res.json({ weekStart, house, action, texted, people: people.length });
+});
+
 app.post("/api/schedule", requireAuth, async (req, res) => {
   const { staffId, date, startTime, endTime, role, station } = req.body || {};
   if (!staffId) return res.status(400).json({ error: "staffId is required" });
@@ -3061,6 +3153,15 @@ app.delete("/api/schedule/:id", requireAuth, async (req, res) => {
     if (sh.date >= ownerToday()) {
       const when = (loc) => `${new Date(sh.date + "T12:00:00").toLocaleDateString(loc, { weekday: "short", month: "short", day: "numeric" })} (${sh.startTime}–${sh.endTime})`;
       notifyStaff(req.restaurantId, sh.staffId, `Votre quart du ${when("fr-CA")} a été annulé.`, `Your shift on ${when("en-CA")} has been cancelled.`);
+      // they were just told: don't list this cancellation again in the "changes since posted" bar
+      try {
+        const { rows: snaps } = await pool.query("SELECT week_start, house, shifts FROM schedule_snapshots WHERE restaurant_id = $1", [req.restaurantId]);
+        for (const sn of snaps) {
+          const list = Array.isArray(sn.shifts) ? sn.shifts : [];
+          const i = list.findIndex((x) => x.staffId === sh.staffId && x.date === sh.date && x.startTime === sh.startTime && x.endTime === sh.endTime);
+          if (i >= 0) { list.splice(i, 1); await pool.query("UPDATE schedule_snapshots SET shifts = $1::jsonb WHERE restaurant_id = $2 AND week_start = $3 AND house = $4", [JSON.stringify(list), req.restaurantId, sn.week_start, sn.house]); break; }
+        }
+      } catch (e) { console.error("snapshot tidy failed:", e.message); }
     }
   }
   res.status(204).end();
