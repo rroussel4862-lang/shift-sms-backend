@@ -2843,24 +2843,12 @@ app.get("/api/schedule/changes", requireAuth, async (req, res) => {
   const r = await postedWeekChanges(req.restaurantId, weekStart, house);
   res.json({ weekStart, house, ...r, total: r.people.reduce((n, p) => n + p.changes.length, 0) });
 });
-function changeText(restaurantName, changes, link) {
-  const day = (iso, loc) => new Date(iso + "T12:00:00Z").toLocaleDateString(loc, { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
-  const span = (x) => `${x.startTime}–${x.endTime}`;
-  const what = (x) => x.role || x.station || "";
-  const line = (ch, fr) => {
-    const d = day(ch.date, fr ? "fr-CA" : "en-CA");
-    if (ch.type === "removed") return fr ? `${d} : quart annulé (${span(ch.before)})` : `${d}: shift cancelled (${span(ch.before)})`;
-    if (ch.type === "added") return fr ? `${d} : nouveau quart ${span(ch.after)}${what(ch.after) ? " – " + what(ch.after) : ""}` : `${d}: new shift ${span(ch.after)}${what(ch.after) ? " – " + what(ch.after) : ""}`;
-    if (span(ch.before) === span(ch.after)) return fr ? `${d} : poste modifié – ${what(ch.after) || "—"}` : `${d}: now ${what(ch.after) || "—"}`;
-    return fr ? `${d} : maintenant ${span(ch.after)} (avant ${span(ch.before)})` : `${d}: now ${span(ch.after)} (was ${span(ch.before)})`;
+// Staff are only told THAT their schedule changed and where to look; the details stay in the app.
+function changeText(restaurantName, link) {
+  return {
+    fr: `${restaurantName} : votre horaire a changé. Consultez l’application pour voir les changements : ${link}`,
+    en: `${restaurantName}: your schedule has changed. Please check the app to see the changes: ${link}`,
   };
-  const build = (fr) => {
-    const shown = changes.slice(0, 4).map((c) => line(c, fr));
-    const more = changes.length - shown.length;
-    if (more > 0) shown.push(fr ? `+ ${more} autre${more === 1 ? "" : "s"} changement${more === 1 ? "" : "s"}` : `+ ${more} more change${more === 1 ? "" : "s"}`);
-    return (fr ? `${restaurantName} : votre horaire a changé.\n` : `${restaurantName}: your schedule changed.\n`) + shown.join("\n") + (fr ? `\nConsultez-le : ${link}` : `\nView it: ${link}`);
-  };
-  return { fr: build(true), en: build(false) };
 }
 app.post("/api/schedule/changes/notify", requireAuth, async (req, res) => {
   const weekStart = String((req.body && req.body.weekStart) || "");
@@ -2878,7 +2866,7 @@ app.post("/api/schedule/changes/notify", requireAuth, async (req, res) => {
     const link = `${PUBLIC_URL || `${req.protocol}://${req.get("host")}`}/staff-portal.html`;
     const withPhone = people.filter((p) => p.hasPhone);
     texted = withPhone.length;
-    Promise.all(withPhone.map((p) => { const t = changeText(restaurantName, p.changes, link); return notifyStaff(req.restaurantId, p.staffId, t.fr, t.en); }))
+    Promise.all(withPhone.map((p) => { const t = changeText(restaurantName, link); return notifyStaff(req.restaurantId, p.staffId, t.fr, t.en); }))
       .catch((e) => console.error("schedule-change texts failed:", e.message));
   }
   await snapshotWeek(req.restaurantId, weekStart, house); // whatever was decided, this is now the version staff know about
