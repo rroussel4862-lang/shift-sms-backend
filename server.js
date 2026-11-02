@@ -3787,8 +3787,9 @@ app.post("/api/ai/sales-forecast", requireAuth, aiLimiter, async (req, res) => {
 const SNAPSHOT_TZ = "America/Toronto";
 const HTTP_UA = "OpenShiftRail/1.0 (https://openshiftrail.com)";
 const WEATHER_TTL_MS = 3 * 60 * 60 * 1000;
-const EVENTS_TTL_MS = 12 * 60 * 60 * 1000;
-const EVENTS_RETRY_MS = 30 * 60 * 1000;
+const EVENTS_TTL_MS = 48 * 60 * 60 * 1000; // events for a date barely change: look each date up once, then keep it
+const EVENTS_MAX_LOOKUPS_PER_DAY = 8; // safety cap per restaurant per 24 h (each lookup is a paid web search)
+const EVENTS_RETRY_MS = 2 * 60 * 60 * 1000; // a failed lookup still costs money: wait before trying again
 const geoFailedAt = new Map();      // restaurantId -> last failed geocode (don't hammer Nominatim)
 const eventsInFlight = new Map();   // `${restaurantId}|${day}` -> promise
 
@@ -4043,6 +4044,10 @@ app.get("/api/day-snapshot", requireAuth, async (req, res) => {
     // "Try again" from the card: re-run the lookup now, but not more than once a minute.
     if (req.query.refreshEvents === "1" && evAge > 60 * 1000 && !demoIds.has(rid)) evFresh = false;
     if (demoIds.has(rid) && ctx.events) evFresh = true;
+    if (!evFresh && !demoIds.has(rid)) {
+      const { rows: used } = await pool.query("SELECT COUNT(*)::int AS n FROM day_context WHERE restaurant_id = $1 AND events_at > $2", [rid, Date.now() - 24 * 60 * 60 * 1000]);
+      if (used[0].n >= EVENTS_MAX_LOOKUPS_PER_DAY && ctx.events && !ctx.events_error) evFresh = true; // cap reached: keep showing what was saved
+    }
     if (evFresh) {
       if (ctx.events_error) out.eventsStatus = ctx.events_error;
       else { out.events = ctx.events || []; out.eventsStatus = "ok"; }
