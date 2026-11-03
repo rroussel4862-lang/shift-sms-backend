@@ -95,6 +95,36 @@
   .cred-box .warn { color: var(--amber); font-size: 11.5px; }
   @media (max-width: 640px) { .owner-form .row { grid-template-columns: 1fr; } }
   .empty { color: var(--text-dim); font-size: 13px; padding: 16px; text-align: center; }
+
+  /* Open Shift Rail look (same as the owner page): warm ground, one family, sentence case, pill buttons, the app icon as the mark */
+  :root { --blue: #3D4A5C; }
+  body.theme-clean .brand-mark { width: 44px; height: 44px; border: none; border-radius: 13px; transform: none; font-size: 0; color: transparent; background: #1C201D url("/icons/icon-192.png") center / cover no-repeat; }
+  body.theme-clean .header-left .brand-mark { width: 38px; height: 38px; border-radius: 11px; }
+  body.theme-clean .auth-card { border-radius: 16px; padding: 28px; box-shadow: 0 1px 2px rgba(44,38,32,.06); }
+  body.theme-clean .auth-card h1 { font-size: 20px; font-weight: 650; }
+  body.theme-clean .auth-tab-btn { border-radius: 999px; font-size: 12.5px; padding: 8px; }
+  body.theme-clean .auth-tab-btn.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+  body.theme-clean .auth-btn, body.theme-clean .btn { background: var(--ink); color: #fff; border-radius: 999px; font-size: 13px; font-weight: 600; }
+  body.theme-clean .auth-btn:hover, body.theme-clean .btn:hover { background: #4A3F33; }
+  body.theme-clean .btn.ghost { background: none; color: var(--text-dim); border: 1px solid var(--rail); }
+  body.theme-clean .btn.ghost:hover { background: #F3EBDD; color: var(--ink); }
+  body.theme-clean #app > header { display: flex; padding: 10px 22px; min-height: 62px; }
+  body.theme-clean header h1 { font-size: 16px; font-weight: 650; }
+  body.theme-clean #logoutBtn, body.theme-clean #demoResetBtn { border-radius: 999px; font-size: 12.5px; padding: 8px 14px; }
+  body.theme-clean #app > main { max-width: 1200px; margin: 0 auto; padding: 28px 22px 70px; }
+  body.theme-clean .section h2 { font-size: 14px; font-weight: 600; color: var(--text-dim); }
+  body.theme-clean .health-card, body.theme-clean .owner-form, body.theme-clean .activity-feed { border-radius: 14px; }
+  body.theme-clean .health-card .label, body.theme-clean thead th, body.theme-clean .activity-type { font-size: 12px; }
+  body.theme-clean tbody tr:hover { background: #F3EBDD; }
+  body.theme-clean .pill, body.theme-clean .chip { background: #F3EBDD; }
+  body.theme-clean .cred-box { background: #E8F3EC; color: var(--ink); border-radius: 14px; }
+  body.theme-clean .activity-time { font-family: 'IBM Plex Sans', sans-serif !important; font-size: 12px; }
+  body.theme-clean .filter-row button.ghost, body.theme-clean button.ghost { border-radius: 999px; }
+  body.theme-clean #posModal { background: rgba(44,38,32,.45) !important; }
+  body.theme-clean #posModal > div { background: var(--panel) !important; border-radius: 16px !important; }
+  body.theme-clean .filter-row input, body.theme-clean .filter-row select { width: auto; }
+  body.theme-clean #demoResetBtn { background: none; border: 1px solid var(--rail); color: var(--text-dim); cursor: pointer; }
+  @media (max-width: 560px) { body.theme-clean #app > header { padding: 10px 16px; } body.theme-clean #app > main { padding: 22px 16px 60px; } }
 </style>
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -103,8 +133,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Open Shift">
 <link rel="manifest" href="/manifest-manager.json">
+<meta name="theme-color" content="#1C201D">
+<link rel="stylesheet" href="/theme-clean.css">
+<link rel="stylesheet" href="/theme-warm.css">
 </head>
-<body>
+<body class="theme-clean theme-warm">
 
 <div id="authGate">
   <div class="auth-card">
@@ -774,7 +807,7 @@ async function loadHistory() {
 })();
 </script>
 <div id="posModal" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.6);padding:16px" onclick="if(event.target===this)closePos()">
-  <div style="background:var(--surface,#1c1a17);color:var(--text-bright);border:1px solid var(--rail);border-radius:12px;padding:20px;width:100%;max-width:440px;display:flex;flex-direction:column;gap:10px">
+  <div style="background:var(--panel,#fffcf7);color:var(--text-bright);border:1px solid var(--rail);border-radius:12px;padding:20px;width:100%;max-width:440px;display:flex;flex-direction:column;gap:10px">
     <h3 id="posTitle" style="margin:0;font-size:16px">POS connection</h3>
     <div style="font-size:12px;color:var(--text-dim)">Veloce login for this restaurant. The password is encrypted and never shown again.</div>
     <label style="font-size:12px">Licence number<input id="posLicence" inputmode="numeric" style="width:100%;margin-top:3px;background:var(--bg);border:1px solid var(--rail);color:var(--text-bright);border-radius:6px;padding:7px;font-size:13px"></label>
