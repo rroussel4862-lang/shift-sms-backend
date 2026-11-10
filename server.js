@@ -4030,11 +4030,11 @@ async function fetchNearbyEvents(place, day, restaurantId = null) {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
+        model: process.env.EVENTS_MODEL || "claude-haiku-4-5-20251001", // the events lookup is mostly reading search results, so the cheaper model does it
         max_tokens: 2000,
         system,
         messages,
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 2 }],
       }),
     }, 90000);
     recordAiUsage(restaurantId, "events", data);
@@ -4570,8 +4570,9 @@ ${contextBlock}`;
 // AI cost tracking: every Anthropic answer is logged per restaurant with its token counts and an estimated cost.
 // Prices are USD per million tokens and can be corrected with AI_PRICE_INPUT / AI_PRICE_OUTPUT (the defaults are an estimate,
 // so compare the dashboard total with the Anthropic console's usage page). A web search costs about AI_PRICE_SEARCH dollars.
-function aiCostUsd(usage) {
-  const inP = Number(process.env.AI_PRICE_INPUT) || 3, outP = Number(process.env.AI_PRICE_OUTPUT) || 15;
+function aiCostUsd(usage, model) {
+  const small = /haiku/i.test(model || ""); // Haiku costs about a third of Sonnet
+  const inP = Number(process.env.AI_PRICE_INPUT) || (small ? 1 : 3), outP = Number(process.env.AI_PRICE_OUTPUT) || (small ? 5 : 15);
   const searchP = process.env.AI_PRICE_SEARCH !== undefined && process.env.AI_PRICE_SEARCH !== "" ? Number(process.env.AI_PRICE_SEARCH) : 0.01;
   const u = usage || {};
   const input = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) * 1.25 + (u.cache_read_input_tokens || 0) * 0.1;
@@ -4585,7 +4586,7 @@ function recordAiUsage(restaurantId, feature, data) {
     pool.query(
       "INSERT INTO ai_usage (id, restaurant_id, feature, model, input_tokens, output_tokens, searches, cost_usd, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
       [id(), restaurantId || null, feature, (data && data.model) || process.env.ANTHROPIC_MODEL || null,
-       (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0), u.output_tokens || 0, searches, aiCostUsd(u).toFixed(6), Date.now()]
+       (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0), u.output_tokens || 0, searches, aiCostUsd(u, (data && data.model) || process.env.ANTHROPIC_MODEL).toFixed(6), Date.now()]
     ).catch((e) => console.error("AI usage log failed:", e.message));
   } catch (e) { console.error("AI usage log failed:", e.message); }
 }
