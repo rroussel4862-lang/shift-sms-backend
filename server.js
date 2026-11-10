@@ -2169,6 +2169,36 @@ app.get("/api/time-off", requireAuth, async (req, res) => {
   res.json(rows.map(timeOffJson));
 });
 
+// Manager: mark someone unavailable straight from the schedule (all day, or between two times). It is approved on the spot and the staff member sees it in their own time-off list.
+app.post("/api/time-off", requireAuth, async (req, res) => {
+  const { staffId, date, from, to, note } = req.body || {};
+  if (!isIsoDate(date)) return res.status(400).json({ error: "a valid date is required" });
+  if (date < ownerToday()) return res.status(400).json({ error: "that date has already passed" });
+  if (date > addDaysIso(ownerToday(), 366)) return res.status(400).json({ error: "that date is too far ahead" });
+  const f = from ? String(from) : "", t = to ? String(to) : "";
+  if ((f && !TIME_RE.test(f)) || (t && !TIME_RE.test(t))) return res.status(400).json({ error: "times must look like 17:00" });
+  const { rows: st } = await pool.query("SELECT id FROM staff WHERE id = $1 AND restaurant_id = $2 AND archived_at IS NULL", [String(staffId || ""), req.restaurantId]);
+  if (!st[0]) return res.status(404).json({ error: "staff member not found" });
+  const { rows: dup } = await pool.query(
+    "SELECT id FROM staff_time_off WHERE staff_id = $1 AND off_date = $2 AND COALESCE(from_time,'') = $3 AND COALESCE(to_time,'') = $4 AND status <> 'declined'",
+    [staffId, date, f, t]
+  );
+  if (dup.length) return res.status(409).json({ error: "that person is already marked unavailable then" });
+  const now = Date.now();
+  const { rows } = await pool.query(
+    "INSERT INTO staff_time_off (id, restaurant_id, staff_id, off_date, from_time, to_time, note, status, created_at, decided_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'approved',$8,$8) RETURNING *",
+    [id(), req.restaurantId, staffId, date, f || null, t || null, String(note || "").trim().slice(0, 200), now]
+  );
+  const { rows: clash } = await pool.query("SELECT COUNT(*)::int AS n FROM schedule_shifts WHERE restaurant_id = $1 AND staff_id = $2 AND shift_date = $3", [req.restaurantId, staffId, date]);
+  logActivity({ restaurantId: req.restaurantId, eventType: "time_off_marked", detail: `manager marked someone unavailable on ${date}` });
+  res.status(201).json({ ...timeOffJson(rows[0]), shiftsThatDay: clash[0].n });
+});
+app.delete("/api/time-off/:id", requireAuth, async (req, res) => {
+  const { rowCount } = await pool.query("DELETE FROM staff_time_off WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+  if (rowCount === 0) return res.status(404).json({ error: "not found" });
+  res.status(204).end();
+});
+
 app.get("/api/time-off-requests", requireAuth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT t.*, s.name, s.roles FROM staff_time_off t JOIN staff s ON s.id = t.staff_id
