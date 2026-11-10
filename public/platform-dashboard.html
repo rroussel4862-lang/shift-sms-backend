@@ -262,7 +262,7 @@
     <div class="section">
       <h2>Live activity</h2>
       <div class="filter-row">
-        <select id="filterRestaurant" onchange="loadActivity(); loadHistory()"><option value="">All restaurants</option></select>
+        <select id="filterRestaurant" onchange="loadActivity(); loadHistory(); loadDecisions()"><option value="">All restaurants</option></select>
         <select id="filterLevel" onchange="loadActivity()">
           <option value="">All levels</option>
           <option value="info">Info</option>
@@ -276,6 +276,19 @@
       </div>
       <div class="activity-feed" id="activityFeed"></div>
       <div class="sub-note" id="activityNote" style="color:var(--text-dim);font-size:11.5px;margin-top:6px"></div>
+    </div>
+
+    <div class="section">
+      <h2>Time off &amp; availability decisions</h2>
+      <div class="filter-row">
+        <select id="decKind" onchange="loadDecisions()">
+          <option value="">Time off and availability</option>
+          <option value="time_off">Time off only</option>
+          <option value="availability">Availability only</option>
+        </select>
+        <span style="align-self:center;color:var(--text-dim);font-size:12px">Uses the restaurant filter above. Shows who approved, declined or entered each one.</span>
+      </div>
+      <div id="decisionsTable"></div>
     </div>
 
     <div class="section">
@@ -361,7 +374,7 @@ function enterApp(email) {
 }
 
 async function loadAll() {
-  await Promise.all([loadRestaurants(), loadHealth(), loadActivity(), loadHistory(), loadAiUsage()]);
+  await Promise.all([loadRestaurants(), loadHealth(), loadActivity(), loadHistory(), loadAiUsage(), loadDecisions()]);
   await loadOwners();
 }
 
@@ -767,6 +780,21 @@ async function loadActivity() {
           </div>
         </div>
       `).join("");
+}
+
+async function loadDecisions() {
+  const params = new URLSearchParams({ limit: "200" });
+  const rid = document.getElementById("filterRestaurant").value, kind = document.getElementById("decKind").value;
+  if (rid) params.set("restaurantId", rid);
+  if (kind) params.set("kind", kind);
+  const result = await api("/api/platform/decisions?" + params.toString());
+  const el = document.getElementById("decisionsTable");
+  if (!result.ok) { el.innerHTML = `<div class="empty">${escapeHtml(result.error)}</div>`; return; }
+  const label = { approved: "Approved", declined: "Declined", entered: "Entered by manager" };
+  const color = { approved: "var(--green)", declined: "var(--red)", entered: "var(--text-dim)" };
+  el.innerHTML = result.data.length === 0 ? `<div class="empty">No decisions recorded yet. New approvals and denials appear here from now on.</div>` :
+    `<table style="width:100%"><thead><tr><th>When</th><th>Restaurant</th><th>Type</th><th>Staff member</th><th>For</th><th>Decision</th><th>By</th></tr></thead><tbody>` +
+    result.data.map(d => `<tr style="cursor:default"><td>${new Date(d.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td><td>${escapeHtml(d.restaurantName)}</td><td>${d.kind === "time_off" ? "Time off" : "Availability"}</td><td>${escapeHtml(d.staffName || "—")}</td><td>${escapeHtml(d.detail)}</td><td style="color:${color[d.decision] || "inherit"};font-weight:600">${label[d.decision] || escapeHtml(d.decision)}</td><td>${escapeHtml(d.decidedBy || "—")}</td></tr>`).join("") + `</tbody></table>`;
 }
 
 function activityFilterParams() {

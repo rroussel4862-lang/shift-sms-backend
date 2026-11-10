@@ -464,6 +464,21 @@ async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS staff_time_off_restaurant_date ON staff_time_off (restaurant_id, off_date);`);
+  // Who approved, declined or entered each time-off / availability decision. Kept permanently (unlike the activity feed).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS decision_log (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      decision TEXT NOT NULL,
+      staff_id TEXT,
+      staff_name TEXT NOT NULL DEFAULT '',
+      detail TEXT NOT NULL DEFAULT '',
+      decided_by TEXT NOT NULL DEFAULT '',
+      created_at BIGINT NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS decision_log_restaurant_time ON decision_log (restaurant_id, created_at DESC);`);
   await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS pending JSONB;`);
   await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS pending_at BIGINT;`);
   await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS decision TEXT;`);
@@ -2099,6 +2114,7 @@ app.post("/api/availability-requests/:staffId/:action", requireAuth, async (req,
   );
   if (!rows[0]) return res.status(404).json({ error: "no pending request for this person" });
   logActivity({ restaurantId: req.restaurantId, eventType: "availability_" + action + "d", detail: `availability ${action}d` });
+  recordDecision(req, { kind: "availability", decision: action === "approve" ? "approved" : "declined", staffId, detail: "weekly availability" });
   const okNow = action === "approve";
   notifyStaff(req.restaurantId, staffId,
     okNow ? "Vos disponibilités ont été approuvées." : "Votre demande de disponibilités a été refusée; vos disponibilités précédentes s'appliquent toujours.",
@@ -2106,6 +2122,19 @@ app.post("/api/availability-requests/:staffId/:action", requireAuth, async (req,
   res.json(availJson(rows[0]));
 });
 
+// Records who made a time-off / availability decision (by name; falls back to the login email). Never blocks the request.
+async function recordDecision(req, { kind, decision, staffId, detail }) {
+  try {
+    let who = "";
+    if (req.ownerId) { const { rows } = await pool.query("SELECT name, email FROM owners WHERE id = $1", [req.ownerId]); who = rows[0] ? rows[0].name || rows[0].email : ""; }
+    else if (req.userId) { const { rows } = await pool.query("SELECT name, email FROM users WHERE id = $1", [req.userId]); who = rows[0] ? rows[0].name || rows[0].email : ""; }
+    const { rows: st } = await pool.query("SELECT name FROM staff WHERE id = $1", [staffId]);
+    await pool.query(
+      "INSERT INTO decision_log (id, restaurant_id, kind, decision, staff_id, staff_name, detail, decided_by, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+      [id(), req.restaurantId, kind, decision, staffId, (st[0] && st[0].name) || "", detail || "", who, Date.now()]
+    );
+  } catch (e) { console.error("Couldn't record the decision:", e.message); }
+}
 // ---------- one-time unavailability (time off) ----------
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -2191,6 +2220,7 @@ app.post("/api/time-off", requireAuth, async (req, res) => {
   );
   const { rows: clash } = await pool.query("SELECT COUNT(*)::int AS n FROM schedule_shifts WHERE restaurant_id = $1 AND staff_id = $2 AND shift_date = $3", [req.restaurantId, staffId, date]);
   logActivity({ restaurantId: req.restaurantId, eventType: "time_off_marked", detail: `manager marked someone unavailable on ${date}` });
+  recordDecision(req, { kind: "time_off", decision: "entered", staffId, detail: date + (f || t ? ` ${f}–${t}` : "") });
   res.status(201).json({ ...timeOffJson(rows[0]), shiftsThatDay: clash[0].n });
 });
 app.delete("/api/time-off/:id", requireAuth, async (req, res) => {
@@ -2217,6 +2247,7 @@ app.post("/api/time-off-requests/:id/:action", requireAuth, async (req, res) => 
   );
   if (!rows[0]) return res.status(404).json({ error: "no pending request found" });
   logActivity({ restaurantId: req.restaurantId, eventType: "time_off_" + action + "d", detail: `time off ${action}d for ${rows[0].off_date}` });
+  recordDecision(req, { kind: "time_off", decision: action === "approve" ? "approved" : "declined", staffId: rows[0].staff_id, detail: rows[0].off_date + (rows[0].from_time || rows[0].to_time ? ` ${rows[0].from_time || "00:00"}–${rows[0].to_time || "24:00"}` : "") });
   const when = (loc) => new Date(rows[0].off_date + "T12:00:00").toLocaleDateString(loc, { weekday: "short", month: "short", day: "numeric" })
     + (rows[0].from_time || rows[0].to_time ? ` (${rows[0].from_time || "00:00"}–${rows[0].to_time || "24:00"})` : "");
   const okNow = action === "approve";
@@ -5325,6 +5356,19 @@ function activityFilters(q) {
   addDayRange(conditions, params, q.from, q.to);
   return { conditions, params };
 }
+
+// Who approved / declined / entered time-off and availability decisions, newest first.
+app.get("/api/platform/decisions", requirePlatformAuth, async (req, res) => {
+  const params = [], cond = [];
+  if (req.query.restaurantId) { params.push(String(req.query.restaurantId)); cond.push(`d.restaurant_id = $${params.length}`); }
+  if (req.query.kind === "time_off" || req.query.kind === "availability") { params.push(req.query.kind); cond.push(`d.kind = $${params.length}`); }
+  params.push(Math.min(Number(req.query.limit) || 100, 500));
+  const { rows } = await pool.query(
+    `SELECT d.*, r.name AS restaurant_name FROM decision_log d LEFT JOIN restaurants r ON r.id = d.restaurant_id ${cond.length ? "WHERE " + cond.join(" AND ") : ""} ORDER BY d.created_at DESC LIMIT $${params.length}`,
+    params
+  );
+  res.json(rows.map((r) => ({ id: r.id, restaurantId: r.restaurant_id, restaurantName: r.restaurant_name || "—", kind: r.kind, decision: r.decision, staffName: r.staff_name, detail: r.detail, decidedBy: r.decided_by, createdAt: Number(r.created_at) })));
+});
 
 app.get("/api/platform/activity", requirePlatformAuth, async (req, res) => {
   const { conditions, params } = activityFilters(req.query);
