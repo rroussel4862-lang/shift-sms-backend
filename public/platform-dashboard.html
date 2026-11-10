@@ -773,7 +773,7 @@ async function loadActivity() {
     : entries.map(e => `
         <div class="activity-row">
           <div class="activity-dot ${e.level}"></div>
-          <div class="activity-time">${new Date(e.createdAt).toLocaleTimeString()}</div>
+          <div class="activity-time">${new Date(e.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" })}</div>
           <div class="activity-restaurant">${escapeHtml(e.restaurantName)}</div>
           <div class="activity-detail">
             <span class="activity-type">${escapeHtml(e.eventType)}</span> — ${escapeHtml(e.detail)}${e.durationMs !== null && e.durationMs !== undefined ? ` <span class="num" style="color:var(--text-dim)">(${e.durationMs}ms)</span>` : ""}

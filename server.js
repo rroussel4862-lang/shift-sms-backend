@@ -464,6 +464,17 @@ async function initDb() {
     );
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS staff_time_off_restaurant_date ON staff_time_off (restaurant_id, off_date);`);
+  // When each staff member last opened a week of their schedule in the staff portal ("who has seen it").
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS schedule_seen (
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      staff_id TEXT NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+      week_start TEXT NOT NULL,
+      seen_at BIGINT NOT NULL,
+      PRIMARY KEY (staff_id, week_start)
+    );
+  `);
+  await pool.query(`ALTER TABLE schedule_published ADD COLUMN IF NOT EXISTS last_notice_at BIGINT;`);
   // Who approved, declined or entered each time-off / availability decision. Kept permanently (unlike the activity feed).
   await pool.query(`
     CREATE TABLE IF NOT EXISTS decision_log (
@@ -1140,7 +1151,7 @@ app.post("/api/auth/login", loginLimiter, loginEmailLimiter, async (req, res) =>
         "SELECT r.id, r.name, r.address FROM owner_restaurants x JOIN restaurants r ON r.id = x.restaurant_id WHERE x.owner_id = $1 ORDER BY r.name",
         [owner.id]
       );
-      logActivity({ restaurantId: rs.length === 1 ? rs[0].id : null, eventType: "login_success", detail: `${owner.role === "manager" ? "manager" : "owner"} login via main page: ${owner.email} [${deviceLabel(req)}]` });
+      logActivity({ restaurantId: rs.length === 1 ? rs[0].id : null, eventType: "login_success", detail: `${owner.name || "An owner"} (${owner.role === "manager" ? "manager" : "owner"}) logged in via main page [${deviceLabel(req)}]` });
       if (rs.length !== 1) return res.json({ redirect: "/owner.html" });
       res.cookie("token", signToken({ restaurantId: rs[0].id, ownerId: owner.id }), COOKIE_OPTS);
       return res.json({ restaurant: { id: rs[0].id, name: rs[0].name, address: rs[0].address || "" }, email: owner.email, viaOwner: true, canSwitch: false, demo: demoIds.has(rs[0].id), newDesign: true });
@@ -1157,7 +1168,7 @@ app.post("/api/auth/login", loginLimiter, loginEmailLimiter, async (req, res) =>
 
   const token = signToken({ userId: user.id, restaurantId: user.restaurant_id });
   res.cookie("token", token, COOKIE_OPTS);
-  logActivity({ restaurantId: user.restaurant_id, eventType: "login_success", detail: `manager login: ${email.toLowerCase()} [main page, ${deviceLabel(req)}]` });
+  logActivity({ restaurantId: user.restaurant_id, eventType: "login_success", detail: `${((await pool.query("SELECT name FROM users WHERE id = $1", [user.id])).rows[0] || {}).name || "A manager"} logged in [main page, ${deviceLabel(req)}]` });
   res.json({ restaurant: { id: user.restaurant_id, name: user.restaurant_name, address: user.restaurant_address || "" }, email: user.email, demo: demoIds.has(user.restaurant_id), newDesign: true });
 });
 
@@ -1653,7 +1664,7 @@ app.post("/api/staff/:id/manager-access", requireAuth, async (req, res) => {
   await pool.query("INSERT INTO owners (id, name, email, password_hash, created_at, role) VALUES ($1,$2,$3,$4,$5,'manager')", [ownerId, person.name, email, await bcrypt.hash(password, 10), Date.now()]);
   await pool.query("INSERT INTO owner_restaurants (owner_id, restaurant_id) VALUES ($1,$2)", [ownerId, req.restaurantId]);
   await pool.query("UPDATE staff SET manager_owner_id = $1 WHERE id = $2 AND restaurant_id = $3", [ownerId, person.id, req.restaurantId]);
-  logActivity({ restaurantId: req.restaurantId, eventType: "manager_access_granted", detail: `manager access given to ${person.name} (${email})` });
+  logActivity({ restaurantId: req.restaurantId, eventType: "manager_access_granted", detail: `manager access given to ${person.name}` });
   res.status(201).json({ email, tempPassword: password });
 });
 
@@ -1943,7 +1954,7 @@ app.post("/api/staff-auth/claim", signupLimiter, async (req, res) => {
 
   const sessionToken = signToken({ staffId: staffer.id, restaurantId: staffer.restaurant_id });
   res.cookie("staff_token", sessionToken, COOKIE_OPTS);
-  logActivity({ restaurantId: staffer.restaurant_id, eventType: "staff_account_setup", detail: `${staffer.name} (${email.toLowerCase()})` });
+  logActivity({ restaurantId: staffer.restaurant_id, eventType: "staff_account_setup", detail: `${staffer.name} set up their staff account` });
   res.status(201).json({ name: staffer.name });
 });
 
@@ -1971,7 +1982,7 @@ app.post("/api/staff-auth/login", loginLimiter, loginEmailLimiter, async (req, r
   }
   const sessionToken = signToken({ staffId: staffer.id, restaurantId: staffer.restaurant_id });
   res.cookie("staff_token", sessionToken, COOKIE_OPTS);
-  logActivity({ restaurantId: staffer.restaurant_id, eventType: "login_success", detail: `staff login: ${email.toLowerCase()} [${deviceLabel(req)}]` });
+  logActivity({ restaurantId: staffer.restaurant_id, eventType: "login_success", detail: `${staffer.name} (staff) logged in [${deviceLabel(req)}]` });
   res.json({ name: staffer.name, id: staffer.id });
 });
 
@@ -2022,7 +2033,16 @@ app.get("/api/staff-auth/schedule", requireStaffAuth, async (req, res) => {
     "SELECT * FROM schedule_shifts WHERE staff_id = $1 AND restaurant_id = $2 AND shift_date >= $3 AND shift_date <= $4 ORDER BY shift_date ASC, start_time ASC",
     [req.staffId, req.restaurantId, start, end]
   );
-  res.json(await onlyPublishedForStaff(req.restaurantId, rows.map(scheduleShiftRowToJson)));
+  const visible = await onlyPublishedForStaff(req.restaurantId, rows.map(scheduleShiftRowToJson));
+  // remember that this person has now been shown these weeks
+  try {
+    const weeks = [...new Set(visible.map((sh) => mondayOfIso(sh.date)))];
+    if (weeks.length) await pool.query(
+      `INSERT INTO schedule_seen (restaurant_id, staff_id, week_start, seen_at) SELECT $1, $2, w, $4 FROM unnest($3::text[]) AS w
+       ON CONFLICT (staff_id, week_start) DO UPDATE SET seen_at = EXCLUDED.seen_at`,
+      [req.restaurantId, req.staffId, weeks, Date.now()]);
+  } catch (e) { console.error("Couldn't record schedule view:", e.message); }
+  res.json(visible);
 });
 
 const AVAIL_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -2113,7 +2133,7 @@ app.post("/api/availability-requests/:staffId/:action", requireAuth, async (req,
     [staffId, req.restaurantId, now]
   );
   if (!rows[0]) return res.status(404).json({ error: "no pending request for this person" });
-  logActivity({ restaurantId: req.restaurantId, eventType: "availability_" + action + "d", detail: `availability ${action}d` });
+  logActivity({ restaurantId: req.restaurantId, eventType: "availability_" + action + "d", detail: `${await actorName(req)} ${action}d ${await staffNameOf(staffId)}'s availability` });
   recordDecision(req, { kind: "availability", decision: action === "approve" ? "approved" : "declined", staffId, detail: "weekly availability" });
   const okNow = action === "approve";
   notifyStaff(req.restaurantId, staffId,
@@ -2123,11 +2143,21 @@ app.post("/api/availability-requests/:staffId/:action", requireAuth, async (req,
 });
 
 // Records who made a time-off / availability decision (by name; falls back to the login email). Never blocks the request.
+// The name of the manager making this request (never their email or an id). "A manager" when no name was ever set.
+async function actorName(req) {
+  try {
+    const q = req.ownerId ? "SELECT name FROM owners WHERE id = $1" : req.userId ? "SELECT name FROM users WHERE id = $1" : null;
+    if (!q) return "A manager";
+    const { rows } = await pool.query(q, [req.ownerId || req.userId]);
+    return (rows[0] && rows[0].name && rows[0].name.trim()) || "A manager";
+  } catch (e) { return "A manager"; }
+}
+async function staffNameOf(staffId) {
+  try { const { rows } = await pool.query("SELECT name FROM staff WHERE id = $1", [staffId]); return (rows[0] && rows[0].name) || "a staff member"; } catch (e) { return "a staff member"; }
+}
 async function recordDecision(req, { kind, decision, staffId, detail }) {
   try {
-    let who = "";
-    if (req.ownerId) { const { rows } = await pool.query("SELECT name, email FROM owners WHERE id = $1", [req.ownerId]); who = rows[0] ? rows[0].name || rows[0].email : ""; }
-    else if (req.userId) { const { rows } = await pool.query("SELECT name, email FROM users WHERE id = $1", [req.userId]); who = rows[0] ? rows[0].name || rows[0].email : ""; }
+    const who = await actorName(req);
     const { rows: st } = await pool.query("SELECT name FROM staff WHERE id = $1", [staffId]);
     await pool.query(
       "INSERT INTO decision_log (id, restaurant_id, kind, decision, staff_id, staff_name, detail, decided_by, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
@@ -2169,7 +2199,7 @@ app.post("/api/staff-auth/time-off", requireStaffAuth, async (req, res) => {
     "INSERT INTO staff_time_off (id, restaurant_id, staff_id, off_date, from_time, to_time, note, status, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8) RETURNING *",
     [id(), req.restaurantId, req.staffId, date, f || null, t || null, String(note || "").trim().slice(0, 200), Date.now()]
   );
-  logActivity({ restaurantId: req.restaurantId, eventType: "time_off_requested", detail: `time off requested for ${date}` });
+  logActivity({ restaurantId: req.restaurantId, eventType: "time_off_requested", detail: `${await staffNameOf(req.staffId)} requested time off on ${date}` });
   pool.query("SELECT name FROM staff WHERE id = $1", [req.staffId]).then(({ rows }) => {
     const who = (rows[0] && rows[0].name) || "A staff member";
     const hrs = f || t ? ` (${f || "…"}–${t || "…"})` : "";
@@ -2219,7 +2249,7 @@ app.post("/api/time-off", requireAuth, async (req, res) => {
     [id(), req.restaurantId, staffId, date, f || null, t || null, String(note || "").trim().slice(0, 200), now]
   );
   const { rows: clash } = await pool.query("SELECT COUNT(*)::int AS n FROM schedule_shifts WHERE restaurant_id = $1 AND staff_id = $2 AND shift_date = $3", [req.restaurantId, staffId, date]);
-  logActivity({ restaurantId: req.restaurantId, eventType: "time_off_marked", detail: `manager marked someone unavailable on ${date}` });
+  logActivity({ restaurantId: req.restaurantId, eventType: "time_off_marked", detail: `${await actorName(req)} marked ${await staffNameOf(staffId)} unavailable on ${date}` });
   recordDecision(req, { kind: "time_off", decision: "entered", staffId, detail: date + (f || t ? ` ${f}–${t}` : "") });
   res.status(201).json({ ...timeOffJson(rows[0]), shiftsThatDay: clash[0].n });
 });
@@ -2246,7 +2276,7 @@ app.post("/api/time-off-requests/:id/:action", requireAuth, async (req, res) => 
     [reqId, req.restaurantId, action === "approve" ? "approved" : "declined", Date.now()]
   );
   if (!rows[0]) return res.status(404).json({ error: "no pending request found" });
-  logActivity({ restaurantId: req.restaurantId, eventType: "time_off_" + action + "d", detail: `time off ${action}d for ${rows[0].off_date}` });
+  logActivity({ restaurantId: req.restaurantId, eventType: "time_off_" + action + "d", detail: `${await actorName(req)} ${action}d ${await staffNameOf(rows[0].staff_id)}'s time off on ${rows[0].off_date}` });
   recordDecision(req, { kind: "time_off", decision: action === "approve" ? "approved" : "declined", staffId: rows[0].staff_id, detail: rows[0].off_date + (rows[0].from_time || rows[0].to_time ? ` ${rows[0].from_time || "00:00"}–${rows[0].to_time || "24:00"}` : "") });
   const when = (loc) => new Date(rows[0].off_date + "T12:00:00").toLocaleDateString(loc, { weekday: "short", month: "short", day: "numeric" })
     + (rows[0].from_time || rows[0].to_time ? ` (${rows[0].from_time || "00:00"}–${rows[0].to_time || "24:00"})` : "");
@@ -2896,6 +2926,23 @@ async function postedWeekChanges(restaurantId, weekStart, house) {
   const people = staffRows.map((p) => ({ staffId: p.id, name: p.name, hasPhone: !!p.phone, changes: diff.get(p.id) })).sort((p, q) => p.name.localeCompare(q.name));
   return { hasBaseline: true, people };
 }
+// Who has opened their schedule for this week. "Seen" means they opened it after the week was posted (or after the latest change text).
+app.get("/api/schedule/seen", requireAuth, async (req, res) => {
+  const weekStart = String(req.query.weekStart || "");
+  if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
+  const house = parseHouse(req.query.house);
+  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
+  const { rows: pub } = await pool.query("SELECT published_at, last_notice_at FROM schedule_published WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [req.restaurantId, weekStart, house]);
+  const baseline = pub[0] ? Math.max(Number(pub[0].published_at), Number(pub[0].last_notice_at || 0)) : 0;
+  const ids = [...new Set((await weekShiftsForHouse(req.restaurantId, weekStart, house)).map((x) => x.staffId))];
+  if (!ids.length) return res.json({ weekStart, house, baseline: baseline || null, seen: 0, total: 0, people: [] });
+  const { rows } = await pool.query(
+    `SELECT st.id, st.name, sn.seen_at FROM staff st LEFT JOIN schedule_seen sn ON sn.staff_id = st.id AND sn.week_start = $3
+     WHERE st.restaurant_id = $1 AND st.id = ANY($2::text[]) AND st.archived_at IS NULL ORDER BY st.name`,
+    [req.restaurantId, ids, weekStart]);
+  const people = rows.map((r) => ({ staffId: r.id, name: r.name, seenAt: r.seen_at && Number(r.seen_at) >= baseline ? Number(r.seen_at) : null, openedBefore: !!r.seen_at && Number(r.seen_at) < baseline }));
+  res.json({ weekStart, house, baseline: baseline || null, seen: people.filter((p) => p.seenAt).length, total: people.length, people });
+});
 app.get("/api/schedule/changes", requireAuth, async (req, res) => {
   const weekStart = String(req.query.weekStart || "");
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
@@ -2930,6 +2977,7 @@ app.post("/api/schedule/changes/notify", requireAuth, async (req, res) => {
     Promise.all(withPhone.map((p) => { const t = changeText(restaurantName, link); return notifyStaff(req.restaurantId, p.staffId, t.fr, t.en); }))
       .catch((e) => console.error("schedule-change texts failed:", e.message));
   }
+  if (action === "send" && people.length) await pool.query("UPDATE schedule_published SET last_notice_at = $4 WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [req.restaurantId, weekStart, house, Date.now()]);
   await snapshotWeek(req.restaurantId, weekStart, house); // whatever was decided, this is now the version staff know about
   logActivity({ restaurantId: req.restaurantId, eventType: action === "send" ? "schedule_changes_texted" : "schedule_changes_dismissed", detail: `week of ${weekStart} (${house.toUpperCase()}): ${people.reduce((n, p) => n + p.changes.length, 0)} change(s), ${texted} text(s)` });
   res.json({ weekStart, house, action, texted, people: people.length });
@@ -5251,7 +5299,7 @@ app.put("/api/platform/restaurants/:id/pos", requirePlatformAuth, async (req, re
        last_error = CASE WHEN $6 THEN NULL ELSE pos_connections.last_error END`,
     [req.params.id, licence, email, passEnc, Date.now(), changed]
   );
-  logActivity({ restaurantId: req.params.id, eventType: "pos_saved", detail: `POS connection saved (licence ${licence}, ${email})` });
+  logActivity({ restaurantId: req.params.id, eventType: "pos_saved", detail: `POS connection saved (licence ${licence})` });
   res.json(posPublic(await loadPosConnection(req.params.id)));
 });
 app.delete("/api/platform/restaurants/:id/pos", requirePlatformAuth, async (req, res) => {
@@ -5626,7 +5674,7 @@ app.post("/api/platform/owners", requirePlatformAuth, async (req, res) => {
     await pool.query("DELETE FROM owners WHERE id = $1", [ownerId]);
     return res.status(400).json({ error: "one of those restaurants doesn't exist" });
   }
-  logActivity({ eventType: "owner_created", detail: `${role}: ${String(name).trim()} (${cleanEmail}) → ${restaurantIds.length} restaurant(s)` });
+  logActivity({ eventType: "owner_created", detail: `${role}: ${String(name).trim()} → ${restaurantIds.length} restaurant(s)` });
   res.status(201).json({ owner: await ownerWithRestaurants(ownerId), tempPassword: password });
 });
 
@@ -5683,7 +5731,7 @@ app.post("/api/owner-auth/login", loginLimiter, loginEmailLimiter, async (req, r
   }
   await pool.query("UPDATE owners SET last_login_at = $1 WHERE id = $2", [Date.now(), owner.id]);
   res.cookie("owner_token", signToken({ ownerId: owner.id }), COOKIE_OPTS);
-  logActivity({ eventType: "login_success", detail: `${owner.role === "manager" ? "manager" : "owner"} login via owner page: ${owner.email} [${deviceLabel(req)}]` });
+  logActivity({ eventType: "login_success", detail: `${owner.name || "An owner"} (${owner.role === "manager" ? "manager" : "owner"}) logged in via owner page [${deviceLabel(req)}]` });
   const full = await ownerWithRestaurants(owner.id);
   res.json({ name: owner.name, role: full.role, restaurantIds: full.restaurants.map((r) => r.id) });
 });
@@ -5786,7 +5834,7 @@ app.post("/api/owner/open/:restaurantId", requireOwnerAuth, async (req, res) => 
   const { rows } = await pool.query("SELECT 1 FROM owner_restaurants WHERE owner_id = $1 AND restaurant_id = $2", [req.ownerId, req.params.restaurantId]);
   if (rows.length === 0) return res.status(404).json({ error: "restaurant not found" });
   res.cookie("token", signToken({ restaurantId: req.params.restaurantId, ownerId: req.ownerId }), COOKIE_OPTS);
-  logActivity({ restaurantId: req.params.restaurantId, eventType: "owner_opened_restaurant", detail: `owner ${req.ownerId}` });
+  logActivity({ restaurantId: req.params.restaurantId, eventType: "owner_opened_restaurant", detail: `${await actorName(req)} opened this restaurant` });
   res.json({ ok: true });
 });
 
