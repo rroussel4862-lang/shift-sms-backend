@@ -4054,7 +4054,11 @@ async function refreshEvents(restaurantId, day, place) {
   const work = (async () => {
     let events = null, error = null;
     try { events = await fetchNearbyEvents(place, day, restaurantId); }
-    catch (e) { error = e.code === "not_configured" ? "not_configured" : "failed"; if (!e.code) console.error("Events lookup failed:", e.message); }
+    catch (e) {
+      error = e.code === "not_configured" ? "not_configured" : "failed";
+      if (!e.code) console.error("Events lookup failed:", e.message);
+      logActivity({ restaurantId, eventType: "ai_failed", level: "error", detail: `events lookup for ${day}: ${e.code === "not_configured" ? "no Anthropic key set" : String(e.message).slice(0, 300)}` });
+    }
     await pool.query(
       `INSERT INTO day_context (restaurant_id, day, events, events_at, events_error) VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (restaurant_id, day) DO UPDATE SET events = EXCLUDED.events, events_at = EXCLUDED.events_at, events_error = EXCLUDED.events_error`,
