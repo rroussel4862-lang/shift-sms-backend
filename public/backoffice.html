@@ -703,6 +703,7 @@ I18N.add({
     "sched.aiNeedPrompt": "Describe what you need first", "sched.aiNoShifts": "The AI didn't propose any shifts — try adding more detail.",
     "sched.aiProposal": n => `${n} shift${n === 1 ? "" : "s"} proposed — not saved yet`, "sched.aiApply": "Apply to grid", "sched.aiDiscard": "Discard",
     "chg.msg": (t, n) => `${t} change${t === 1 ? "" : "s"} since this week was posted — ${n} ${n === 1 ? "person" : "people"} affected. Staff haven’t been told.`, "chg.review": "Review", "chg.hide": "Hide", "chg.send": "Notify staff", "chg.dismiss": "Don’t notify", "chg.nophone": "no phone number", "chg.removed": (s) => `shift cancelled (${s})`, "chg.added": (s, r) => `new shift ${s}${r ? " – " + r : ""}`, "chg.role": (r) => `now ${r}`, "chg.moved": (n, o) => `now ${n} (was ${o})`, "chg.confirm": (n) => `Text ${n} ${n === 1 ? "person" : "people"} about their changes?`, "chg.sent": (n) => `Texted ${n} ${n === 1 ? "person" : "people"}.`, "chg.dismissed": "OK — staff won’t be notified about these changes.", "sched.markOff": "Mark unavailable", "sched.offFrom": "From (empty = all day)", "sched.offTo": "Until", "sched.offHint": "Leave both times empty for the whole day.", "sched.offNote": "Reason (optional)", "sched.offBoth": "Fill in both times, or leave both empty for the whole day.", "sched.offSaved": "Marked unavailable.", "sched.offClash": "Marked unavailable — but they already have a shift that day.", "sched.offRemoved": "Unavailability removed.", "sched.offRemove": "Remove this unavailability", "seen.msg": (s, t) => `${s} of ${t} have opened their schedule for this week.`, "seen.at": (w) => `seen ${w}`, "seen.not": "not opened yet", "seen.before": "opened it before the latest update — not since", "dept.reception": "Reception", "dept.housekeeping": "Housekeeping", "dept.maintenance": "Maintenance", "role.Front Desk Agent": "Front Desk Agent", "role.Night Auditor": "Night Auditor", "role.Concierge": "Concierge", "role.Bellhop": "Bellhop", "role.Room Attendant": "Room Attendant", "role.Housekeeping Supervisor": "Housekeeping Supervisor", "role.Laundry Attendant": "Laundry Attendant", "role.Public Area Attendant": "Public Area Attendant", "role.Maintenance Technician": "Maintenance Technician", "role.Engineer": "Engineer", "role.Groundskeeper": "Groundskeeper",
+    "occ.forecast": "Forecast occupancy", "occ.actual": "Actual occupancy", "occ.avg": "avg", "occ.bad": "Occupancy must be between 0 and 100", "occ.ph": "%",
     "pub.draft": "Draft — staff can't see this week yet. Work on it, then publish.", "pub.live": "Published — staff can see this week.", "pub.always": "This week is live — staff see changes as you make them.", "pub.publish": "Post schedule", "pub.unpublish": "Back to draft", "pub.confirm": (w, h) => `Post the ${h} schedule for the week of ${w}? ${h} staff will see it in their portal and get a text.`, "pub.confirmUn": (w, h) => `Hide the ${h} schedule for the week of ${w} from staff again?`, "pub.done": "Schedule posted — staff can see it in their portal and are being texted.", "pub.undone": "Back to draft — staff can no longer see this week.", "copy.btn": "Copy last week here", "copy.none": "Last week has no shifts for the staff shown.", "copy.confirm": (n, w) => `Copy ${n} shift${n === 1 ? "" : "s"} from the week of ${w} into this week?`, "copy.skipped": n => `${n} shift${n === 1 ? "" : "s"} skipped (already on the grid or conflicting).`, "copy.confirmPosted": (n, w) => `Copy ${n} shift${n === 1 ? "" : "s"} exactly as they were posted for the week of ${w} (including any shift cancelled since) into this week?`, "sched.aiApplied": n => `${n} shift${n === 1 ? "" : "s"} added to the grid.`, "sched.aiUndo": "Undo", "sched.aiUndone": "Undone — the shifts were removed.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~$${sales} expected sales` : `~$${sales} expected sales · ${pct}% labor`, "sched.aiWeekLabor": pct => `${pct}% labor vs expected sales`, "sched.aiSkipped": "Left out:", "sched.aiHours": (h, c) => `${h}h total · about $${c} labor`,
     "sched.skip.unavailable": "marked unavailable", "sched.availShort": "Available", "sched.availFrom": "Available from", "sched.availUntil": "Available until", "sched.unavailAll": "Unavailable · all day", "sched.unavailShort": "Unavailable", "sched.unavailStart": "start", "sched.unavailEnd": "close", "sched.skip.overlap": "already has a shift then", "sched.skip.bad_time": "invalid times", "sched.skip.bad_date": "date outside this week", "sched.skip.unknown_staff": "unknown staff member",
@@ -752,6 +753,7 @@ I18N.add({
     "sched.aiNeedPrompt": "Décrivez d'abord ce qu'il vous faut", "sched.aiNoShifts": "L'IA n'a proposé aucun quart — ajoutez plus de détails.",
     "sched.aiProposal": n => `${n} quart${n === 1 ? "" : "s"} proposé${n === 1 ? "" : "s"} — pas encore enregistré${n === 1 ? "" : "s"}`, "sched.aiApply": "Appliquer à la grille", "sched.aiDiscard": "Annuler",
     "chg.msg": (t, n) => `${t} changement${t === 1 ? "" : "s"} depuis la publication de cette semaine — ${n} personne${n === 1 ? "" : "s"} concernée${n === 1 ? "" : "s"}. Le personnel n’a pas été avisé.`, "chg.review": "Examiner", "chg.hide": "Masquer", "chg.send": "Aviser le personnel", "chg.dismiss": "Ne pas aviser", "chg.nophone": "pas de numéro de téléphone", "chg.removed": (s) => `quart annulé (${s})`, "chg.added": (s, r) => `nouveau quart ${s}${r ? " – " + r : ""}`, "chg.role": (r) => `maintenant ${r}`, "chg.moved": (n, o) => `maintenant ${n} (avant ${o})`, "chg.confirm": (n) => `Envoyer un texto à ${n} personne${n === 1 ? "" : "s"} au sujet de leurs changements ?`, "chg.sent": (n) => `${n} texto${n === 1 ? "" : "s"} envoyé${n === 1 ? "" : "s"}.`, "chg.dismissed": "OK — le personnel ne sera pas avisé de ces changements.", "sched.markOff": "Marquer indisponible", "sched.offFrom": "De (vide = toute la journée)", "sched.offTo": "Jusqu’à", "sched.offHint": "Laissez les deux heures vides pour toute la journée.", "sched.offNote": "Raison (facultatif)", "sched.offBoth": "Remplissez les deux heures, ou laissez les deux vides pour toute la journée.", "sched.offSaved": "Marqué indisponible.", "sched.offClash": "Marqué indisponible — mais un quart est déjà prévu ce jour-là.", "sched.offRemoved": "Indisponibilité retirée.", "sched.offRemove": "Retirer cette indisponibilité", "seen.msg": (s, t) => `${s} personne${s === 1 ? "" : "s"} sur ${t} ${s === 1 ? "a" : "ont"} ouvert leur horaire cette semaine.`, "seen.at": (w) => `vu ${w}`, "seen.not": "pas encore ouvert", "seen.before": "l’a ouvert avant la dernière mise à jour — pas depuis", "dept.reception": "Réception", "dept.housekeeping": "Entretien ménager", "dept.maintenance": "Entretien technique", "role.Front Desk Agent": "Préposé(e) à la réception", "role.Night Auditor": "Auditeur(trice) de nuit", "role.Concierge": "Concierge", "role.Bellhop": "Bagagiste", "role.Room Attendant": "Préposé(e) aux chambres", "role.Housekeeping Supervisor": "Superviseur(e) de l’entretien ménager", "role.Laundry Attendant": "Préposé(e) à la buanderie", "role.Public Area Attendant": "Préposé(e) aux aires publiques", "role.Maintenance Technician": "Technicien(ne) d’entretien", "role.Engineer": "Ingénieur(e) d’entretien", "role.Groundskeeper": "Préposé(e) aux terrains",
+    "occ.forecast": "Taux d’occupation prévu", "occ.actual": "Taux d’occupation réel", "occ.avg": "moy.", "occ.bad": "Le taux d’occupation doit être entre 0 et 100", "occ.ph": "%",
     "pub.draft": "Brouillon — le personnel ne voit pas encore cette semaine. Travaillez-la, puis publiez.", "pub.live": "Publié — le personnel peut voir cette semaine.", "pub.always": "Cette semaine est en direct — le personnel voit vos changements au fur et à mesure.", "pub.publish": "Afficher l'horaire", "pub.unpublish": "Retour en brouillon", "pub.confirm": (w, h) => `Afficher l'horaire (${h}) de la semaine du ${w} ? Le personnel de ce secteur le verra dans son portail et recevra un texto.`, "pub.confirmUn": (w, h) => `Cacher de nouveau l'horaire (${h}) de la semaine du ${w} au personnel ?`, "pub.done": "Horaire affiché — le personnel peut le voir dans son portail et reçoit un texto.", "pub.undone": "Retour en brouillon — le personnel ne voit plus cette semaine.", "copy.btn": "Copier la semaine dernière ici", "copy.none": "La semaine dernière n'a aucun quart pour le personnel affiché.", "copy.confirm": (n, w) => `Copier ${n} quart${n === 1 ? "" : "s"} de la semaine du ${w} dans cette semaine ?`, "copy.skipped": n => `${n} quart${n === 1 ? "" : "s"} ignoré${n === 1 ? "" : "s"} (déjà dans la grille ou en conflit).`, "copy.confirmPosted": (n, w) => `Copier ${n} quart${n === 1 ? "" : "s"} exactement comme affiché${n === 1 ? "" : "s"} pour la semaine du ${w} (y compris les quarts annulés depuis) dans cette semaine ?`, "sched.aiApplied": n => `${n} quart${n === 1 ? "" : "s"} ajouté${n === 1 ? "" : "s"} à la grille.`, "sched.aiUndo": "Annuler l'ajout", "sched.aiUndone": "Annulé — les quarts ont été retirés.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~${sales} $ de ventes prévues` : `~${sales} $ de ventes prévues · ${pct}% main-d'œuvre`, "sched.aiWeekLabor": pct => `${pct}% de main-d'œuvre par rapport aux ventes prévues`, "sched.aiSkipped": "Exclus :", "sched.aiHours": (h, c) => `${h} h au total · environ ${c} $ de main-d'œuvre`,
     "sched.skip.unavailable": "marqué indisponible", "sched.availShort": "Disponible", "sched.availFrom": "Disponible dès", "sched.availUntil": "Disponible jusqu'à", "sched.unavailAll": "Indisponible · toute la journée", "sched.unavailShort": "Indisponible", "sched.unavailStart": "début", "sched.unavailEnd": "fermeture", "sched.skip.overlap": "a déjà un quart à ce moment", "sched.skip.bad_time": "heures invalides", "sched.skip.bad_date": "date hors de cette semaine", "sched.skip.unknown_staff": "employé inconnu",
@@ -801,6 +803,7 @@ I18N.add({
     "sched.aiNeedPrompt": "Describe primero lo que necesitas", "sched.aiNoShifts": "La IA no propuso ningún turno — agrega más detalles.",
     "sched.aiProposal": n => `${n} turno${n === 1 ? "" : "s"} propuesto${n === 1 ? "" : "s"} — aún sin guardar`, "sched.aiApply": "Aplicar a la cuadrícula", "sched.aiDiscard": "Descartar",
     "chg.msg": (t, n) => `${t} cambio${t === 1 ? "" : "s"} desde que se publicó esta semana — ${n} persona${n === 1 ? "" : "s"} afectada${n === 1 ? "" : "s"}. El personal no ha sido avisado.`, "chg.review": "Revisar", "chg.hide": "Ocultar", "chg.send": "Avisar al personal", "chg.dismiss": "No avisar", "chg.nophone": "sin número de teléfono", "chg.removed": (s) => `turno cancelado (${s})`, "chg.added": (s, r) => `turno nuevo ${s}${r ? " – " + r : ""}`, "chg.role": (r) => `ahora ${r}`, "chg.moved": (n, o) => `ahora ${n} (antes ${o})`, "chg.confirm": (n) => `¿Enviar un texto a ${n} persona${n === 1 ? "" : "s"} sobre sus cambios?`, "chg.sent": (n) => `${n} texto${n === 1 ? "" : "s"} enviado${n === 1 ? "" : "s"}.`, "chg.dismissed": "OK — no se avisará al personal de estos cambios.", "sched.markOff": "Marcar no disponible", "sched.offFrom": "Desde (vacío = todo el día)", "sched.offTo": "Hasta", "sched.offHint": "Deja ambas horas vacías para todo el día.", "sched.offNote": "Motivo (opcional)", "sched.offBoth": "Completa ambas horas, o deja ambas vacías para todo el día.", "sched.offSaved": "Marcado como no disponible.", "sched.offClash": "Marcado como no disponible — pero ya tiene un turno ese día.", "sched.offRemoved": "No disponibilidad eliminada.", "sched.offRemove": "Quitar esta no disponibilidad", "seen.msg": (s, t) => `${s} de ${t} han abierto su horario de esta semana.`, "seen.at": (w) => `visto ${w}`, "seen.not": "aún no lo ha abierto", "seen.before": "lo abrió antes de la última actualización — no desde entonces", "dept.reception": "Recepción", "dept.housekeeping": "Limpieza de habitaciones", "dept.maintenance": "Mantenimiento", "role.Front Desk Agent": "Recepcionista", "role.Night Auditor": "Auditor/a nocturno/a", "role.Concierge": "Conserje", "role.Bellhop": "Botones", "role.Room Attendant": "Camarero/a de piso", "role.Housekeeping Supervisor": "Supervisor/a de limpieza", "role.Laundry Attendant": "Encargado/a de lavandería", "role.Public Area Attendant": "Encargado/a de áreas comunes", "role.Maintenance Technician": "Técnico/a de mantenimiento", "role.Engineer": "Ingeniero/a de mantenimiento", "role.Groundskeeper": "Jardinero/a",
+    "occ.forecast": "Ocupación prevista", "occ.actual": "Ocupación real", "occ.avg": "prom.", "occ.bad": "La ocupación debe estar entre 0 y 100", "occ.ph": "%",
     "pub.draft": "Borrador — el personal aún no ve esta semana. Trabájala y luego publícala.", "pub.live": "Publicado — el personal puede ver esta semana.", "pub.always": "Esta semana está en vivo — el personal ve tus cambios al instante.", "pub.publish": "Publicar horario", "pub.unpublish": "Volver a borrador", "pub.confirm": (w, h) => `¿Publicar el horario (${h}) de la semana del ${w}? El personal de esa área lo verá en su portal y recibirá un mensaje de texto.`, "pub.confirmUn": (w, h) => `¿Ocultar de nuevo el horario (${h}) de la semana del ${w} al personal?`, "pub.done": "Horario publicado — el personal puede verlo en su portal y recibe un mensaje de texto.", "pub.undone": "Vuelto a borrador — el personal ya no ve esta semana.", "copy.btn": "Copiar la semana pasada aquí", "copy.none": "La semana pasada no tiene turnos para el personal mostrado.", "copy.confirm": (n, w) => `¿Copiar ${n} turno${n === 1 ? "" : "s"} de la semana del ${w} a esta semana?`, "copy.skipped": n => `${n} turno${n === 1 ? "" : "s"} omitido${n === 1 ? "" : "s"} (ya están en la cuadrícula o hay conflicto).`, "copy.confirmPosted": (n, w) => `¿Copiar ${n} turno${n === 1 ? "" : "s"} exactamente como se publicaron para la semana del ${w} (incluidos los turnos cancelados después) a esta semana?`, "sched.aiApplied": n => `${n} turno${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} a la cuadrícula.`, "sched.aiUndo": "Deshacer", "sched.aiUndone": "Deshecho — se quitaron los turnos.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~$${sales} de ventas esperadas` : `~$${sales} de ventas esperadas · ${pct}% mano de obra`, "sched.aiWeekLabor": pct => `${pct}% de mano de obra vs. ventas esperadas`, "sched.aiSkipped": "Omitidos:", "sched.aiHours": (h, c) => `${h} h en total · unos $${c} de mano de obra`,
     "sched.skip.unavailable": "marcado como no disponible", "sched.availShort": "Disponible", "sched.availFrom": "Disponible desde", "sched.availUntil": "Disponible hasta", "sched.unavailAll": "No disponible · todo el día", "sched.unavailShort": "No disponible", "sched.unavailStart": "inicio", "sched.unavailEnd": "cierre", "sched.skip.overlap": "ya tiene un turno a esa hora", "sched.skip.bad_time": "horas no válidas", "sched.skip.bad_date": "fecha fuera de esta semana", "sched.skip.unknown_staff": "empleado desconocido",
@@ -817,6 +820,9 @@ const roleLabel = r => { const k = "role." + r; const v = I18N.t(k); return v ==
 // Departments of this establishment (restaurant/bar: Front and Back of House; hotel: Reception, Housekeeping, Maintenance).
 let DEPTS = [{ key: "foh", name: "Front of House", roles: [] }, { key: "boh", name: "Back of House", roles: [] }];
 let ALLOWED_DEPTS = null; // a restricted manager only sees some departments (null = all)
+let ESTAB_KIND = "restaurant";
+let occupancy = {}; // date -> { forecastPct, actualPct } (hotels only)
+const isHotel = () => ESTAB_KIND === "hotel";
 const visibleDepts = () => DEPTS.filter(d => !ALLOWED_DEPTS || ALLOWED_DEPTS.includes(d.key));
 const deptName = key => { const d = DEPTS.find(x => x.key === key); const k = "dept." + key; const v = I18N.t(k); return v !== k ? v : (d ? d.name : key); };
 const houseLabel = () => houseView === "foh" || houseView === "boh" ? tr(houseView === "foh" ? "sched.foh" : "sched.boh") : deptName(houseView);
@@ -830,7 +836,11 @@ function renderHouseToggle() {
 async function loadDepartments() {
   const r = await api("/api/departments");
   if (!r.ok || !r.data) return;
-  DEPTS = r.data.departments; ALLOWED_DEPTS = r.data.allowed;
+  DEPTS = r.data.departments; ALLOWED_DEPTS = r.data.allowed; ESTAB_KIND = r.data.kind || "restaurant";
+  if (isHotel()) { // a hotel plans around room occupancy, not services and sales
+    const t = document.getElementById("svcToggle"), b = document.querySelector(".svc-edit-btn");
+    if (t) t.style.display = "none"; if (b) b.style.display = "none";
+  }
   if (r.data.kind === "hotel") ROLES.splice(0, ROLES.length, "Manager", ...DEPTS.flatMap(d => d.roles)); // hotel roles replace the restaurant ones
 }
 
@@ -1709,8 +1719,12 @@ async function loadSchedule() {
     api(`/api/actual-sales?start=${startStr}&end=${endStr}`),
     api("/api/availability"),
     api(`/api/time-off?start=${startStr}&end=${endStr}`),
+    ...(isHotel() ? [api(`/api/occupancy?start=${startStr}&end=${endStr}`)] : []),
     ...visibleDepts().map(d => api(`/api/schedule/snapshot?weekStart=${startStr}&house=${encodeURIComponent(d.key)}`)),
   ]);
+  const occResult = isHotel() ? snaps.shift() : null;
+  occupancy = {};
+  if (occResult && occResult.ok) occResult.data.forEach(o => { occupancy[o.date] = o; });
   postedShifts = snaps.filter(r => r.ok && r.data && Array.isArray(r.data.shifts)).flatMap(r => r.data.shifts);
   if (availResult.ok) availByStaff = availResult.data;
   if (timeOffResult.ok) {
@@ -2202,6 +2216,34 @@ document.addEventListener("scroll", e => { if (e.target && e.target.classList &&
 let managerOpen = false; // the Manager band is closed until someone clicks it
 function toggleManagerBand() { managerOpen = !managerOpen; renderScheduleGrid(); }
 
+// Hotel: two rows of percentages (how full the rooms are expected to be, and how full they were) in place of the sales rows.
+function renderOccupancyRows(weekDates) {
+  const mk = (id, label, field, editable) => {
+    let sum = 0, n = 0;
+    const cells = weekDates.map(d => {
+      const dateStr = toISODate(d);
+      const v = (occupancy[dateStr] || {})[field];
+      if (v !== undefined && v !== null) { sum += v; n++; }
+      const val = v !== undefined && v !== null ? v : "";
+      return `<td><input type="text" inputmode="decimal" value="${val}" placeholder="${escapeHtml(tr("occ.ph"))}" onblur="saveOccupancy('${field}','${dateStr}',this)" /></td>`;
+    }).join("");
+    document.getElementById(id).innerHTML = `<td class="row-label">${escapeHtml(label)}</td>${cells}<td class="day-total">${n ? tr("occ.avg") + " " + (Math.round(sum / n * 10) / 10) + "%" : "—"}</td>`;
+  };
+  mk("scheduleProjRow", tr("occ.forecast"), "forecastPct");
+  mk("scheduleActualRow", tr("occ.actual"), "actualPct");
+}
+async function saveOccupancy(field, dateStr, input) {
+  const raw = input.value.trim().replace("%", "").replace(",", ".");
+  const before = (occupancy[dateStr] || {})[field];
+  if (raw !== "" && !(Number(raw) >= 0 && Number(raw) <= 100)) { showBanner(tr("occ.bad"), "warn"); input.value = before === undefined || before === null ? "" : before; return; }
+  const value = raw === "" ? null : Number(raw);
+  if ((before === undefined ? null : before) === value) return;
+  const r = await api(`/api/occupancy/${dateStr}`, { method: "PUT", body: JSON.stringify({ [field]: value }) });
+  if (!r.ok) { showBanner(r.error, "warn"); return; }
+  occupancy[dateStr] = r.data;
+  renderScheduleGrid();
+}
+
 function renderScheduleGrid() {
   updateSaveBar();
   const weekDates = [];
@@ -2243,6 +2285,10 @@ function renderScheduleGrid() {
   };
   // one forecast row and one actual row per service, placed above the matching total row
   document.querySelectorAll("tr[data-svc-sales]").forEach(e => e.remove());
+  // a hotel has no sales rows at all: forecast and actual room occupancy instead
+  ["scheduleAiRow", "scheduleLastYearRow", "scheduleIndexRow"].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = isHotel() ? "none" : ""; });
+  if (isHotel()) renderOccupancyRows(weekDates);
+  else {
   const mkRow = (beforeId) => { const r = document.createElement("tr"); r.className = "proj-row " + (beforeId === "scheduleProjRow" ? "sales-fc" : "sales-ac"); r.setAttribute("data-svc-sales", "1"); document.getElementById(beforeId).before(r); return r; };
 
   // AI forecast: filled by the AI on request, never typed
@@ -2282,6 +2328,7 @@ function renderScheduleGrid() {
       return `<td><input type="text" inputmode="decimal" value="${has(val) ? val : ''}" placeholder="$" onblur="saveLastYear('${dateStr}', this)" /></td>`;
     }).join("");
     document.getElementById("scheduleLastYearRow").innerHTML = `<td class="row-label">${tr("sched.lastYear")}</td>${lyCells}<td class="day-total">${lyAny ? money(lyTot) : "—"}</td>`;
+  }
   }
 
   const body = document.getElementById("scheduleBody");

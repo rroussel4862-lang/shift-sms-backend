@@ -537,6 +537,17 @@ async function initDb() {
   `);
   // A restricted manager can be limited to some departments of an establishment (NULL = all of them).
   await pool.query(`ALTER TABLE owner_restaurants ADD COLUMN IF NOT EXISTS departments TEXT[]`);
+  // A hotel plans and tracks room occupancy (percent of rooms) instead of sales.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS hotel_occupancy (
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      forecast_pct NUMERIC,
+      actual_pct NUMERIC,
+      updated_at BIGINT NOT NULL,
+      PRIMARY KEY (restaurant_id, day)
+    );
+  `);
   // A property groups establishments (a hotel, its restaurant, its bar ...). Optional: a restaurant with no property works as before.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS properties (
@@ -2856,6 +2867,40 @@ app.get("/api/departments", requireAuth, async (req, res) => {
   res.json({ kind, departments: all.map((d) => ({ key: d.key, name: d.name, roles: d.roles })), allowed: req.allowedDepts ? all.filter((d) => req.allowedDepts.includes(d.key)).map((d) => d.key) : null });
 });
 
+// ---- hotel room occupancy (a hotel has no sales forecast: it plans around how full the rooms will be) ----
+const occupancyJson = (r) => ({ date: r.day, forecastPct: r.forecast_pct === null ? null : Number(r.forecast_pct), actualPct: r.actual_pct === null ? null : Number(r.actual_pct) });
+app.get("/api/occupancy", requireAuth, async (req, res) => {
+  const { start, end } = req.query;
+  if (!isIsoDate(start) || !isIsoDate(end)) return res.status(400).json({ error: "start and end are required (YYYY-MM-DD)" });
+  const { rows } = await pool.query("SELECT * FROM hotel_occupancy WHERE restaurant_id = $1 AND day >= $2 AND day <= $3 ORDER BY day", [req.restaurantId, start, end]);
+  res.json(rows.map(occupancyJson));
+});
+// body: { forecastPct?, actualPct? } each 0-100, or null to clear. Only the fields sent change.
+app.put("/api/occupancy/:date", requireAuth, async (req, res) => {
+  if (!isIsoDate(req.params.date)) return res.status(400).json({ error: "date must be YYYY-MM-DD" });
+  if ((await restaurantKind(req.restaurantId)) !== "hotel") return res.status(400).json({ error: "occupancy is only for hotels" });
+  const body = req.body || {};
+  const parse = (v) => {
+    if (v === null || v === "") return { ok: true, v: null };
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 && n <= 100 ? { ok: true, v: Math.round(n * 10) / 10 } : { ok: false };
+  };
+  const cur = (await pool.query("SELECT * FROM hotel_occupancy WHERE restaurant_id = $1 AND day = $2", [req.restaurantId, req.params.date])).rows[0];
+  let fc = cur ? cur.forecast_pct : null, ac = cur ? cur.actual_pct : null;
+  if (body.forecastPct !== undefined) { const p = parse(body.forecastPct); if (!p.ok) return res.status(400).json({ error: "occupancy must be between 0 and 100" }); fc = p.v; }
+  if (body.actualPct !== undefined) { const p = parse(body.actualPct); if (!p.ok) return res.status(400).json({ error: "occupancy must be between 0 and 100" }); ac = p.v; }
+  if (fc === null && ac === null) {
+    await pool.query("DELETE FROM hotel_occupancy WHERE restaurant_id = $1 AND day = $2", [req.restaurantId, req.params.date]);
+    return res.json({ date: req.params.date, forecastPct: null, actualPct: null });
+  }
+  const { rows } = await pool.query(
+    `INSERT INTO hotel_occupancy (restaurant_id, day, forecast_pct, actual_pct, updated_at) VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (restaurant_id, day) DO UPDATE SET forecast_pct = EXCLUDED.forecast_pct, actual_pct = EXCLUDED.actual_pct, updated_at = EXCLUDED.updated_at RETURNING *`,
+    [req.restaurantId, req.params.date, fc, ac, Date.now()]
+  );
+  res.json(occupancyJson(rows[0]));
+});
+
 // ---- publishing a week to staff ----
 const isMondayIso = (d) => isIsoDate(d) && new Date(d + "T00:00:00Z").getUTCDay() === 1;
 
@@ -4222,7 +4267,13 @@ app.get("/api/day-snapshot", requireAuth, async (req, res) => {
     };
 
     const loc = await ensureRestaurantLocation(rid);
-    const out = { date: day, services, sales, location: loc.status, place: loc.place || "", weather: null, events: null, eventsStatus: null };
+    const kind = await restaurantKind(rid);
+    let occupancy = null; // hotels: how full the rooms are expected to be / were
+    if (kind === "hotel") {
+      const { rows: oc } = await pool.query("SELECT forecast_pct, actual_pct FROM hotel_occupancy WHERE restaurant_id = $1 AND day = $2", [rid, day]);
+      occupancy = { forecastPct: oc[0] ? num(oc[0].forecast_pct) : null, actualPct: oc[0] ? num(oc[0].actual_pct) : null };
+    }
+    const out = { date: day, kind, occupancy, services, sales, location: loc.status, place: loc.place || "", weather: null, events: null, eventsStatus: null };
     if (loc.status !== "ok") return res.json(out);
 
     let { rows: cr } = await pool.query("SELECT * FROM day_context WHERE restaurant_id = $1 AND day = $2", [rid, day]);
