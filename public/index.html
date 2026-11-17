@@ -1544,8 +1544,47 @@ const ROLE_LABELS = {
   "Prep Cook": { en: "Prep Cook", fr: "Cuisinier de préparation", es: "Cocinero de preparación" },
   "Expo": { en: "Expo", fr: "Expéditeur", es: "Expo" },
 };
+Object.assign(ROLE_LABELS, {
+  "Front Desk Agent": { en: "Front Desk Agent", fr: "Préposé(e) à la réception", es: "Recepcionista" },
+  "Night Auditor": { en: "Night Auditor", fr: "Auditeur(trice) de nuit", es: "Auditor/a nocturno/a" },
+  "Concierge": { en: "Concierge", fr: "Concierge", es: "Conserje" },
+  "Bellhop": { en: "Bellhop", fr: "Bagagiste", es: "Botones" },
+  "Room Attendant": { en: "Room Attendant", fr: "Préposé(e) aux chambres", es: "Camarero/a de piso" },
+  "Housekeeping Supervisor": { en: "Housekeeping Supervisor", fr: "Superviseur(e) de l’entretien ménager", es: "Supervisor/a de limpieza" },
+  "Laundry Attendant": { en: "Laundry Attendant", fr: "Préposé(e) à la buanderie", es: "Encargado/a de lavandería" },
+  "Public Area Attendant": { en: "Public Area Attendant", fr: "Préposé(e) aux aires publiques", es: "Encargado/a de áreas comunes" },
+  "Maintenance Technician": { en: "Maintenance Technician", fr: "Technicien(ne) d’entretien", es: "Técnico/a de mantenimiento" },
+  "Engineer": { en: "Engineer", fr: "Ingénieur(e) d’entretien", es: "Ingeniero/a de mantenimiento" },
+  "Groundskeeper": { en: "Groundskeeper", fr: "Préposé(e) aux terrains", es: "Jardinero/a" },
+});
 function roleLabel(role) {
   return (ROLE_LABELS[role] && ROLE_LABELS[role][LANG]) || role;
+}
+// Departments of this establishment: Front/Back of House for a restaurant or bar; Reception, Housekeeping, Maintenance for a hotel.
+let DEPTS = [{ key: "foh", name: "Front of House", roles: ["Server", "Host", "Bartender", "Busser"] }, { key: "boh", name: "Back of House", roles: ["Line Cook", "Prep Cook", "Dishwasher", "Expo"] }];
+let ALLOWED_DEPTS = null;
+const DEPT_NAMES = {
+  reception: { en: "Reception", fr: "Réception", es: "Recepción" },
+  housekeeping: { en: "Housekeeping", fr: "Entretien ménager", es: "Limpieza de habitaciones" },
+  maintenance: { en: "Maintenance", fr: "Entretien technique", es: "Mantenimiento" },
+};
+const deptLabel = d => d.key === "foh" ? t("scheduling.houseFoh") : d.key === "boh" ? t("scheduling.houseBoh") : ((DEPT_NAMES[d.key] && DEPT_NAMES[d.key][LANG]) || d.name);
+function deptOfShift(role, personRoles) {
+  const direct = DEPTS.find(d => d.roles.includes(role));
+  if (direct) return direct.key;
+  const mine = personRoles || [];
+  return (DEPTS.find(d => mine.some(r => d.roles.includes(r))) || DEPTS[0]).key; // managers follow their person
+}
+async function loadDepartments() {
+  try {
+    const r = await api("/api/departments");
+    if (!r.ok || !r.data) return;
+    DEPTS = r.data.departments; ALLOWED_DEPTS = r.data.allowed;
+    if (r.data.kind === "hotel") {
+      ROLES.splice(0, ROLES.length, "Manager", ...DEPTS.flatMap(d => d.roles));
+      populateRoleSelect(document.getElementById("shiftRole")); populateRoleSelect(document.getElementById("postingRole")); populateRolePills();
+    }
+  } catch (e) {}
 }
 let selectedRoles = [];
 let staff = [];        // active employees only
@@ -1879,7 +1918,7 @@ function todayBreakdown(shiftList, activeIds) {
   });
   const entries = [...byStaff.values()];
   const uniquePeople = new Set(entries.map(e => e.person.id)).size;
-  const order = ["Manager", "Server", "Bartender", "Busser", "Host", "Line Cook", "Prep Cook", "Dishwasher", "Expo"]; // front of house first
+  const order = ["Manager", "Server", "Bartender", "Busser", "Host", "Line Cook", "Prep Cook", "Dishwasher", "Expo", "Front Desk Agent", "Night Auditor", "Concierge", "Bellhop", "Room Attendant", "Housekeeping Supervisor", "Laundry Attendant", "Public Area Attendant", "Maintenance Technician", "Engineer", "Groundskeeper"]; // front of house first
   const sortKeys = keys => keys.sort((a, b) => {
     const ia = order.indexOf(a), ib = order.indexOf(b);
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
@@ -1896,9 +1935,7 @@ function todayBreakdown(shiftList, activeIds) {
     const wrap = inner => collapse
       ? `<details class="svc-det" ${snapOpenSvc.has(svc) ? "open" : ""} ontoggle="this.open ? snapOpenSvc.add('${svc}') : snapOpenSvc.delete('${svc}')"><summary>${head}</summary>${inner}</details>`
       : head + inner;
-    const BOH = ["Line Cook", "Prep Cook", "Dishwasher", "Expo"], FOH = ["Server", "Host", "Bartender", "Busser"];
-    const houseOf = e => BOH.includes(e.role) ? "boh" : FOH.includes(e.role) ? "foh"
-      : ((e.person.roles || []).some(r => BOH.includes(r)) && !(e.person.roles || []).some(r => FOH.includes(r)) ? "boh" : "foh"); // managers follow their person
+    const houseOf = e => deptOfShift(e.role, e.person.roles);
     const houseHtml = (house, label) => {
       const sub = list.filter(e => houseOf(e) === house);
       if (!sub.length) return "";
@@ -1918,7 +1955,7 @@ function todayBreakdown(shiftList, activeIds) {
       </div>`;
       }).join("");
     };
-    return wrap(houseHtml("foh", t("scheduling.houseFoh")) + houseHtml("boh", t("scheduling.houseBoh")));
+    return wrap(DEPTS.map(d => houseHtml(d.key, deptLabel(d))).join(""));
   };
   const body = SERVICE_LIST.map((sv, i) => serviceBlock(sv.id, svcLabel(sv), SVC_COLORS[i % SVC_COLORS.length])).join("");
   // overview: a service with no staff scheduled and no forecast/actual sales that day is left out entirely
@@ -2246,14 +2283,13 @@ function renderOverview() {
   const forecast = sales.projected;
   const ly = sales.lastYear || {};
   let laborCost = 0;
-  const BOH = ["Line Cook", "Dishwasher", "Prep Cook", "Expo"]; // everything else (incl. Manager) is front of house, as in the schedule grid
-  let laborFoh = 0, laborBoh = 0;
+  const laborBy = {}; // labor cost per department (a manager follows their person)
   dayShifts.forEach(sh => {
     const p = staffAll.find(x => x.id === sh.staffId);
     const cost = shiftHours(sh.startTime, sh.endTime) * ((p && p.hourlyRate) || 0);
     laborCost += cost;
     const role = sh.role || (p && p.roles && p.roles[0]) || "";
-    if (BOH.includes(role)) laborBoh += cost; else laborFoh += cost;
+    const dk = deptOfShift(role, p && p.roles); laborBy[dk] = (laborBy[dk] || 0) + cost;
   });
   const laborPct = forecast && forecast > 0 ? (laborCost / forecast) * 100 : null;
   const pctCls = laborPct === null ? "" : laborPct < 25 ? "ok" : laborPct < 35 ? "warn" : "bad";
@@ -2273,7 +2309,7 @@ function renderOverview() {
   const pc = (cost, base) => (base && base > 0 ? (cost / base * 100).toFixed(1) + "%" : "—");
   const laborSub = [
     actualPct !== null ? `${S("actualShort")} ${actualPct.toFixed(1)}%` : "",
-    actualPct !== null ? `${S("actualShort")} FOH ${pc(laborFoh, actual)} · BOH ${pc(laborBoh, actual)}` : "",
+    actualPct !== null ? `${S("actualShort")} ` + DEPTS.map(d => `${d.key === "foh" ? "FOH" : d.key === "boh" ? "BOH" : deptLabel(d)} ${pc(laborBy[d.key] || 0, actual)}`).join(" · ") : "",
   ].filter(Boolean).join("<br>");
   const tiles = [
     tile(S("forecastSales"), has(forecast) ? m0(forecast) : "—", has(forecast) ? (split(sales.projectedByService) || lyVs) : S("noForecast")),
@@ -3565,7 +3601,7 @@ function enterApp() {
       tour: "manager", page: "mi", helpMount: "#topbarRight",
       views: { overview: () => switchTab("overview"), staff: () => switchTab("staff") },
     });
-    loadAll();
+    loadDepartments().then(loadAll);
     // keep the screen current: every 15 s while visible, and right away when the app comes back to the foreground
     setInterval(() => { if (!document.hidden && !editingStaffId) loadAll(); }, 15000); // not while a staff row is being edited
     let lastWake = 0;

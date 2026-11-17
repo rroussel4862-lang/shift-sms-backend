@@ -252,7 +252,7 @@
           <div><label>Email (their login)</label><input type="text" id="ownerEmail" placeholder="name@example.com" /></div>
         </div>
         <label>Role</label>
-        <select id="ownerRole" onchange="renderOwnerPropChecks()" style="background:var(--bg);border:1px solid var(--rail);color:var(--text-bright);border-radius:5px;padding:9px 11px;font-size:13.5px;font-family:inherit">
+        <select id="ownerRole" onchange="renderOwnerPropChecks(); renderOwnerChecks()" style="background:var(--bg);border:1px solid var(--rail);color:var(--text-bright);border-radius:5px;padding:9px 11px;font-size:13.5px;font-family:inherit">
           <option value="owner">Administrator / owner — sees every place linked to them, or in their properties</option>
           <option value="manager">Manager — restricted: only the places ticked below</option>
         </select>
@@ -668,12 +668,25 @@ function renderOwnerPropChecks(selected) {
   const wrap = document.getElementById("ownerPropWrap");
   if (wrap) wrap.style.display = document.getElementById("ownerRole").value === "manager" ? "none" : "block";
 }
-function renderOwnerChecks(selected) {
+// A manager can be limited to some departments of a place (none ticked = all of them).
+const DEPT_CHOICES = {
+  hotel: [["reception", "Reception"], ["housekeeping", "Housekeeping"], ["maintenance", "Maintenance"]],
+  restaurant: [["foh", "Front of House"], ["boh", "Back of House"]],
+};
+DEPT_CHOICES.bar = DEPT_CHOICES.restaurant;
+function renderOwnerChecks(selected, deptSel) {
   const box = document.getElementById("ownerRestaurantChecks");
-  const keep = selected || new Set([...box.querySelectorAll("input:checked")].map(i => i.value));
+  const keep = selected || new Set([...box.querySelectorAll("input[data-rest]:checked")].map(i => i.value));
+  const depts = deptSel || Object.fromEntries([...box.querySelectorAll(".dept-sub")].map(d => [d.dataset.for, [...d.querySelectorAll("input:checked")].map(i => i.value)]));
+  const isManager = document.getElementById("ownerRole").value === "manager";
   box.innerHTML = restaurants.length === 0
     ? '<span style="color:var(--text-dim);font-size:12px">No restaurants yet.</span>'
-    : restaurants.map(r => `<label><input type="checkbox" value="${r.id}" ${keep.has(r.id) ? "checked" : ""} /> ${escapeHtml(r.name)}</label>`).join("");
+    : restaurants.map(r => {
+        const on = keep.has(r.id);
+        const choices = DEPT_CHOICES[r.kind] || DEPT_CHOICES.restaurant;
+        const sub = isManager && on ? `<div class="dept-sub" data-for="${r.id}" style="margin:2px 0 6px 22px;font-size:12px;color:var(--text-dim)">Departments (none ticked = all): ${choices.map(([k, n]) => `<label style="display:inline-flex;gap:3px;margin-left:8px"><input type="checkbox" value="${k}" ${(depts[r.id] || []).includes(k) ? "checked" : ""} /> ${n}</label>`).join("")}</div>` : "";
+        return `<div><label><input type="checkbox" data-rest="1" value="${r.id}" ${on ? "checked" : ""} onchange="renderOwnerChecks()" /> ${escapeHtml(r.name)}${r.kind === "hotel" ? " (hotel)" : r.kind === "bar" ? " (bar)" : ""}</label>${sub}</div>`;
+      }).join("");
 }
 
 async function loadOwners() {
@@ -687,7 +700,7 @@ async function loadOwners() {
           <td class="restaurant-name">${escapeHtml(o.name)}</td>
           <td><span class="pill">${o.role === "manager" ? "Manager" : "Owner"}</span></td>
           <td>${escapeHtml(o.email)}</td>
-          <td>${(o.propertyIds || []).map(pid => { const p = properties.find(x => x.id === pid); return p ? `<span class="chip" style="font-weight:600">${escapeHtml(p.name)} (all)</span>` : ""; }).join("")}${o.restaurants.map(r => `<span class="chip">${escapeHtml(r.name)}</span>`).join("")}</td>
+          <td>${(o.propertyIds || []).map(pid => { const p = properties.find(x => x.id === pid); return p ? `<span class="chip" style="font-weight:600">${escapeHtml(p.name)} (all)</span>` : ""; }).join("")}${o.restaurants.map(r => `<span class="chip">${escapeHtml(r.name)}${r.departments ? " — " + r.departments.map(k => escapeHtml(k.charAt(0).toUpperCase() + k.slice(1))).join(", ") : ""}</span>`).join("")}</td>
           <td>${o.lastLoginAt ? timeAgo(o.lastLoginAt) : "never"}</td>
           <td style="white-space:nowrap">
             <button class="btn ghost small" onclick="editOwner('${o.id}')">Edit</button>
@@ -718,7 +731,7 @@ function editOwner(id) {
   document.getElementById("ownerRole").value = o.role || "owner";
   document.getElementById("ownerSaveBtn").textContent = "Save changes";
   document.getElementById("ownerCancelBtn").style.display = "inline-block";
-  renderOwnerChecks(new Set(o.restaurants.map(r => r.id)));
+  renderOwnerChecks(new Set(o.restaurants.map(r => r.id)), Object.fromEntries(o.restaurants.map(r => [r.id, r.departments || []])));
   renderOwnerPropChecks(new Set(o.propertyIds || []));
   document.getElementById("ownerName").scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -728,19 +741,20 @@ async function saveOwner() {
   msg.textContent = "";
   const name = document.getElementById("ownerName").value.trim();
   const email = document.getElementById("ownerEmail").value.trim();
-  const restaurantIds = [...document.querySelectorAll("#ownerRestaurantChecks input:checked")].map(i => i.value);
+  const restaurantIds = [...document.querySelectorAll("#ownerRestaurantChecks input[data-rest]:checked")].map(i => i.value);
+  const restaurantDepartments = Object.fromEntries([...document.querySelectorAll("#ownerRestaurantChecks .dept-sub")].map(d => [d.dataset.for, [...d.querySelectorAll("input:checked")].map(i => i.value)]));
   const propertyIds = document.getElementById("ownerRole").value === "manager" ? [] : [...document.querySelectorAll("#ownerPropChecks input:checked")].map(i => i.value);
   const role = document.getElementById("ownerRole").value;
   if (!name || !email) { msg.textContent = "Enter the owner's name and email"; return; }
   if (restaurantIds.length === 0 && propertyIds.length === 0) { msg.textContent = "Pick at least one place or property"; return; }
   if (editingOwnerId) {
-    const r = await api(`/api/platform/owners/${editingOwnerId}`, { method: "PATCH", body: JSON.stringify({ name, email, restaurantIds, propertyIds, role }) });
+    const r = await api(`/api/platform/owners/${editingOwnerId}`, { method: "PATCH", body: JSON.stringify({ name, email, restaurantIds, restaurantDepartments, propertyIds, role }) });
     if (!r.ok) { msg.textContent = r.error; return; }
     resetOwnerForm();
     await loadOwners();
     return;
   }
-  const r = await api("/api/platform/owners", { method: "POST", body: JSON.stringify({ name, email, restaurantIds, propertyIds, role }) });
+  const r = await api("/api/platform/owners", { method: "POST", body: JSON.stringify({ name, email, restaurantIds, restaurantDepartments, propertyIds, role }) });
   if (!r.ok) { msg.textContent = r.error; return; }
   resetOwnerForm();
   showCredentials(r.data.owner, r.data.tempPassword);

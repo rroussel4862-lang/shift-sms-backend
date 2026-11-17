@@ -535,6 +535,8 @@ async function initDb() {
       PRIMARY KEY (owner_id, restaurant_id)
     );
   `);
+  // A restricted manager can be limited to some departments of an establishment (NULL = all of them).
+  await pool.query(`ALTER TABLE owner_restaurants ADD COLUMN IF NOT EXISTS departments TEXT[]`);
   // A property groups establishments (a hotel, its restaurant, its bar ...). Optional: a restaurant with no property works as before.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS properties (
@@ -798,6 +800,9 @@ async function requireAuth(req, res, next) {
     try {
       const { rows } = await pool.query("SELECT 1 FROM owner_access WHERE owner_id = $1 AND restaurant_id = $2", [payload.ownerId, payload.restaurantId]);
       if (!rows.length) return res.status(401).json({ error: "not logged in" });
+      // direct links can carry a department limit; access through a property (administrator) never does
+      const { rows: lim } = await pool.query("SELECT departments FROM owner_restaurants WHERE owner_id = $1 AND restaurant_id = $2", [payload.ownerId, payload.restaurantId]);
+      req.allowedDepts = lim[0] && Array.isArray(lim[0].departments) && lim[0].departments.length ? lim[0].departments : null;
     } catch (e) {
       console.error("Owner session check failed:", e.message);
     }
@@ -2044,24 +2049,63 @@ app.get("/api/staff-auth/me", requireStaffAuth, async (req, res) => {
 // A future week is hidden from staff until the manager publishes it (the current and past weeks are always visible).
 // Front of House and Back of House are posted separately: a shift belongs to BOH when its role is a kitchen role. A shift with no
 // kitchen/floor role (Manager, or none) follows the person: BOH only if all their roles are kitchen roles, otherwise FOH.
-function shiftHouse(role, personRoles) {
-  if (BOH_ROLES.includes(role)) return "boh";
-  if (FOH_ROLES.includes(role)) return "foh";
-  const mine = personRoles || [];
-  return mine.some((r) => BOH_ROLES.includes(r)) && !mine.some((r) => FOH_ROLES.includes(r)) ? "boh" : "foh";
+// Departments ("houses"): a restaurant or bar has Front of House (foh) and Back of House (boh); a hotel has Reception, Housekeeping and
+// Maintenance. A shift belongs to the department whose roles include the shift's role. A shift with no department role (Manager, or none)
+// follows the person: the first department that one of their roles belongs to, otherwise the first department.
+const HOTEL_RECEPTION_ROLES = ["Front Desk Agent", "Night Auditor", "Concierge", "Bellhop"];
+const HOTEL_HOUSEKEEPING_ROLES = ["Room Attendant", "Housekeeping Supervisor", "Laundry Attendant", "Public Area Attendant"];
+const HOTEL_MAINTENANCE_ROLES = ["Maintenance Technician", "Engineer", "Groundskeeper"];
+function deptList(kind) {
+  if (kind === "hotel") return [
+    { key: "reception", name: "Reception", roles: HOTEL_RECEPTION_ROLES },
+    { key: "housekeeping", name: "Housekeeping", roles: HOTEL_HOUSEKEEPING_ROLES },
+    { key: "maintenance", name: "Maintenance", roles: HOTEL_MAINTENANCE_ROLES },
+  ];
+  return [
+    { key: "foh", name: "Front of House", roles: FOH_ROLES },
+    { key: "boh", name: "Back of House", roles: BOH_ROLES },
+  ];
 }
-const parseHouse = (v) => (v === undefined || v === null || v === "" ? "foh" : v === "foh" || v === "boh" ? v : null);
+function shiftHouse(role, personRoles, kind) {
+  const depts = deptList(kind);
+  const direct = depts.find((d) => d.roles.includes(role));
+  if (direct) return direct.key;
+  const mine = personRoles || [];
+  const byPerson = depts.find((d) => mine.some((r) => d.roles.includes(r)));
+  return (byPerson || depts[0]).key;
+}
+async function restaurantKind(restaurantId) {
+  const { rows } = await pool.query("SELECT kind FROM restaurants WHERE id = $1", [restaurantId]);
+  return rows[0] && ESTABLISHMENT_KINDS.includes(rows[0].kind) ? rows[0].kind : "restaurant";
+}
+// A missing department means the first one (so older calls that don't say keep working). An unknown one is null.
+async function parseHouseFor(restaurantId, v) {
+  const depts = deptList(await restaurantKind(restaurantId));
+  if (v === undefined || v === null || v === "") return depts[0].key;
+  return depts.some((d) => d.key === v) ? v : null;
+}
+const badDept = "unknown department";
+// A restricted manager (set by an admin) can only work in the departments they were given.
+const deptAllowed = (req, key) => !req.allowedDepts || req.allowedDepts.includes(key);
+async function shiftDeptOk(req, role, staffId) {
+  if (!req.allowedDepts) return true;
+  const kind = await restaurantKind(req.restaurantId);
+  const { rows } = await pool.query("SELECT roles FROM staff WHERE id = $1 AND restaurant_id = $2", [staffId, req.restaurantId]);
+  return req.allowedDepts.includes(shiftHouse(role || "", rows[0] ? rows[0].roles : [], kind));
+}
+const noDeptAccess = (res) => res.status(403).json({ error: "you don't have access to that department", code: "department_forbidden" });
 
 async function onlyPublishedForStaff(restaurantId, shifts) {
   const thisMonday = mondayOfIso(ownerToday());
   if (!shifts.some((sh) => mondayOfIso(sh.date) > thisMonday)) return shifts;
   const { rows } = await pool.query("SELECT week_start, house FROM schedule_published WHERE restaurant_id = $1", [restaurantId]);
   const published = new Set(rows.map((r) => `${r.house}|${r.week_start}`));
+  const kind = await restaurantKind(restaurantId);
   const { rows: people } = await pool.query("SELECT id, roles FROM staff WHERE restaurant_id = $1 AND id = ANY($2)", [restaurantId, [...new Set(shifts.map((sh) => sh.staffId))]]);
   const rolesOf = Object.fromEntries(people.map((p) => [p.id, p.roles]));
   return shifts.filter((sh) => {
     const wk = mondayOfIso(sh.date);
-    return wk <= thisMonday || published.has(`${shiftHouse(sh.role, rolesOf[sh.staffId])}|${wk}`);
+    return wk <= thisMonday || published.has(`${shiftHouse(sh.role, rolesOf[sh.staffId], kind)}|${wk}`);
   });
 }
 
@@ -2805,14 +2849,22 @@ app.get("/api/schedule", requireAuth, async (req, res) => {
   res.json(rows.map(scheduleShiftRowToJson));
 });
 
+// Departments of this establishment, their roles, and which ones this login may use (null = all).
+app.get("/api/departments", requireAuth, async (req, res) => {
+  const kind = await restaurantKind(req.restaurantId);
+  const all = deptList(kind);
+  res.json({ kind, departments: all.map((d) => ({ key: d.key, name: d.name, roles: d.roles })), allowed: req.allowedDepts ? all.filter((d) => req.allowedDepts.includes(d.key)).map((d) => d.key) : null });
+});
+
 // ---- publishing a week to staff ----
 const isMondayIso = (d) => isIsoDate(d) && new Date(d + "T00:00:00Z").getUTCDay() === 1;
 
 app.get("/api/schedule/publish", requireAuth, async (req, res) => {
   const weekStart = String(req.query.weekStart || "");
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
-  const house = parseHouse(req.query.house);
-  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
+  const house = await parseHouseFor(req.restaurantId, req.query.house);
+  if (!house) return res.status(400).json({ error: badDept });
+  if (!deptAllowed(req, house)) return noDeptAccess(res);
   const { rows } = await pool.query("SELECT published_at FROM schedule_published WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [req.restaurantId, weekStart, house]);
   const alwaysLive = weekStart <= mondayOfIso(ownerToday());
   res.json({ weekStart, house, published: rows.length > 0, alwaysLive, visibleToStaff: alwaysLive || rows.length > 0 });
@@ -2823,8 +2875,9 @@ app.get("/api/schedule/publish", requireAuth, async (req, res) => {
 app.post("/api/schedule/publish", requireAuth, async (req, res) => {
   const weekStart = String((req.body && req.body.weekStart) || "");
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
-  const house = parseHouse(req.body && req.body.house);
-  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
+  const house = await parseHouseFor(req.restaurantId, req.body && req.body.house);
+  if (!house) return res.status(400).json({ error: badDept });
+  if (!deptAllowed(req, house)) return noDeptAccess(res);
   const ins = await pool.query(
     "INSERT INTO schedule_published (restaurant_id, week_start, published_at, house) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING",
     [req.restaurantId, weekStart, Date.now(), house]
@@ -2846,7 +2899,8 @@ async function snapshotWeek(restaurantId, weekStart, house) {
        WHERE s.restaurant_id = $1 AND s.shift_date >= $2 AND s.shift_date <= $3`,
       [restaurantId, weekStart, addDaysIso(weekStart, 6)]
     );
-    const shifts = rows.filter((r) => shiftHouse(r.role, r.person_roles) === house).map((r) => ({
+    const kind = await restaurantKind(restaurantId);
+    const shifts = rows.filter((r) => shiftHouse(r.role, r.person_roles, kind) === house).map((r) => ({
       staffId: r.staff_id, date: r.shift_date instanceof Date ? r.shift_date.toISOString().slice(0, 10) : String(r.shift_date).slice(0, 10),
       startTime: r.scheduled_start || r.start_time, endTime: r.scheduled_end || r.end_time, role: r.role || "", station: r.station || "",
     }));
@@ -2864,8 +2918,9 @@ async function snapshotWeek(restaurantId, weekStart, house) {
 app.get("/api/schedule/snapshot", requireAuth, async (req, res) => {
   const weekStart = String(req.query.weekStart || "");
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
-  const house = parseHouse(req.query.house);
-  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
+  const house = await parseHouseFor(req.restaurantId, req.query.house);
+  if (!house) return res.status(400).json({ error: badDept });
+  if (!deptAllowed(req, house)) return noDeptAccess(res);
   const { rows } = await pool.query("SELECT taken_at, shifts FROM schedule_snapshots WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [req.restaurantId, weekStart, house]);
   if (!rows[0]) return res.status(404).json({ error: "no posted copy of that week" });
   res.json({ weekStart, house, takenAt: Number(rows[0].taken_at), shifts: rows[0].shifts });
@@ -2879,7 +2934,8 @@ async function textSchedulePosted(req, weekStart, house) {
       [req.restaurantId, weekStart, addDaysIso(weekStart, 6)]
     );
     const counts = new Map();
-    shiftRows.filter((r) => shiftHouse(r.role, r.person_roles) === house).forEach((r) => counts.set(r.staff_id, (counts.get(r.staff_id) || 0) + 1));
+    const kind = await restaurantKind(req.restaurantId);
+    shiftRows.filter((r) => shiftHouse(r.role, r.person_roles, kind) === house).forEach((r) => counts.set(r.staff_id, (counts.get(r.staff_id) || 0) + 1));
     const who = [...counts].map(([staff_id, n]) => ({ staff_id, n }));
     if (!who.length) return 0;
     const { rows: r } = await pool.query("SELECT name FROM restaurants WHERE id = $1", [req.restaurantId]);
@@ -2908,8 +2964,9 @@ async function textSchedulePosted(req, weekStart, house) {
 app.delete("/api/schedule/publish/:weekStart", requireAuth, async (req, res) => {
   const weekStart = req.params.weekStart;
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
-  const house = parseHouse(req.query.house);
-  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
+  const house = await parseHouseFor(req.restaurantId, req.query.house);
+  if (!house) return res.status(400).json({ error: badDept });
+  if (!deptAllowed(req, house)) return noDeptAccess(res);
   if (weekStart <= mondayOfIso(ownerToday())) return res.status(400).json({ error: "The current week is always visible to staff." });
   await pool.query("DELETE FROM schedule_published WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [req.restaurantId, weekStart, house]);
   await pool.query("DELETE FROM schedule_snapshots WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [req.restaurantId, weekStart, house]); // back to draft: the next post takes a fresh copy
@@ -2926,7 +2983,8 @@ async function weekShiftsForHouse(restaurantId, weekStart, house) {
      WHERE s.restaurant_id = $1 AND s.shift_date >= $2 AND s.shift_date <= $3`,
     [restaurantId, weekStart, addDaysIso(weekStart, 6)]
   );
-  return rows.filter((r) => shiftHouse(r.role, r.person_roles) === house).map((r) => ({
+  const kind = await restaurantKind(restaurantId);
+  return rows.filter((r) => shiftHouse(r.role, r.person_roles, kind) === house).map((r) => ({
     staffId: r.staff_id, date: r.shift_date instanceof Date ? r.shift_date.toISOString().slice(0, 10) : String(r.shift_date).slice(0, 10),
     startTime: r.scheduled_start || r.start_time, endTime: r.scheduled_end || r.end_time, role: r.role || "", station: r.station || "",
   }));
@@ -2969,8 +3027,9 @@ async function postedWeekChanges(restaurantId, weekStart, house) {
 app.get("/api/schedule/seen", requireAuth, async (req, res) => {
   const weekStart = String(req.query.weekStart || "");
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
-  const house = parseHouse(req.query.house);
-  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
+  const house = await parseHouseFor(req.restaurantId, req.query.house);
+  if (!house) return res.status(400).json({ error: badDept });
+  if (!deptAllowed(req, house)) return noDeptAccess(res);
   const { rows: pub } = await pool.query("SELECT published_at, last_notice_at FROM schedule_published WHERE restaurant_id = $1 AND week_start = $2 AND house = $3", [req.restaurantId, weekStart, house]);
   const baseline = pub[0] ? Math.max(Number(pub[0].published_at), Number(pub[0].last_notice_at || 0)) : 0;
   const ids = [...new Set((await weekShiftsForHouse(req.restaurantId, weekStart, house)).map((x) => x.staffId))];
@@ -2985,8 +3044,9 @@ app.get("/api/schedule/seen", requireAuth, async (req, res) => {
 app.get("/api/schedule/changes", requireAuth, async (req, res) => {
   const weekStart = String(req.query.weekStart || "");
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
-  const house = parseHouse(req.query.house);
-  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
+  const house = await parseHouseFor(req.restaurantId, req.query.house);
+  if (!house) return res.status(400).json({ error: badDept });
+  if (!deptAllowed(req, house)) return noDeptAccess(res);
   const r = await postedWeekChanges(req.restaurantId, weekStart, house);
   res.json({ weekStart, house, ...r, total: r.people.reduce((n, p) => n + p.changes.length, 0) });
 });
@@ -3000,8 +3060,9 @@ function changeText(restaurantName, link) {
 app.post("/api/schedule/changes/notify", requireAuth, async (req, res) => {
   const weekStart = String((req.body && req.body.weekStart) || "");
   if (!isMondayIso(weekStart)) return res.status(400).json({ error: "weekStart must be a Monday (YYYY-MM-DD)" });
-  const house = parseHouse(req.body && req.body.house);
-  if (!house) return res.status(400).json({ error: "house must be 'foh' or 'boh'" });
+  const house = await parseHouseFor(req.restaurantId, req.body && req.body.house);
+  if (!house) return res.status(400).json({ error: badDept });
+  if (!deptAllowed(req, house)) return noDeptAccess(res);
   const action = req.body && req.body.action;
   if (action !== "send" && action !== "dismiss") return res.status(400).json({ error: "action must be 'send' or 'dismiss'" });
   const { hasBaseline, people } = await postedWeekChanges(req.restaurantId, weekStart, house);
@@ -3031,6 +3092,7 @@ app.post("/api/schedule", requireAuth, async (req, res) => {
 
   const { rows: staffRows } = await pool.query("SELECT id FROM staff WHERE id = $1 AND restaurant_id = $2 AND archived_at IS NULL", [staffId, req.restaurantId]);
   if (staffRows.length === 0) return res.status(404).json({ error: "staff not found" });
+  if (!(await shiftDeptOk(req, (role || "").trim(), staffId))) return noDeptAccess(res);
 
   const newId = id();
   const { rows } = await pool.query(
@@ -3173,6 +3235,13 @@ app.post("/api/schedule/bulk", requireAuth, async (req, res) => {
     [req.restaurantId, dates[0], dates[dates.length - 1]]
   );
   const existing = existingRows.map(scheduleShiftRowToJson);
+  if (req.allowedDepts) {
+    const kind = await restaurantKind(req.restaurantId);
+    for (const c of list) {
+      const st = c && staffById[c.staffId];
+      if (st && !req.allowedDepts.includes(shiftHouse(String(c.role || "").trim(), st.roles, kind))) return noDeptAccess(res);
+    }
+  }
   const { ok, skipped } = checkScheduleCandidates(
     list.map((c) => ({ staffId: c && c.staffId, date: c && c.date, startTime: c && c.startTime, endTime: c && c.endTime, role: c && c.role, station: c && c.station })),
     { staffById, existing, availabilityByStaff: null }
@@ -3209,6 +3278,7 @@ app.post("/api/schedule/bulk-delete", requireAuth, async (req, res) => {
 app.patch("/api/schedule/:id", requireAuth, async (req, res) => {
   const { rows: existing } = await pool.query("SELECT * FROM schedule_shifts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
   if (existing.length === 0) return res.status(404).json({ error: "shift not found" });
+  if (!(await shiftDeptOk(req, existing[0].role, existing[0].staff_id))) return noDeptAccess(res);
 
   const { startTime, endTime, role, date, staffId, station } = req.body || {};
   if (station && !STATIONS.includes(station)) return res.status(400).json({ error: `station must be one of: ${STATIONS.join(", ")}` });
@@ -3226,6 +3296,7 @@ app.patch("/api/schedule/:id", requireAuth, async (req, res) => {
   if (date !== undefined) updates.shift_date = date;
   if (staffId !== undefined) updates.staff_id = staffId;
   if (station !== undefined) updates.station = cleanStation(station);
+  if (!(await shiftDeptOk(req, updates.role, updates.staff_id))) return noDeptAccess(res);
 
   const { rows } = await pool.query(
     "UPDATE schedule_shifts SET staff_id=$1, shift_date=$2, start_time=$3, end_time=$4, role=$5, station=$6 WHERE id=$7 AND restaurant_id=$8 RETURNING *",
@@ -3287,6 +3358,10 @@ app.post("/api/schedule/punch", requireAuth, async (req, res) => {
 });
 
 app.delete("/api/schedule/:id", requireAuth, async (req, res) => {
+  if (req.allowedDepts) {
+    const { rows: cur } = await pool.query("SELECT role, staff_id FROM schedule_shifts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId]);
+    if (cur[0] && !(await shiftDeptOk(req, cur[0].role, cur[0].staff_id))) return noDeptAccess(res);
+  }
   // ?notify=1 (the punch clock's "Cancel shift") also texts the person, but only for a shift that hasn't happened yet.
   const { rows } = req.query.notify === "1"
     ? await pool.query("SELECT * FROM schedule_shifts WHERE id = $1 AND restaurant_id = $2", [req.params.id, req.restaurantId])
@@ -4350,12 +4425,13 @@ app.get("/api/staff-auth/schedule-news", requireStaffAuth, async (req, res) => {
     [req.restaurantId, seenAt, mondayOfIso(ownerToday())]
   );
   const byWeek = new Map();
+  const kind = await restaurantKind(req.restaurantId);
   for (const p of pubs) {
     const { rows: mine } = await pool.query(
       "SELECT role FROM schedule_shifts WHERE restaurant_id = $1 AND staff_id = $2 AND shift_date >= $3 AND shift_date <= $4",
       [req.restaurantId, req.staffId, p.week_start, addDaysIso(p.week_start, 6)]
     );
-    const n = mine.filter((m) => shiftHouse(m.role, me[0].roles) === p.house).length;
+    const n = mine.filter((m) => shiftHouse(m.role, me[0].roles, kind) === p.house).length;
     if (n === 0) continue;
     const cur = byWeek.get(p.week_start) || { weekStart: p.week_start, shiftCount: 0, publishedAt: 0 };
     cur.shiftCount += n;
@@ -4540,9 +4616,15 @@ app.post("/api/ai/ask", requireAuth, aiLimiter, async (req, res) => {
     );
 
     const thisMonday = mondayOfIso(toDate(today));
+    const askKind = await restaurantKind(req.restaurantId);
+    const askDepts = deptList(askKind);
+    const houseKeys = askDepts.map((d) => `"${d.key}"`).join("|") + `|"all"`;
+    const houseHint = askKind === "hotel"
+      ? `Use "reception" for the front desk, "housekeeping" for room attendants and laundry, "maintenance" for technical staff, otherwise "all".`
+      : `Use "foh" for front of house (servers, hosts, bartenders, bussers), "boh" for kitchen, otherwise "all".`;
     const systemPrompt = `You are a helpful operations assistant for a restaurant manager, built into their staff/scheduling/hiring app. Answer the manager's question using ONLY the restaurant data provided below — don't invent numbers or people that aren't in it. If the data doesn't cover what they're asking, say so plainly rather than guessing. Keep answers short and concrete (a few sentences, or a tight list when listing people or shifts — always finish your answer), like a sharp assistant who already knows the business, not a generic chatbot. Dates are in YYYY-MM-DD format; "today" tells you the current date for relative reasoning. Reply in the language the manager writes in.
 
-SCHEDULING: if (and only if) the manager is asking you to CREATE, FILL, BUILD or ADD TO a work schedule (for example "fill next week", "schedule 3 servers on Friday night"), do not answer in prose. Reply with ONLY this JSON object: {"action":"schedule","weekStart":"YYYY-MM-DD","house":"foh"|"boh"|"all","request":"<the manager's scheduling instructions, restated clearly and completely>"}. weekStart must be a Monday: this week's Monday is ${thisMonday} and next week's is ${addDaysIso(thisMonday, 7)}. Use "foh" for front of house (servers, hosts, bartenders, bussers), "boh" for kitchen, otherwise "all". Questions ABOUT the schedule ("who works Friday?") are normal questions — answer them in prose.
+SCHEDULING: if (and only if) the manager is asking you to CREATE, FILL, BUILD or ADD TO a work schedule (for example "fill next week", "schedule 3 servers on Friday night"), do not answer in prose. Reply with ONLY this JSON object: {"action":"schedule","weekStart":"YYYY-MM-DD","house":${houseKeys},"request":"<the manager's scheduling instructions, restated clearly and completely>"}. weekStart must be a Monday: this week's Monday is ${thisMonday} and next week's is ${addDaysIso(thisMonday, 7)}. ${houseHint} Questions ABOUT the schedule ("who works Friday?") are normal questions — answer them in prose.
 
 RESTAURANT DATA:
 ${contextBlock}`;
@@ -4585,7 +4667,9 @@ ${contextBlock}`;
     if (trimmed.startsWith("{") || trimmed.startsWith("```")) {
       const action = extractJsonObject(trimmed);
       if (action && action.action === "schedule" && isIsoDate(action.weekStart)) {
-        const roles = action.house === "foh" ? FOH_ROLES : action.house === "boh" ? BOH_ROLES : null;
+        const dept = deptList(askKind).find((d) => d.key === action.house);
+        if (dept && !deptAllowed(req, dept.key)) return res.json({ answer: "You don't have access to that department." });
+        const roles = dept ? dept.roles : null;
         const staffIds = roles ? staffRows.rows.filter((p) => (p.roles || [])[0] && roles.includes(p.roles[0])).map((p) => p.id) : null;
         try {
           const proposal = await buildScheduleProposal({
@@ -5677,7 +5761,7 @@ async function ownerWithRestaurants(ownerId) {
   const { rows } = await pool.query("SELECT * FROM owners WHERE id = $1", [ownerId]);
   if (rows.length === 0) return null;
   const { rows: rs } = await pool.query(
-    "SELECT r.id, r.name FROM owner_restaurants o JOIN restaurants r ON r.id = o.restaurant_id WHERE o.owner_id = $1 ORDER BY r.name",
+    "SELECT r.id, r.name, o.departments FROM owner_restaurants o JOIN restaurants r ON r.id = o.restaurant_id WHERE o.owner_id = $1 ORDER BY r.name",
     [ownerId]
   );
   const { rows: ps } = await pool.query("SELECT property_id FROM owner_properties WHERE owner_id = $1", [ownerId]);
@@ -5691,7 +5775,7 @@ async function ownerWithRestaurants(ownerId) {
     role: rows[0].role === "manager" ? "manager" : "owner",
     createdAt: Number(rows[0].created_at),
     lastLoginAt: rows[0].last_login_at ? Number(rows[0].last_login_at) : null,
-    restaurants: rs.map((r) => ({ id: r.id, name: r.name })), // directly linked (what the dashboard edits)
+    restaurants: rs.map((r) => ({ id: r.id, name: r.name, departments: Array.isArray(r.departments) && r.departments.length ? r.departments : null })), // directly linked (+ department limit) (what the dashboard edits)
     propertyIds: ps.map((p) => p.property_id),               // properties they administer
     accessible: acc.map((r) => ({ id: r.id, name: r.name, kind: r.kind, propertyId: r.property_id, propertyName: r.property_name })), // everything they can open
   };
@@ -5706,12 +5790,25 @@ async function setOwnerProperties(ownerId, propertyIds) {
   return true;
 }
 
-async function setOwnerRestaurants(ownerId, restaurantIds) {
+// deptMap: { restaurantId: ["reception", ...] } limits a manager to those departments (empty or missing = all). If it isn't sent at all,
+// the limits already saved are kept.
+async function setOwnerRestaurants(ownerId, restaurantIds, deptMap) {
   const ids = [...new Set((restaurantIds || []).map(String))];
-  const { rows } = ids.length ? await pool.query("SELECT id FROM restaurants WHERE id = ANY($1)", [ids]) : { rows: [] };
+  const { rows } = ids.length ? await pool.query("SELECT id, kind FROM restaurants WHERE id = ANY($1)", [ids]) : { rows: [] };
   if (rows.length !== ids.length) return false;
+  const kindOf = Object.fromEntries(rows.map((r) => [r.id, r.kind]));
+  const { rows: old } = await pool.query("SELECT restaurant_id, departments FROM owner_restaurants WHERE owner_id = $1", [ownerId]);
+  const kept = Object.fromEntries(old.map((r) => [r.restaurant_id, r.departments]));
   await pool.query("DELETE FROM owner_restaurants WHERE owner_id = $1", [ownerId]);
-  for (const rid of ids) await pool.query("INSERT INTO owner_restaurants (owner_id, restaurant_id) VALUES ($1,$2)", [ownerId, rid]);
+  for (const rid of ids) {
+    let depts = deptMap === undefined ? kept[rid] || null : (deptMap || {})[rid];
+    if (Array.isArray(depts)) {
+      const valid = deptList(ESTABLISHMENT_KINDS.includes(kindOf[rid]) ? kindOf[rid] : "restaurant").map((d) => d.key);
+      depts = [...new Set(depts.map(String))].filter((k) => valid.includes(k));
+      if (!depts.length || depts.length === valid.length) depts = null;
+    } else depts = null;
+    await pool.query("INSERT INTO owner_restaurants (owner_id, restaurant_id, departments) VALUES ($1,$2,$3)", [ownerId, rid, depts]);
+  }
   return true;
 }
 
@@ -5779,7 +5876,7 @@ app.get("/api/platform/owners", requirePlatformAuth, async (req, res) => {
 });
 
 app.post("/api/platform/owners", requirePlatformAuth, async (req, res) => {
-  const { name, email, restaurantIds } = req.body || {};
+  const { name, email, restaurantIds, restaurantDepartments } = req.body || {};
   const role = (req.body || {}).role === "manager" ? "manager" : "owner";
   const propertyIds = role === "owner" && Array.isArray((req.body || {}).propertyIds) ? req.body.propertyIds : [];
   if (!name || !String(name).trim()) return res.status(400).json({ error: "name is required" });
@@ -5791,7 +5888,7 @@ app.post("/api/platform/owners", requirePlatformAuth, async (req, res) => {
   const ownerId = id();
   const password = tempPassword();
   await pool.query("INSERT INTO owners (id, name, email, password_hash, created_at, role) VALUES ($1,$2,$3,$4,$5,$6)", [ownerId, String(name).trim(), cleanEmail, await bcrypt.hash(password, 10), Date.now(), role]);
-  if (!(await setOwnerRestaurants(ownerId, restaurantIds || [])) || !(await setOwnerProperties(ownerId, propertyIds))) {
+  if (!(await setOwnerRestaurants(ownerId, restaurantIds || [], role === "manager" ? restaurantDepartments || {} : {})) || !(await setOwnerProperties(ownerId, propertyIds))) {
     await pool.query("DELETE FROM owners WHERE id = $1", [ownerId]);
     return res.status(400).json({ error: "one of those restaurants or properties doesn't exist" });
   }
@@ -5802,7 +5899,7 @@ app.post("/api/platform/owners", requirePlatformAuth, async (req, res) => {
 app.patch("/api/platform/owners/:id", requirePlatformAuth, async (req, res) => {
   const existing = await ownerWithRestaurants(req.params.id);
   if (!existing) return res.status(404).json({ error: "owner not found" });
-  const { name, email, restaurantIds, role, propertyIds } = req.body || {};
+  const { name, email, restaurantIds, role, propertyIds, restaurantDepartments } = req.body || {};
   if (role !== undefined) {
     if (role !== "owner" && role !== "manager") return res.status(400).json({ error: "role must be 'owner' or 'manager'" });
     await pool.query("UPDATE owners SET role = $1 WHERE id = $2", [role, existing.id]);
@@ -5822,7 +5919,7 @@ app.patch("/api/platform/owners/:id", requirePlatformAuth, async (req, res) => {
   const wantProps = nowRole === "owner" ? (propertyIds !== undefined ? propertyIds : existing.propertyIds) : []; // restricted managers never administer a property
   const wantRests = restaurantIds !== undefined ? restaurantIds : existing.restaurants.map((r) => r.id);
   if ((!Array.isArray(wantRests) || wantRests.length === 0) && wantProps.length === 0) return res.status(400).json({ error: "pick at least one restaurant or property" });
-  if (restaurantIds !== undefined && !(await setOwnerRestaurants(existing.id, restaurantIds))) return res.status(400).json({ error: "one of those restaurants doesn't exist" });
+  if ((restaurantIds !== undefined || restaurantDepartments !== undefined) && !(await setOwnerRestaurants(existing.id, wantRests, nowRole === "manager" ? (restaurantDepartments !== undefined ? restaurantDepartments : undefined) : {}))) return res.status(400).json({ error: "one of those restaurants doesn't exist" });
   if (propertyIds !== undefined || role !== undefined) {
     if (!(await setOwnerProperties(existing.id, wantProps))) return res.status(400).json({ error: "one of those properties doesn't exist" });
   }
