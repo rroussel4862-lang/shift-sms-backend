@@ -535,6 +535,30 @@ async function initDb() {
       PRIMARY KEY (owner_id, restaurant_id)
     );
   `);
+  // A property groups establishments (a hotel, its restaurant, its bar ...). Optional: a restaurant with no property works as before.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS properties (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at BIGINT NOT NULL
+    );
+  `);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS property_id TEXT REFERENCES properties(id) ON DELETE SET NULL;`);
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'restaurant';`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS owner_properties (
+      owner_id TEXT NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+      property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+      PRIMARY KEY (owner_id, property_id)
+    );
+  `);
+  // Everything an owner login can open: the establishments linked to them directly, plus every establishment of a property they administer.
+  await pool.query(`
+    CREATE OR REPLACE VIEW owner_access AS
+      SELECT owner_id, restaurant_id FROM owner_restaurants
+      UNION
+      SELECT op.owner_id, r.id AS restaurant_id FROM owner_properties op JOIN restaurants r ON r.property_id = op.property_id;
+  `);
 
   // ---------- platform-owner layer (you / devs — not tied to any one restaurant) ----------
   await pool.query(`
@@ -772,7 +796,7 @@ async function requireAuth(req, res, next) {
   if (payload.ownerId) {
     // an owner/manager login is only good while that account still has this restaurant (so removing manager access cuts the session at once)
     try {
-      const { rows } = await pool.query("SELECT 1 FROM owner_restaurants WHERE owner_id = $1 AND restaurant_id = $2", [payload.ownerId, payload.restaurantId]);
+      const { rows } = await pool.query("SELECT 1 FROM owner_access WHERE owner_id = $1 AND restaurant_id = $2", [payload.ownerId, payload.restaurantId]);
       if (!rows.length) return res.status(401).json({ error: "not logged in" });
     } catch (e) {
       console.error("Owner session check failed:", e.message);
@@ -1148,7 +1172,7 @@ app.post("/api/auth/login", loginLimiter, loginEmailLimiter, async (req, res) =>
       await pool.query("UPDATE owners SET last_login_at = $1 WHERE id = $2", [Date.now(), owner.id]);
       res.cookie("owner_token", signToken({ ownerId: owner.id }), COOKIE_OPTS);
       const { rows: rs } = await pool.query(
-        "SELECT r.id, r.name, r.address FROM owner_restaurants x JOIN restaurants r ON r.id = x.restaurant_id WHERE x.owner_id = $1 ORDER BY r.name",
+        "SELECT r.id, r.name, r.address FROM owner_access x JOIN restaurants r ON r.id = x.restaurant_id WHERE x.owner_id = $1 ORDER BY r.name",
         [owner.id]
       );
       logActivity({ restaurantId: rs.length === 1 ? rs[0].id : null, eventType: "login_success", detail: `${owner.name || "An owner"} (${owner.role === "manager" ? "manager" : "owner"}) logged in via main page [${deviceLabel(req)}]` });
@@ -1253,7 +1277,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
     // An owner opened one of their restaurants: same access as the manager login.
     const { rows } = await pool.query(
       `SELECT o.email, o.name AS user_name, r.id AS restaurant_id, r.name AS restaurant_name, r.address AS restaurant_address
-       FROM owners o JOIN owner_restaurants x ON x.owner_id = o.id JOIN restaurants r ON r.id = x.restaurant_id
+       FROM owners o JOIN owner_access x ON x.owner_id = o.id JOIN restaurants r ON r.id = x.restaurant_id
        WHERE o.id = $1 AND r.id = $2`,
       [req.ownerId, req.restaurantId]
     );
@@ -1265,7 +1289,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
       viaOwner: true,
       demo: demoIds.has(rows[0].restaurant_id),
       newDesign: true,
-      canSwitch: (await pool.query("SELECT COUNT(*) AS n FROM owner_restaurants WHERE owner_id = $1", [req.ownerId])).rows[0].n > 1,
+      canSwitch: (await pool.query("SELECT COUNT(*) AS n FROM owner_access WHERE owner_id = $1", [req.ownerId])).rows[0].n > 1,
     });
   }
   const { rows } = await pool.query(
@@ -1282,6 +1306,21 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
     demo: demoIds.has(rows[0].restaurant_id),
     newDesign: true,
   });
+});
+
+// Any manager login (a restaurant's own login, or an owner/manager account opened into a restaurant) can change its password whenever it likes.
+app.post("/api/auth/change-password", requireAuth, loginLimiter, async (req, res) => {
+  if (demoIds.has(req.restaurantId)) return res.status(403).json({ error: "the demo account's password can't be changed" });
+  const { currentPassword, newPassword } = req.body || {};
+  if (!newPassword || String(newPassword).length < 8) return res.status(400).json({ error: "new password must be at least 8 characters" });
+  if (String(newPassword).length > 200) return res.status(400).json({ error: "new password is too long" });
+  const table = req.ownerId ? "owners" : "users";
+  const who = req.ownerId || req.userId;
+  const { rows } = await pool.query(`SELECT password_hash FROM ${table} WHERE id = $1`, [who]);
+  if (!rows[0] || !(await bcrypt.compare(String(currentPassword || ""), rows[0].password_hash))) return res.status(401).json({ error: "current password is incorrect" });
+  await pool.query(`UPDATE ${table} SET password_hash = $1 WHERE id = $2`, [await bcrypt.hash(String(newPassword), 10), who]);
+  logActivity({ restaurantId: req.restaurantId, eventType: "password_changed", detail: `${await actorName(req)} changed their password` });
+  res.json({ ok: true });
 });
 
 // The name shown in the Overview greeting.
@@ -4981,7 +5020,7 @@ app.get("/api/platform-auth/me", requirePlatformAuth, async (req, res) => {
 app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
   const { rows } = await pool.query(`
     SELECT
-      r.id, r.name, r.created_at, r.twilio_phone_number, r.is_demo, r.billing_status, r.free_until,
+      r.id, r.name, r.created_at, r.twilio_phone_number, r.is_demo, r.billing_status, r.free_until, r.kind, r.property_id, (SELECT p.name FROM properties p WHERE p.id = r.property_id) AS property_name,
       (SELECT COUNT(*) FROM staff s WHERE s.restaurant_id = r.id AND s.archived_at IS NULL) AS staff_count,
       (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id) AS shift_count,
       (SELECT COUNT(*) FROM shifts sh WHERE sh.restaurant_id = r.id AND sh.status = 'open') AS open_shift_count,
@@ -4998,6 +5037,9 @@ app.get("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
     createdAt: Number(r.created_at),
     twilioPhoneNumber: r.twilio_phone_number || "",
     isDemo: !!r.is_demo,
+    kind: r.kind || "restaurant",
+    propertyId: r.property_id || null,
+    propertyName: r.property_name || null,
     billingStatus: r.billing_status || "exempt",
     freeUntil: r.free_until ? Number(r.free_until) : null,
     staffCount: Number(r.staff_count),
@@ -5094,6 +5136,9 @@ app.post("/api/platform/demo/reset", requirePlatformAuth, async (req, res) => {
 // an owner who already exists just gets the new restaurant added to their account.
 app.post("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
   const { name, ownerName, ownerEmail } = req.body || {};
+  const kind = ESTABLISHMENT_KINDS.includes((req.body || {}).kind) ? req.body.kind : "restaurant";
+  let propertyId = (req.body || {}).propertyId || null;
+  if (propertyId && !(await pool.query("SELECT 1 FROM properties WHERE id = $1", [propertyId])).rows.length) return res.status(400).json({ error: "that property doesn't exist" });
   const restaurantName = String(name || "").trim();
   if (!restaurantName || restaurantName.length > 100) return res.status(400).json({ error: "restaurant name is required (up to 100 characters)" });
   const email = String(ownerEmail || "").trim().toLowerCase();
@@ -5112,7 +5157,7 @@ app.post("/api/platform/restaurants", requirePlatformAuth, async (req, res) => {
   const restaurantId = id();
   const now = Date.now();
   let password = null;
-  await pool.query("INSERT INTO restaurants (id, name, created_at) VALUES ($1,$2,$3)", [restaurantId, restaurantName, now]);
+  await pool.query("INSERT INTO restaurants (id, name, created_at, kind, property_id) VALUES ($1,$2,$3,$4,$5)", [restaurantId, restaurantName, now, kind, propertyId]);
   if (!owner) {
     password = tempPassword();
     const ownerId = id();
@@ -5627,6 +5672,7 @@ function tempPassword() {
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
 }
 
+const ESTABLISHMENT_KINDS = ["restaurant", "bar", "hotel"];
 async function ownerWithRestaurants(ownerId) {
   const { rows } = await pool.query("SELECT * FROM owners WHERE id = $1", [ownerId]);
   if (rows.length === 0) return null;
@@ -5634,6 +5680,10 @@ async function ownerWithRestaurants(ownerId) {
     "SELECT r.id, r.name FROM owner_restaurants o JOIN restaurants r ON r.id = o.restaurant_id WHERE o.owner_id = $1 ORDER BY r.name",
     [ownerId]
   );
+  const { rows: ps } = await pool.query("SELECT property_id FROM owner_properties WHERE owner_id = $1", [ownerId]);
+  const { rows: acc } = await pool.query(
+    `SELECT r.id, r.name, r.kind, r.property_id, p.name AS property_name FROM owner_access a JOIN restaurants r ON r.id = a.restaurant_id
+     LEFT JOIN properties p ON p.id = r.property_id WHERE a.owner_id = $1 ORDER BY p.name NULLS LAST, r.name`, [ownerId]);
   return {
     id: rows[0].id,
     name: rows[0].name,
@@ -5641,8 +5691,19 @@ async function ownerWithRestaurants(ownerId) {
     role: rows[0].role === "manager" ? "manager" : "owner",
     createdAt: Number(rows[0].created_at),
     lastLoginAt: rows[0].last_login_at ? Number(rows[0].last_login_at) : null,
-    restaurants: rs.map((r) => ({ id: r.id, name: r.name })),
+    restaurants: rs.map((r) => ({ id: r.id, name: r.name })), // directly linked (what the dashboard edits)
+    propertyIds: ps.map((p) => p.property_id),               // properties they administer
+    accessible: acc.map((r) => ({ id: r.id, name: r.name, kind: r.kind, propertyId: r.property_id, propertyName: r.property_name })), // everything they can open
   };
+}
+
+async function setOwnerProperties(ownerId, propertyIds) {
+  const ids = [...new Set((propertyIds || []).map(String))];
+  const { rows } = ids.length ? await pool.query("SELECT id FROM properties WHERE id = ANY($1)", [ids]) : { rows: [] };
+  if (rows.length !== ids.length) return false;
+  await pool.query("DELETE FROM owner_properties WHERE owner_id = $1", [ownerId]);
+  for (const pid of ids) await pool.query("INSERT INTO owner_properties (owner_id, property_id) VALUES ($1,$2)", [ownerId, pid]);
+  return true;
 }
 
 async function setOwnerRestaurants(ownerId, restaurantIds) {
@@ -5656,6 +5717,60 @@ async function setOwnerRestaurants(ownerId, restaurantIds) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// ---------- properties: a hotel and its restaurant / bar grouped together ----------
+app.get("/api/platform/properties", requirePlatformAuth, async (req, res) => {
+  const { rows: props } = await pool.query("SELECT * FROM properties ORDER BY name");
+  const { rows: rs } = await pool.query("SELECT id, name, kind, property_id FROM restaurants WHERE property_id IS NOT NULL ORDER BY kind DESC, name");
+  const { rows: admins } = await pool.query("SELECT op.property_id, o.id, o.name FROM owner_properties op JOIN owners o ON o.id = op.owner_id ORDER BY o.name");
+  res.json(props.map((p) => ({
+    id: p.id, name: p.name, createdAt: Number(p.created_at),
+    establishments: rs.filter((r) => r.property_id === p.id).map((r) => ({ id: r.id, name: r.name, kind: r.kind })),
+    administrators: admins.filter((a) => a.property_id === p.id).map((a) => ({ id: a.id, name: a.name })),
+  })));
+});
+app.post("/api/platform/properties", requirePlatformAuth, async (req, res) => {
+  const name = String((req.body && req.body.name) || "").trim();
+  if (!name || name.length > 100) return res.status(400).json({ error: "property name is required (up to 100 characters)" });
+  if ((await pool.query("SELECT 1 FROM properties WHERE LOWER(name) = LOWER($1)", [name])).rows.length) return res.status(409).json({ error: "a property with that name already exists" });
+  const pid = id();
+  await pool.query("INSERT INTO properties (id, name, created_at) VALUES ($1,$2,$3)", [pid, name, Date.now()]);
+  logActivity({ eventType: "property_created", detail: `property created: ${name}` });
+  res.status(201).json({ id: pid, name, establishments: [], administrators: [] });
+});
+app.patch("/api/platform/properties/:id", requirePlatformAuth, async (req, res) => {
+  const name = String((req.body && req.body.name) || "").trim();
+  if (!name || name.length > 100) return res.status(400).json({ error: "property name is required (up to 100 characters)" });
+  const { rowCount } = await pool.query("UPDATE properties SET name = $1 WHERE id = $2", [name, req.params.id]);
+  if (!rowCount) return res.status(404).json({ error: "property not found" });
+  res.json({ id: req.params.id, name });
+});
+// Deleting a property only ungroups its establishments; nothing inside them is touched.
+app.delete("/api/platform/properties/:id", requirePlatformAuth, async (req, res) => {
+  const { rows } = await pool.query("DELETE FROM properties WHERE id = $1 RETURNING name", [req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: "property not found" });
+  logActivity({ eventType: "property_deleted", level: "warn", detail: `property removed: ${rows[0].name} (its establishments were kept)` });
+  res.status(204).end();
+});
+// Put an establishment in a property (or take it out) and set what kind it is.
+app.patch("/api/platform/restaurants/:id/placement", requirePlatformAuth, async (req, res) => {
+  const { propertyId, kind } = req.body || {};
+  const sets = [], params = [];
+  if (propertyId !== undefined) {
+    if (propertyId && !(await pool.query("SELECT 1 FROM properties WHERE id = $1", [propertyId])).rows.length) return res.status(400).json({ error: "that property doesn't exist" });
+    params.push(propertyId || null); sets.push(`property_id = $${params.length}`);
+  }
+  if (kind !== undefined) {
+    if (!ESTABLISHMENT_KINDS.includes(kind)) return res.status(400).json({ error: "kind must be restaurant, bar or hotel" });
+    params.push(kind); sets.push(`kind = $${params.length}`);
+  }
+  if (!sets.length) return res.status(400).json({ error: "nothing to change" });
+  params.push(req.params.id);
+  const { rows } = await pool.query(`UPDATE restaurants SET ${sets.join(", ")} WHERE id = $${params.length} RETURNING name, kind, property_id`, params);
+  if (!rows[0]) return res.status(404).json({ error: "restaurant not found" });
+  logActivity({ restaurantId: req.params.id, eventType: "placement_changed", detail: `${rows[0].name}: ${rows[0].kind}${rows[0].property_id ? " in a property" : ", no property"}` });
+  res.json({ id: req.params.id, kind: rows[0].kind, propertyId: rows[0].property_id });
+});
+
 app.get("/api/platform/owners", requirePlatformAuth, async (req, res) => {
   const { rows } = await pool.query("SELECT id FROM owners ORDER BY created_at DESC");
   const owners = [];
@@ -5666,18 +5781,19 @@ app.get("/api/platform/owners", requirePlatformAuth, async (req, res) => {
 app.post("/api/platform/owners", requirePlatformAuth, async (req, res) => {
   const { name, email, restaurantIds } = req.body || {};
   const role = (req.body || {}).role === "manager" ? "manager" : "owner";
+  const propertyIds = role === "owner" && Array.isArray((req.body || {}).propertyIds) ? req.body.propertyIds : [];
   if (!name || !String(name).trim()) return res.status(400).json({ error: "name is required" });
   if (!email || !EMAIL_RE.test(String(email).trim())) return res.status(400).json({ error: "a valid email is required" });
-  if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) return res.status(400).json({ error: "pick at least one restaurant" });
+  if ((!Array.isArray(restaurantIds) || restaurantIds.length === 0) && propertyIds.length === 0) return res.status(400).json({ error: "pick at least one restaurant or property" });
   const cleanEmail = String(email).trim().toLowerCase();
   const { rows: dup } = await pool.query("SELECT 1 FROM owners WHERE email = $1", [cleanEmail]);
   if (dup.length) return res.status(409).json({ error: "an owner with that email already exists" });
   const ownerId = id();
   const password = tempPassword();
   await pool.query("INSERT INTO owners (id, name, email, password_hash, created_at, role) VALUES ($1,$2,$3,$4,$5,$6)", [ownerId, String(name).trim(), cleanEmail, await bcrypt.hash(password, 10), Date.now(), role]);
-  if (!(await setOwnerRestaurants(ownerId, restaurantIds))) {
+  if (!(await setOwnerRestaurants(ownerId, restaurantIds || [])) || !(await setOwnerProperties(ownerId, propertyIds))) {
     await pool.query("DELETE FROM owners WHERE id = $1", [ownerId]);
-    return res.status(400).json({ error: "one of those restaurants doesn't exist" });
+    return res.status(400).json({ error: "one of those restaurants or properties doesn't exist" });
   }
   logActivity({ eventType: "owner_created", detail: `${role}: ${String(name).trim()} → ${restaurantIds.length} restaurant(s)` });
   res.status(201).json({ owner: await ownerWithRestaurants(ownerId), tempPassword: password });
@@ -5686,7 +5802,7 @@ app.post("/api/platform/owners", requirePlatformAuth, async (req, res) => {
 app.patch("/api/platform/owners/:id", requirePlatformAuth, async (req, res) => {
   const existing = await ownerWithRestaurants(req.params.id);
   if (!existing) return res.status(404).json({ error: "owner not found" });
-  const { name, email, restaurantIds, role } = req.body || {};
+  const { name, email, restaurantIds, role, propertyIds } = req.body || {};
   if (role !== undefined) {
     if (role !== "owner" && role !== "manager") return res.status(400).json({ error: "role must be 'owner' or 'manager'" });
     await pool.query("UPDATE owners SET role = $1 WHERE id = $2", [role, existing.id]);
@@ -5702,9 +5818,13 @@ app.patch("/api/platform/owners/:id", requirePlatformAuth, async (req, res) => {
     if (dup.length) return res.status(409).json({ error: "an owner with that email already exists" });
     await pool.query("UPDATE owners SET email = $1 WHERE id = $2", [cleanEmail, existing.id]);
   }
-  if (restaurantIds !== undefined) {
-    if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) return res.status(400).json({ error: "pick at least one restaurant" });
-    if (!(await setOwnerRestaurants(existing.id, restaurantIds))) return res.status(400).json({ error: "one of those restaurants doesn't exist" });
+  const nowRole = role !== undefined ? role : existing.role;
+  const wantProps = nowRole === "owner" ? (propertyIds !== undefined ? propertyIds : existing.propertyIds) : []; // restricted managers never administer a property
+  const wantRests = restaurantIds !== undefined ? restaurantIds : existing.restaurants.map((r) => r.id);
+  if ((!Array.isArray(wantRests) || wantRests.length === 0) && wantProps.length === 0) return res.status(400).json({ error: "pick at least one restaurant or property" });
+  if (restaurantIds !== undefined && !(await setOwnerRestaurants(existing.id, restaurantIds))) return res.status(400).json({ error: "one of those restaurants doesn't exist" });
+  if (propertyIds !== undefined || role !== undefined) {
+    if (!(await setOwnerProperties(existing.id, wantProps))) return res.status(400).json({ error: "one of those properties doesn't exist" });
   }
   res.json(await ownerWithRestaurants(existing.id));
 });
@@ -5738,7 +5858,7 @@ app.post("/api/owner-auth/login", loginLimiter, loginEmailLimiter, async (req, r
   res.cookie("owner_token", signToken({ ownerId: owner.id }), COOKIE_OPTS);
   logActivity({ eventType: "login_success", detail: `${owner.name || "An owner"} (${owner.role === "manager" ? "manager" : "owner"}) logged in via owner page [${deviceLabel(req)}]` });
   const full = await ownerWithRestaurants(owner.id);
-  res.json({ name: owner.name, role: full.role, restaurantIds: full.restaurants.map((r) => r.id) });
+  res.json({ name: owner.name, role: full.role, restaurantIds: full.accessible.map((r) => r.id) });
 });
 
 app.post("/api/owner-auth/logout", (req, res) => {
@@ -5750,7 +5870,7 @@ app.post("/api/owner-auth/logout", (req, res) => {
 app.get("/api/owner-auth/me", requireOwnerAuth, async (req, res) => {
   const o = await ownerWithRestaurants(req.ownerId);
   if (!o) return res.status(401).json({ error: "not logged in" });
-  res.json({ name: o.name, email: o.email, role: o.role, restaurantIds: o.restaurants.map((r) => r.id) });
+  res.json({ name: o.name, email: o.email, role: o.role, restaurantIds: o.accessible.map((r) => r.id) });
 });
 
 app.post("/api/owner-auth/change-password", requireOwnerAuth, loginLimiter, async (req, res) => {
@@ -5836,7 +5956,7 @@ async function restaurantSnapshot(restaurant, today) {
 // Opens one of the owner's restaurants as its manager: same privileges as the manager login, because the
 // session cookie carries that restaurant's id. Only restaurants linked to this owner can be opened.
 app.post("/api/owner/open/:restaurantId", requireOwnerAuth, async (req, res) => {
-  const { rows } = await pool.query("SELECT 1 FROM owner_restaurants WHERE owner_id = $1 AND restaurant_id = $2", [req.ownerId, req.params.restaurantId]);
+  const { rows } = await pool.query("SELECT 1 FROM owner_access WHERE owner_id = $1 AND restaurant_id = $2", [req.ownerId, req.params.restaurantId]);
   if (rows.length === 0) return res.status(404).json({ error: "restaurant not found" });
   res.cookie("token", signToken({ restaurantId: req.params.restaurantId, ownerId: req.ownerId }), COOKIE_OPTS);
   logActivity({ restaurantId: req.params.restaurantId, eventType: "owner_opened_restaurant", detail: `${await actorName(req)} opened this restaurant` });
@@ -5848,7 +5968,7 @@ app.get("/api/owner/overview", requireOwnerAuth, async (req, res) => {
   if (!owner) return res.status(401).json({ error: "not logged in" });
   const today = ownerToday();
   const restaurants = [];
-  for (const r of owner.restaurants) restaurants.push(await restaurantSnapshot(r, today));
+  for (const r of owner.accessible) restaurants.push({ ...(await restaurantSnapshot(r, today)), kind: r.kind, propertyId: r.propertyId, propertyName: r.propertyName });
   res.json({
     owner: { name: owner.name },
     today,

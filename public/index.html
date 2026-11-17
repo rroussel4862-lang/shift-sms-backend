@@ -783,7 +783,22 @@
         <div class="lang-switch" id="appLangSwitch"></div>
         <a href="/backoffice.html" class="top-chip back-link" data-i18n="topbar.backOffice">Back Office</a>
         <a id="ownerBackLink" href="/owner.html" class="top-chip amber" style="display:none" data-i18n="topbar.allRestaurants">← All restaurants</a>
+        <button id="pwBtn" class="top-chip" onclick="openPwModal()" data-i18n="topbar.password">Password</button>
         <button id="logoutBtn" onclick="logout()" data-i18n="topbar.logout">Log out</button>
+      </div>
+    </div>
+
+    <div id="pwModal" style="display:none;position:fixed;inset:0;background:rgba(44,38,32,.45);z-index:3000;align-items:center;justify-content:center;padding:16px">
+      <div style="background:var(--panel,#fffcf7);border-radius:16px;padding:22px;width:100%;max-width:380px;box-shadow:0 8px 30px rgba(0,0,0,.2)">
+        <h3 id="pwTitle" style="margin:0 0 12px;font-size:17px"></h3>
+        <label id="pwLblCur" style="font-size:12.5px"></label><input type="password" id="pwCur" autocomplete="current-password" style="width:100%;margin:4px 0 10px" />
+        <label id="pwLblNew" style="font-size:12.5px"></label><input type="password" id="pwNew" autocomplete="new-password" style="width:100%;margin:4px 0 10px" />
+        <label id="pwLblRep" style="font-size:12.5px"></label><input type="password" id="pwRep" autocomplete="new-password" style="width:100%;margin:4px 0 10px" />
+        <div id="pwMsg" style="font-size:12.5px;min-height:18px;color:#c0392b"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button id="pwCancel" onclick="closePwModal()"></button>
+          <button id="pwSave" onclick="savePw()" style="background:var(--ink,#2c2620);color:#fff"></button>
+        </div>
       </div>
     </div>
 
@@ -1030,7 +1045,8 @@ const T = {
       prevWeek: "Previous week", nextWeek: "Next week", thisWeek: "This week", laborTag: "Labor", laborByDay: "Labor cost by day", laborByDayNote: "Scheduled hours × hourly rate, against each day's sales", weekTotal: "Week total", posNote: "Days filled in by your POS can't be edited here.",
     },
     ovExtra: { coursesInProgress: "Courses in progress", coursesSub: n => `${n} course${n === 1 ? "" : "s"} total`, salesWeek: "Sales this week", laborPct: p => `${p}% labor cost`, laborUnknown: "Tap to add sales", },
-    topbar: { backOffice: "Back Office", logout: "Log out", allRestaurants: "← Restaurants" },
+    topbar: { backOffice: "Back Office", logout: "Log out", password: "Password", allRestaurants: "← Restaurants" },
+    pw: { title: "Change your password", current: "Current password", new: "New password (at least 8 characters)", confirm: "Repeat the new password", save: "Change password", cancel: "Cancel", short: "The new password needs at least 8 characters.", mismatch: "The two new passwords don’t match.", done: "Password changed." },
     overview: {
       eyebrow: "Overview", desc: "Today at a glance.",
       openShifts: "Open shifts", posted: n => `${n} posted`, nonePosted: "None posted yet",
@@ -1188,7 +1204,8 @@ const T = {
       prevWeek: "Semaine précédente", nextWeek: "Semaine suivante", thisWeek: "Cette semaine", laborTag: "Main-d'œuvre", laborByDay: "Coût de main-d'œuvre par jour", laborByDayNote: "Heures prévues × taux horaire, par rapport aux ventes de chaque jour", weekTotal: "Total de la semaine", posNote: "Les jours remplis par votre caisse ne peuvent pas être modifiés ici.",
     },
     ovExtra: { coursesInProgress: "Cours en cours", coursesSub: n => `${n} cours au total`, salesWeek: "Ventes cette semaine", laborPct: p => `${p}% coût de main-d'œuvre`, laborUnknown: "Touchez pour ajouter des ventes", },
-    topbar: { backOffice: "Back Office", logout: "Déconnexion", allRestaurants: "← Restaurants" },
+    topbar: { backOffice: "Back Office", logout: "Déconnexion", password: "Mot de passe", allRestaurants: "← Restaurants" },
+    pw: { title: "Changer votre mot de passe", current: "Mot de passe actuel", new: "Nouveau mot de passe (8 caractères minimum)", confirm: "Répétez le nouveau mot de passe", save: "Changer le mot de passe", cancel: "Annuler", short: "Le nouveau mot de passe doit contenir au moins 8 caractères.", mismatch: "Les deux nouveaux mots de passe ne correspondent pas.", done: "Mot de passe modifié." },
     overview: {
       eyebrow: "Aperçu", desc: "Aujourd'hui en un coup d'œil.",
       openShifts: "Quarts ouverts", posted: n => `${n} publiés`, nonePosted: "Aucun publié",
@@ -1346,7 +1363,8 @@ const T = {
       prevWeek: "Semana anterior", nextWeek: "Semana siguiente", thisWeek: "Esta semana", laborTag: "Mano de obra", laborByDay: "Costo de mano de obra por día", laborByDayNote: "Horas programadas × tarifa por hora, frente a las ventas de cada día", weekTotal: "Total de la semana", posNote: "Los días llenados por tu POS no se pueden editar aquí.",
     },
     ovExtra: { coursesInProgress: "Cursos en progreso", coursesSub: n => `${n} curso${n === 1 ? "" : "s"} en total`, salesWeek: "Ventas esta semana", laborPct: p => `${p}% costo de mano de obra`, laborUnknown: "Toca para agregar ventas", },
-    topbar: { backOffice: "Back Office", logout: "Cerrar sesión", allRestaurants: "← Restaurantes" },
+    topbar: { backOffice: "Back Office", logout: "Cerrar sesión", password: "Contraseña", allRestaurants: "← Restaurantes" },
+    pw: { title: "Cambiar tu contraseña", current: "Contraseña actual", new: "Nueva contraseña (mínimo 8 caracteres)", confirm: "Repite la nueva contraseña", save: "Cambiar contraseña", cancel: "Cancelar", short: "La nueva contraseña necesita al menos 8 caracteres.", mismatch: "Las dos contraseñas nuevas no coinciden.", done: "Contraseña cambiada." },
     overview: {
       eyebrow: "Resumen", desc: "Hoy de un vistazo.",
       openShifts: "Turnos abiertos", posted: n => `${n} publicados`, nonePosted: "Ninguno publicado",
@@ -3482,6 +3500,24 @@ async function submitAuth() {
 }
 
 let viaOwner = false;
+function openPwModal() {
+  const L = id => document.getElementById(id);
+  L("pwTitle").textContent = t("pw.title"); L("pwLblCur").textContent = t("pw.current"); L("pwLblNew").textContent = t("pw.new"); L("pwLblRep").textContent = t("pw.confirm");
+  L("pwSave").textContent = t("pw.save"); L("pwCancel").textContent = t("pw.cancel"); L("pwMsg").textContent = "";
+  ["pwCur", "pwNew", "pwRep"].forEach(i => { L(i).value = ""; });
+  L("pwModal").style.display = "flex"; L("pwCur").focus();
+}
+function closePwModal() { document.getElementById("pwModal").style.display = "none"; }
+async function savePw() {
+  const L = id => document.getElementById(id);
+  const cur = L("pwCur").value, nw = L("pwNew").value, rep = L("pwRep").value;
+  if (nw.length < 8) { L("pwMsg").textContent = t("pw.short"); return; }
+  if (nw !== rep) { L("pwMsg").textContent = t("pw.mismatch"); return; }
+  const r = await api("/api/auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword: cur, newPassword: nw }) });
+  if (!r.ok) { L("pwMsg").textContent = r.error; return; }
+  closePwModal();
+  showBanner(t("pw.done"), "success");
+}
 async function logout() {
   if (viaOwner) { await api("/api/owner-auth/logout", { method: "POST" }); location.href = "/owner.html"; return; }
   await api("/api/auth/logout", { method: "POST" });

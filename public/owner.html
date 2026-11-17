@@ -346,6 +346,13 @@ function render() {
 
   const cards = document.getElementById("cards");
   if (d.restaurants.length === 0) { cards.innerHTML = `<div class="empty" style="grid-column:1/-1">${tr("empty.none")}</div>`; return; }
+  const KIND = { restaurant: { en: "Restaurant", fr: "Restaurant", es: "Restaurante" }, bar: { en: "Bar", fr: "Bar", es: "Bar" }, hotel: { en: "Hotel", fr: "Hôtel", es: "Hotel" } };
+  const placeTag = r => {
+    const parts = [];
+    if (r.propertyName) parts.push(r.propertyName);
+    if (r.kind && r.kind !== "restaurant") parts.push((KIND[r.kind] || {})[I18N.lang] || r.kind);
+    return parts.length ? `<div style="font-size:12.5px;color:var(--text-dim);margin:2px 0 6px">${escapeHtml(parts.join(" · "))}</div>` : "";
+  };
   cards.innerHTML = d.restaurants.map(r => {
     const delta = r.salesVsLastWeekPct === null || r.salesVsLastWeekPct === undefined
       ? `<div class="delta">${tr("card.noCompare")}</div>`
@@ -358,6 +365,7 @@ function render() {
       <div class="ticket ${demo ? "sample" : ""}" ${demo ? "" : `onclick="openRestaurant('${r.id}')"`}>
         <div class="stamp ${r.status === "attention" ? "attention" : ""}">${tr("stamp." + r.status)}</div>
         <h3>${escapeHtml(r.name)}</h3>
+        ${placeTag(r)}
         <div class="sales-label">${tr("card.sales")}</div>
         <div class="sales-big num">${money(r.salesWeek)}</div>
         ${delta}
