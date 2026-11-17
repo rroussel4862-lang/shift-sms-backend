@@ -25,6 +25,9 @@ describe("changes to a posted week", () => {
 
     expect((await A.agent.get(`/api/schedule/changes?weekStart=${WEEK}&house=foh`)).body).toMatchObject({ hasBaseline: false, total: 0 });
     expect((await A.agent.post(`/api/schedule/publish`).send({ weekStart: WEEK, house: "foh" })).status).toBeLessThan(300);
+    // posting the week texts everyone who works it once ("new schedule"); wait for those, then count from there
+    await waitFor(async () => (await smsCount(ann.phone)) >= 1 && (await smsCount(bob.phone)) >= 1);
+    const annBefore = await smsCount(ann.phone), bobBefore = await smsCount(bob.phone);
     expect((await A.agent.get(`/api/schedule/changes?weekStart=${WEEK}&house=foh`)).body).toMatchObject({ hasBaseline: true, total: 0 });
 
     // move Ann's shift, delete Bob's, add a new one for Bob
@@ -38,11 +41,12 @@ describe("changes to a posted week", () => {
     expect(annCh).toHaveLength(1);
     expect(annCh[0]).toMatchObject({ type: "changed", before: { startTime: "17:00" }, after: { startTime: "18:00" } });
     expect(ch.people.find((p) => p.staffId === bob.id).changes.map((c) => c.type).sort()).toEqual(["added", "removed"]);
-    expect(await smsCount(ann.phone)).toBe(0); // no text until the manager taps Notify
+    await new Promise((r) => setTimeout(r, 400));
+    expect(await smsCount(ann.phone)).toBe(annBefore); // no text for the edits until the manager taps Notify
 
     const sent = await A.agent.post("/api/schedule/changes/notify").send({ weekStart: WEEK, house: "foh", action: "send" });
     expect(sent.body).toMatchObject({ texted: 2, people: 2 });
-    expect(await waitFor(async () => (await smsCount(ann.phone)) === 1 && (await smsCount(bob.phone)) === 1)).toBe(true);
+    expect(await waitFor(async () => (await smsCount(ann.phone)) === annBefore + 1 && (await smsCount(bob.phone)) === bobBefore + 1)).toBe(true);
 
     expect((await A.agent.get(`/api/schedule/changes?weekStart=${WEEK}&house=foh`)).body.total).toBe(0); // baseline reset
   });

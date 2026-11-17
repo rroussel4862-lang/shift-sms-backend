@@ -5757,28 +5757,37 @@ function tempPassword() {
 }
 
 const ESTABLISHMENT_KINDS = ["restaurant", "bar", "hotel"];
+function buildOwner(o, direct, propRows, access) {
+  return {
+    id: o.id,
+    name: o.name,
+    email: o.email,
+    role: o.role === "manager" ? "manager" : "owner",
+    createdAt: Number(o.created_at),
+    lastLoginAt: o.last_login_at ? Number(o.last_login_at) : null,
+    restaurants: direct.map((r) => ({ id: r.id, name: r.name, departments: Array.isArray(r.departments) && r.departments.length ? r.departments : null })), // directly linked (+ department limit)
+    propertyIds: propRows.map((p) => p.property_id),               // properties they administer
+    accessible: access.map((r) => ({ id: r.id, name: r.name, kind: r.kind, propertyId: r.property_id, propertyName: r.property_name })), // everything they can open
+  };
+}
+const OWNER_DIRECT_SQL = "SELECT o.owner_id, r.id, r.name, o.departments FROM owner_restaurants o JOIN restaurants r ON r.id = o.restaurant_id";
+const OWNER_ACCESS_SQL = `SELECT a.owner_id, r.id, r.name, r.kind, r.property_id, p.name AS property_name FROM owner_access a JOIN restaurants r ON r.id = a.restaurant_id
+     LEFT JOIN properties p ON p.id = r.property_id`;
 async function ownerWithRestaurants(ownerId) {
   const { rows } = await pool.query("SELECT * FROM owners WHERE id = $1", [ownerId]);
   if (rows.length === 0) return null;
-  const { rows: rs } = await pool.query(
-    "SELECT r.id, r.name, o.departments FROM owner_restaurants o JOIN restaurants r ON r.id = o.restaurant_id WHERE o.owner_id = $1 ORDER BY r.name",
-    [ownerId]
-  );
+  const { rows: rs } = await pool.query(OWNER_DIRECT_SQL + " WHERE o.owner_id = $1 ORDER BY r.name", [ownerId]);
   const { rows: ps } = await pool.query("SELECT property_id FROM owner_properties WHERE owner_id = $1", [ownerId]);
-  const { rows: acc } = await pool.query(
-    `SELECT r.id, r.name, r.kind, r.property_id, p.name AS property_name FROM owner_access a JOIN restaurants r ON r.id = a.restaurant_id
-     LEFT JOIN properties p ON p.id = r.property_id WHERE a.owner_id = $1 ORDER BY p.name NULLS LAST, r.name`, [ownerId]);
-  return {
-    id: rows[0].id,
-    name: rows[0].name,
-    email: rows[0].email,
-    role: rows[0].role === "manager" ? "manager" : "owner",
-    createdAt: Number(rows[0].created_at),
-    lastLoginAt: rows[0].last_login_at ? Number(rows[0].last_login_at) : null,
-    restaurants: rs.map((r) => ({ id: r.id, name: r.name, departments: Array.isArray(r.departments) && r.departments.length ? r.departments : null })), // directly linked (+ department limit) (what the dashboard edits)
-    propertyIds: ps.map((p) => p.property_id),               // properties they administer
-    accessible: acc.map((r) => ({ id: r.id, name: r.name, kind: r.kind, propertyId: r.property_id, propertyName: r.property_name })), // everything they can open
-  };
+  const { rows: acc } = await pool.query(OWNER_ACCESS_SQL + " WHERE a.owner_id = $1 ORDER BY p.name NULLS LAST, r.name", [ownerId]);
+  return buildOwner(rows[0], rs, ps, acc);
+}
+// Every login for the dashboard list, in four queries in total (one per owner would be slow with many logins).
+async function allOwnersWithRestaurants() {
+  const { rows: os } = await pool.query("SELECT * FROM owners ORDER BY created_at DESC");
+  const { rows: rs } = await pool.query(OWNER_DIRECT_SQL + " ORDER BY r.name");
+  const { rows: ps } = await pool.query("SELECT owner_id, property_id FROM owner_properties");
+  const { rows: acc } = await pool.query(OWNER_ACCESS_SQL + " ORDER BY p.name NULLS LAST, r.name");
+  return os.map((o) => buildOwner(o, rs.filter((x) => x.owner_id === o.id), ps.filter((x) => x.owner_id === o.id), acc.filter((x) => x.owner_id === o.id)));
 }
 
 async function setOwnerProperties(ownerId, propertyIds) {
@@ -5869,10 +5878,7 @@ app.patch("/api/platform/restaurants/:id/placement", requirePlatformAuth, async 
 });
 
 app.get("/api/platform/owners", requirePlatformAuth, async (req, res) => {
-  const { rows } = await pool.query("SELECT id FROM owners ORDER BY created_at DESC");
-  const owners = [];
-  for (const r of rows) owners.push(await ownerWithRestaurants(r.id));
-  res.json(owners);
+  res.json(await allOwnersWithRestaurants());
 });
 
 app.post("/api/platform/owners", requirePlatformAuth, async (req, res) => {
@@ -5892,7 +5898,7 @@ app.post("/api/platform/owners", requirePlatformAuth, async (req, res) => {
     await pool.query("DELETE FROM owners WHERE id = $1", [ownerId]);
     return res.status(400).json({ error: "one of those restaurants or properties doesn't exist" });
   }
-  logActivity({ eventType: "owner_created", detail: `${role}: ${String(name).trim()} → ${restaurantIds.length} restaurant(s)` });
+  logActivity({ eventType: "owner_created", detail: `${role}: ${String(name).trim()} → ${(restaurantIds || []).length} restaurant(s), ${propertyIds.length} property(ies)` });
   res.status(201).json({ owner: await ownerWithRestaurants(ownerId), tempPassword: password });
 });
 
