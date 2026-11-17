@@ -474,12 +474,56 @@ async function loadProperties() {
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <b style="font-size:14px">${escapeHtml(p.name)}</b>
           <button class="btn ghost small" onclick="renameProperty('${p.id}')">Rename</button>
+          <button class="btn ghost small" onclick="togglePeople('${p.id}')">Shared staff</button>
           <button class="btn ghost small" onclick="deleteProperty('${p.id}')">Delete property</button>
         </div>
+        <div id="people-${p.id}" style="display:none;margin-top:10px"></div>
         <div style="margin-top:6px;font-size:12.5px">Places: ${p.establishments.length ? p.establishments.map(e => `<span class="chip">${escapeHtml(e.name)} · ${kindLabel[e.kind] || e.kind}</span>`).join("") : '<span style="color:var(--text-dim)">none yet — set a restaurant’s property in the table below, or add a new one above</span>'}</div>
         <div style="margin-top:4px;font-size:12.5px">Administrators: ${p.administrators.length ? p.administrators.map(a => `<span class="chip">${escapeHtml(a.name)}</span>`).join("") : '<span style="color:var(--text-dim)">none — give an owner login this property below</span>'}</div>
       </div>`).join("");
   renderOwnerPropChecks();
+  openPeople.forEach(pid => { if (document.getElementById("people-" + pid)) loadPeople(pid); });
+}
+
+// ---------- shared staff: one person on the teams of several places of a property ----------
+const openPeople = new Set();
+function togglePeople(pid) {
+  const box = document.getElementById("people-" + pid);
+  if (!box) return;
+  if (openPeople.has(pid)) { openPeople.delete(pid); box.style.display = "none"; return; }
+  openPeople.add(pid); loadPeople(pid);
+}
+async function loadPeople(pid) {
+  const box = document.getElementById("people-" + pid);
+  if (!box) return;
+  box.style.display = "block";
+  const r = await api(`/api/platform/properties/${pid}/people`);
+  if (!r.ok) { box.innerHTML = `<div class="empty">${escapeHtml(r.error)}</div>`; return; }
+  const { people, suggestions } = r.data;
+  const suggested = new Set(suggestions.flat());
+  const groups = {};
+  people.filter(x => x.personId).forEach(x => { (groups[x.personId] = groups[x.personId] || []).push(x); });
+  const linked = Object.values(groups).filter(g => g.length > 1);
+  const loose = people.filter(x => !x.personId || (groups[x.personId] || []).length < 2);
+  const row = x => `<label style="display:flex;gap:8px;align-items:center;padding:3px 0"><input type="checkbox" class="pp-${pid}" value="${x.id}" data-rest="${x.restaurantId}" /> <span>${escapeHtml(x.name)}</span> <span class="chip">${escapeHtml(x.restaurantName)}</span> <span style="color:var(--text-dim);font-size:12px">${escapeHtml(x.phone)}</span>${suggested.has(x.id) ? ' <span style="color:var(--amber);font-size:12px">same phone as someone in another place</span>' : ""}</label>`;
+  box.innerHTML = `
+    <div style="font-size:12.5px;color:var(--text-dim);margin-bottom:8px">The same person on the team of two places (the same phone number is linked automatically when someone is added). They keep one login, see all their shifts in one place, and are warned about double-booking.</div>
+    ${linked.length ? `<div style="font-weight:600;margin:6px 0 4px">Linked</div>` + linked.map(g => `<div style="padding:6px 8px;border:1px solid var(--rail);border-radius:8px;margin-bottom:6px"><b>${escapeHtml(g[0].name)}</b>${g.map(x => `<div style="font-size:12.5px;display:flex;gap:8px;align-items:center;margin-top:3px"><span class="chip">${escapeHtml(x.restaurantName)}</span><span>${escapeHtml(x.name)}</span><span style="color:var(--text-dim)">${escapeHtml((x.roles || []).join(", "))}</span><button class="btn ghost small" onclick="unlinkPerson('${pid}','${x.id}')">Unlink</button></div>`).join("")}</div>`).join("") : ""}
+    <div style="font-weight:600;margin:10px 0 4px">Not linked — tick one entry per place, then link</div>
+    ${loose.length ? loose.map(row).join("") : '<div class="empty">Nobody here yet.</div>'}
+    <div style="margin-top:8px"><button class="btn small" onclick="linkPeople('${pid}')">Link ticked as one person</button> <span id="pmsg-${pid}" style="color:var(--red,#c0392b);font-size:12.5px"></span></div>`;
+}
+async function linkPeople(pid) {
+  const ids = [...document.querySelectorAll(`.pp-${pid}:checked`)].map(i => i.value);
+  const msg = document.getElementById("pmsg-" + pid); msg.textContent = "";
+  const r = await api("/api/platform/staff/link", { method: "POST", body: JSON.stringify({ staffIds: ids }) });
+  if (!r.ok) { msg.textContent = r.error; return; }
+  loadPeople(pid);
+}
+async function unlinkPerson(pid, staffId) {
+  if (!confirm("Unlink this entry from the person's other places? Their shifts are kept.")) return;
+  await api(`/api/platform/staff/${staffId}/unlink`, { method: "POST" });
+  loadPeople(pid);
 }
 async function createProperty() {
   const msg = document.getElementById("propMsg"); msg.textContent = "";

@@ -135,6 +135,9 @@ async function initDb() {
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS hire_date TEXT;`);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS address TEXT;`);
   await pool.query(`CREATE INDEX IF NOT EXISTS staff_phone_idx ON staff (phone);`);
+  // One real person who works in several establishments of the same property: their staff rows share a person_id (NULL = just one place).
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS person_id TEXT;`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS staff_person_idx ON staff (person_id) WHERE person_id IS NOT NULL;`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS shifts (
@@ -1588,9 +1591,33 @@ app.patch("/api/restaurant", requireAuth, async (req, res) => {
 
 // ---------- staff endpoints (scoped to the logged-in restaurant) ----------
 
+// ---- one person in several establishments of a property ----
+// The shifts a person has in their OTHER establishments, filed under this establishment's staff id (so they count as "already busy").
+async function otherPlaceShifts(staffIds, start, end) {
+  if (!staffIds.length) return [];
+  const { rows } = await pool.query(
+    `SELECT me.id AS me_id, s.shift_date, s.start_time, s.end_time, s.role, r.name AS restaurant_name
+     FROM staff me JOIN staff o ON o.person_id = me.person_id AND o.id <> me.id AND o.archived_at IS NULL
+     JOIN schedule_shifts s ON s.staff_id = o.id JOIN restaurants r ON r.id = s.restaurant_id
+     WHERE me.id = ANY($1) AND me.person_id IS NOT NULL AND s.shift_date >= $2 AND s.shift_date <= $3`,
+    [staffIds, start, end]
+  );
+  return rows.map((r) => ({ staffId: r.me_id, date: r.shift_date instanceof Date ? r.shift_date.toISOString().slice(0, 10) : String(r.shift_date).slice(0, 10), startTime: r.start_time, endTime: r.end_time, role: r.role || "", restaurantName: r.restaurant_name }));
+}
+async function personConflicts(staffId, date, startTime, endTime) {
+  if (!SCHEDULE_TIME_RE.test(String(startTime)) || !SCHEDULE_TIME_RE.test(String(endTime))) return [];
+  const range = shiftRange(startTime, endTime);
+  const others = await otherPlaceShifts([staffId], date, date);
+  return others.filter((o) => rangesOverlap(shiftRange(o.startTime, o.endTime), range)).map((o) => ({ restaurantName: o.restaurantName, date: o.date, startTime: o.startTime, endTime: o.endTime }));
+}
+const overlapMessage = (name, conflicts) => `${name} is already working at ${conflicts.map((c) => `${c.restaurantName} (${c.startTime}–${c.endTime})`).join(", ")} at that time.`;
+
 app.get("/api/staff", requireAuth, async (req, res) => {
   const { rows } = await pool.query("SELECT * FROM staff WHERE restaurant_id = $1 ORDER BY name ASC", [req.restaurantId]);
-  res.json(rows.map(staffRowToJson));
+  const { rows: links } = await pool.query(
+    `SELECT me.id AS staff_id, r.name FROM staff me JOIN staff o ON o.person_id = me.person_id AND o.id <> me.id AND o.archived_at IS NULL
+     JOIN restaurants r ON r.id = o.restaurant_id WHERE me.restaurant_id = $1 AND me.person_id IS NOT NULL ORDER BY r.name`, [req.restaurantId]);
+  res.json(rows.map((r) => ({ ...staffRowToJson(r), alsoAt: links.filter((l) => l.staff_id === r.id).map((l) => l.name) })));
 });
 
 app.post("/api/staff", requireAuth, async (req, res) => {
@@ -1607,12 +1634,23 @@ app.post("/api/staff", requireAuth, async (req, res) => {
     if (isNaN(rate) || rate < 0) return res.status(400).json({ error: "hourly rate must be a positive number" });
   }
   const newId = id();
+  // The same phone number already on the team of another establishment in this property = the same person: link them.
+  let personId = null;
+  const { rows: same } = await pool.query(
+    `SELECT s.id, s.person_id FROM staff s JOIN restaurants r ON r.id = s.restaurant_id
+     WHERE r.property_id IS NOT NULL AND r.property_id = (SELECT property_id FROM restaurants WHERE id = $1)
+       AND s.restaurant_id <> $1 AND s.phone = $2 AND s.archived_at IS NULL`, [req.restaurantId, normalized]);
+  if (same.length) {
+    personId = (same.find((x) => x.person_id) || {}).person_id || id();
+    await pool.query("UPDATE staff SET person_id = $1 WHERE id = ANY($2) AND person_id IS NULL", [personId, same.map((x) => x.id)]);
+  }
   const { rows } = await pool.query(
-    "INSERT INTO staff (id, restaurant_id, name, phone, roles, hourly_rate, hire_date, address) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
-    [newId, req.restaurantId, name.trim(), normalized, JSON.stringify(roleList), rate, (hireDate || "").trim() || null, (address || "").trim() || null]
+    "INSERT INTO staff (id, restaurant_id, name, phone, roles, hourly_rate, hire_date, address, person_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
+    [newId, req.restaurantId, name.trim(), normalized, JSON.stringify(roleList), rate, (hireDate || "").trim() || null, (address || "").trim() || null, personId]
   );
-  logActivity({ restaurantId: req.restaurantId, eventType: "staff_created", detail: name.trim() });
-  res.status(201).json(staffRowToJson(rows[0]));
+  logActivity({ restaurantId: req.restaurantId, eventType: "staff_created", detail: name.trim() + (personId ? " (also on the team of another place in this property)" : "") });
+  const { rows: also } = personId ? await pool.query("SELECT DISTINCT r.name FROM staff o JOIN restaurants r ON r.id = o.restaurant_id WHERE o.person_id = $1 AND o.id <> $2 AND o.archived_at IS NULL", [personId, newId]) : { rows: [] };
+  res.status(201).json({ ...staffRowToJson(rows[0]), alsoAt: also.map((x) => x.name) });
 });
 
 app.patch("/api/staff/:id", requireAuth, async (req, res) => {
@@ -2123,19 +2161,33 @@ async function onlyPublishedForStaff(restaurantId, shifts) {
 app.get("/api/staff-auth/schedule", requireStaffAuth, async (req, res) => {
   const { start, end } = req.query;
   if (!start || !end) return res.status(400).json({ error: "start and end date query params are required (YYYY-MM-DD)" });
-  const { rows } = await pool.query(
-    "SELECT * FROM schedule_shifts WHERE staff_id = $1 AND restaurant_id = $2 AND shift_date >= $3 AND shift_date <= $4 ORDER BY shift_date ASC, start_time ASC",
-    [req.staffId, req.restaurantId, start, end]
-  );
-  const visible = await onlyPublishedForStaff(req.restaurantId, rows.map(scheduleShiftRowToJson));
-  // remember that this person has now been shown these weeks
-  try {
-    const weeks = [...new Set(visible.map((sh) => mondayOfIso(sh.date)))];
-    if (weeks.length) await pool.query(
-      `INSERT INTO schedule_seen (restaurant_id, staff_id, week_start, seen_at) SELECT $1, $2, w, $4 FROM unnest($3::text[]) AS w
-       ON CONFLICT (staff_id, week_start) DO UPDATE SET seen_at = EXCLUDED.seen_at`,
-      [req.restaurantId, req.staffId, weeks, Date.now()]);
-  } catch (e) { console.error("Couldn't record schedule view:", e.message); }
+  // someone who works in several establishments of a property sees all of their shifts here, each with the place's name
+  const { rows: places } = await pool.query(
+    `SELECT o.id AS staff_id, o.restaurant_id, r.name AS restaurant_name FROM staff me
+     JOIN staff o ON (o.id = me.id OR (me.person_id IS NOT NULL AND o.person_id = me.person_id)) AND o.archived_at IS NULL
+     JOIN restaurants r ON r.id = o.restaurant_id WHERE me.id = $1`, [req.staffId]);
+  const several = places.length > 1;
+  const visible = [];
+  for (const pl of places) {
+    if (pl.staff_id !== req.staffId) { // other places: skip one that isn't available (unpaid)
+      try { if ((await getBilling(pl.restaurant_id)).blocked) continue; } catch (e) { continue; }
+    }
+    const { rows } = await pool.query(
+      "SELECT * FROM schedule_shifts WHERE staff_id = $1 AND restaurant_id = $2 AND shift_date >= $3 AND shift_date <= $4 ORDER BY shift_date ASC, start_time ASC",
+      [pl.staff_id, pl.restaurant_id, start, end]
+    );
+    const mine = await onlyPublishedForStaff(pl.restaurant_id, rows.map(scheduleShiftRowToJson));
+    // remember that this person has now been shown these weeks
+    try {
+      const weeks = [...new Set(mine.map((sh) => mondayOfIso(sh.date)))];
+      if (weeks.length) await pool.query(
+        `INSERT INTO schedule_seen (restaurant_id, staff_id, week_start, seen_at) SELECT $1, $2, w, $4 FROM unnest($3::text[]) AS w
+         ON CONFLICT (staff_id, week_start) DO UPDATE SET seen_at = EXCLUDED.seen_at`,
+        [pl.restaurant_id, pl.staff_id, weeks, Date.now()]);
+    } catch (e) { console.error("Couldn't record schedule view:", e.message); }
+    for (const sh of mine) visible.push(several ? { ...sh, restaurantId: pl.restaurant_id, restaurantName: pl.restaurant_name, otherPlace: pl.staff_id !== req.staffId } : sh);
+  }
+  if (several) visible.sort((x, y) => (x.date + x.startTime).localeCompare(y.date + y.startTime));
   res.json(visible);
 });
 
@@ -3138,6 +3190,10 @@ app.post("/api/schedule", requireAuth, async (req, res) => {
   const { rows: staffRows } = await pool.query("SELECT id FROM staff WHERE id = $1 AND restaurant_id = $2 AND archived_at IS NULL", [staffId, req.restaurantId]);
   if (staffRows.length === 0) return res.status(404).json({ error: "staff not found" });
   if (!(await shiftDeptOk(req, (role || "").trim(), staffId))) return noDeptAccess(res);
+  if (!(req.body && req.body.force)) {
+    const conflicts = await personConflicts(staffId, date, startTime, endTime);
+    if (conflicts.length) return res.status(409).json({ error: overlapMessage((await staffNameOf(staffId)) || "This person", conflicts), code: "person_overlap", conflicts });
+  }
 
   const newId = id();
   const { rows } = await pool.query(
@@ -3279,7 +3335,7 @@ app.post("/api/schedule/bulk", requireAuth, async (req, res) => {
     "SELECT * FROM schedule_shifts WHERE restaurant_id = $1 AND shift_date >= $2 AND shift_date <= $3",
     [req.restaurantId, dates[0], dates[dates.length - 1]]
   );
-  const existing = existingRows.map(scheduleShiftRowToJson);
+  const existing = existingRows.map(scheduleShiftRowToJson).concat(await otherPlaceShifts(Object.keys(staffById), dates[0], dates[dates.length - 1])); // a shift elsewhere counts as busy
   if (req.allowedDepts) {
     const kind = await restaurantKind(req.restaurantId);
     for (const c of list) {
@@ -3342,6 +3398,12 @@ app.patch("/api/schedule/:id", requireAuth, async (req, res) => {
   if (staffId !== undefined) updates.staff_id = staffId;
   if (station !== undefined) updates.station = cleanStation(station);
   if (!(await shiftDeptOk(req, updates.role, updates.staff_id))) return noDeptAccess(res);
+  const movedTime = startTime !== undefined || endTime !== undefined || date !== undefined || staffId !== undefined;
+  if (movedTime && !(req.body && req.body.force)) {
+    const dateStr = updates.shift_date instanceof Date ? updates.shift_date.toISOString().slice(0, 10) : String(updates.shift_date).slice(0, 10);
+    const conflicts = await personConflicts(updates.staff_id, dateStr, updates.start_time, updates.end_time);
+    if (conflicts.length) return res.status(409).json({ error: overlapMessage((await staffNameOf(updates.staff_id)) || "This person", conflicts), code: "person_overlap", conflicts });
+  }
 
   const { rows } = await pool.query(
     "UPDATE schedule_shifts SET staff_id=$1, shift_date=$2, start_time=$3, end_time=$4, role=$5, station=$6 WHERE id=$7 AND restaurant_id=$8 RETURNING *",
@@ -5034,7 +5096,8 @@ ${JSON.stringify(context)}`;
   const candidates = parsed.shifts.slice(0, SCHEDULE_BULK_MAX).map((c) => ({
     staffId: c && c.staffId, date: c && c.date, startTime: c && c.startTime, endTime: c && c.endTime, role: c && c.role,
   }));
-  const { ok, skipped } = checkScheduleCandidates(candidates, { staffById, existing, availabilityByStaff, timeOffByStaff, windowStart: weekStart, windowEnd: weekEnd });
+  const elsewhere = await otherPlaceShifts(Object.keys(staffById), weekStart, weekEnd); // already working in another establishment
+  const { ok, skipped } = checkScheduleCandidates(candidates, { staffById, existing: existing.concat(elsewhere), availabilityByStaff, timeOffByStaff, windowStart: weekStart, windowEnd: weekEnd });
   logActivity({ restaurantId, eventType: "ai_answered", detail: `schedule: ${prompt.slice(0, 120)} (${ok.length} shifts)`, durationMs });
   let totalHours = 0, estCost = 0;
   ok.forEach((sh) => {
@@ -5873,6 +5936,49 @@ async function setOwnerRestaurants(ownerId, restaurantIds, deptMap) {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// ---------- one person in several places of a property ----------
+// Everyone on the teams of a property's establishments, with who is already linked, and people who share a phone number but aren't linked yet.
+app.get("/api/platform/properties/:id/people", requirePlatformAuth, async (req, res) => {
+  const { rows: prop } = await pool.query("SELECT id, name FROM properties WHERE id = $1", [req.params.id]);
+  if (!prop[0]) return res.status(404).json({ error: "property not found" });
+  const { rows } = await pool.query(
+    `SELECT s.id, s.name, s.phone, s.roles, s.person_id, s.restaurant_id, r.name AS restaurant_name, r.kind
+     FROM staff s JOIN restaurants r ON r.id = s.restaurant_id WHERE r.property_id = $1 AND s.archived_at IS NULL ORDER BY s.name, r.name`, [req.params.id]);
+  const people = rows.map((x) => ({ id: x.id, name: x.name, phone: x.phone, roles: x.roles, personId: x.person_id, restaurantId: x.restaurant_id, restaurantName: x.restaurant_name, kind: x.kind }));
+  const byPhone = {};
+  people.forEach((p) => { (byPhone[p.phone] = byPhone[p.phone] || []).push(p); });
+  const suggestions = Object.values(byPhone).filter((g) => new Set(g.map((p) => p.restaurantId)).size > 1 && new Set(g.map((p) => p.personId || p.id)).size > 1)
+    .map((g) => g.map((p) => p.id));
+  res.json({ property: prop[0], people, suggestions });
+});
+// Link staff rows (from different establishments of the SAME property) as one person.
+app.post("/api/platform/staff/link", requirePlatformAuth, async (req, res) => {
+  const ids = [...new Set(((req.body && req.body.staffIds) || []).map(String))];
+  if (ids.length < 2) return res.status(400).json({ error: "pick at least two staff entries to link" });
+  const { rows } = await pool.query(
+    "SELECT s.id, s.name, s.person_id, s.restaurant_id, r.property_id FROM staff s JOIN restaurants r ON r.id = s.restaurant_id WHERE s.id = ANY($1) AND s.archived_at IS NULL", [ids]);
+  if (rows.length !== ids.length) return res.status(400).json({ error: "one of those staff entries doesn't exist" });
+  if (rows.some((r) => !r.property_id) || new Set(rows.map((r) => r.property_id)).size !== 1) return res.status(400).json({ error: "they must all be in establishments of the same property" });
+  if (new Set(rows.map((r) => r.restaurant_id)).size !== rows.length) return res.status(400).json({ error: "pick one entry per establishment" });
+  const existingIds = [...new Set(rows.map((r) => r.person_id).filter(Boolean))];
+  const personId = existingIds[0] || id();
+  // anyone already tied to one of those groups joins the merged person too
+  await pool.query("UPDATE staff SET person_id = $1 WHERE id = ANY($2) OR (person_id IS NOT NULL AND person_id = ANY($3))", [personId, ids, existingIds]);
+  logActivity({ eventType: "staff_linked", detail: `linked as one person: ${rows.map((r) => r.name).join(", ")}` });
+  res.json({ personId, staffIds: ids });
+});
+app.post("/api/platform/staff/:id/unlink", requirePlatformAuth, async (req, res) => {
+  const { rows } = await pool.query("SELECT id, name, person_id FROM staff WHERE id = $1", [req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: "staff not found" });
+  if (rows[0].person_id) {
+    await pool.query("UPDATE staff SET person_id = NULL WHERE id = $1", [rows[0].id]);
+    // a group of one is no group
+    await pool.query("UPDATE staff SET person_id = NULL WHERE person_id = $1 AND (SELECT COUNT(*) FROM staff WHERE person_id = $1) < 2", [rows[0].person_id]);
+    logActivity({ eventType: "staff_unlinked", detail: `${rows[0].name} is no longer linked to their other places` });
+  }
+  res.json({ ok: true });
+});
 
 // ---------- properties: a hotel and its restaurant / bar grouped together ----------
 app.get("/api/platform/properties", requirePlatformAuth, async (req, res) => {
