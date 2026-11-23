@@ -494,8 +494,9 @@
   @media (hover: hover) {
     #sectionSchedule .shift-chip:not(:hover) .chip-actions { opacity: 0; }
     #sectionSchedule .shift-chip:focus-within .chip-actions { opacity: 1; }
-    #sectionSchedule td.day-cell .add-shift-btn { opacity: 0; transition: opacity .15s ease, background .15s ease, color .15s ease, border-color .15s ease; }
-    #sectionSchedule td.day-cell:hover .add-shift-btn, #sectionSchedule td.day-cell .add-shift-btn:focus-visible { opacity: 1; }
+    #sectionSchedule td.day-cell .add-shift-btn, #sectionSchedule td.day-cell .mark-off-btn { opacity: 0; transition: opacity .15s ease, background .15s ease, color .15s ease, border-color .15s ease; }
+    #sectionSchedule td.day-cell:hover .add-shift-btn, #sectionSchedule td.day-cell .add-shift-btn:focus-visible,
+    #sectionSchedule td.day-cell:hover .mark-off-btn, #sectionSchedule td.day-cell .mark-off-btn:focus-visible { opacity: 1; }
   }
   #sectionSchedule .add-shift-btn { border-radius: 12px; border-color: #D5DAE3; color: #5E6775; background: transparent; }
   #sectionSchedule .add-shift-btn:hover { background: #fff; border-style: solid; border-color: var(--role-color, #161B22); color: #161B22; }
