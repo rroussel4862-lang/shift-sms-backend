@@ -61,7 +61,7 @@ describe("webhook and payment screen", () => {
 
   test("rejects a bad signature", async () => {
     const ev = stripeEvent("invoice.paid", { customer: "cus_x" });
-    const res = await request(app).post("/api/stripe/webhook").set("Content-Type", "application/json").set("Stripe-Signature", ev.header.replace(/.$/, "0")).send(ev.body);
+    const res = await request(app).post("/api/stripe/webhook").set("Content-Type", "application/json").set("Stripe-Signature", ev.header.replace(/.$/, c => (c === "0" ? "1" : "0"))).send(ev.body);
     expect(res.status).toBe(400);
   });
 
