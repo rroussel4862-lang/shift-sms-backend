@@ -551,6 +551,9 @@ async function initDb() {
       PRIMARY KEY (restaurant_id, day)
     );
   `);
+  // Occupancy is entered as a number of rooms (not a percentage); the old percent columns are no longer used.
+  await pool.query(`ALTER TABLE hotel_occupancy ADD COLUMN IF NOT EXISTS forecast_rooms INTEGER;`);
+  await pool.query(`ALTER TABLE hotel_occupancy ADD COLUMN IF NOT EXISTS actual_rooms INTEGER;`);
   // A property groups establishments (a hotel, its restaurant, its bar ...). Optional: a restaurant with no property works as before.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS properties (
@@ -2920,14 +2923,14 @@ app.get("/api/departments", requireAuth, async (req, res) => {
 });
 
 // ---- hotel room occupancy (a hotel has no sales forecast: it plans around how full the rooms will be) ----
-const occupancyJson = (r) => ({ date: r.day, forecastPct: r.forecast_pct === null ? null : Number(r.forecast_pct), actualPct: r.actual_pct === null ? null : Number(r.actual_pct) });
+const occupancyJson = (r) => ({ date: r.day, forecastRooms: r.forecast_rooms === null || r.forecast_rooms === undefined ? null : Number(r.forecast_rooms), actualRooms: r.actual_rooms === null || r.actual_rooms === undefined ? null : Number(r.actual_rooms) });
 app.get("/api/occupancy", requireAuth, async (req, res) => {
   const { start, end } = req.query;
   if (!isIsoDate(start) || !isIsoDate(end)) return res.status(400).json({ error: "start and end are required (YYYY-MM-DD)" });
-  const { rows } = await pool.query("SELECT * FROM hotel_occupancy WHERE restaurant_id = $1 AND day >= $2 AND day <= $3 ORDER BY day", [req.restaurantId, start, end]);
+  const { rows } = await pool.query("SELECT * FROM hotel_occupancy WHERE restaurant_id = $1 AND day >= $2 AND day <= $3 AND (forecast_rooms IS NOT NULL OR actual_rooms IS NOT NULL) ORDER BY day", [req.restaurantId, start, end]);
   res.json(rows.map(occupancyJson));
 });
-// body: { forecastPct?, actualPct? } each 0-100, or null to clear. Only the fields sent change.
+// body: { forecastRooms?, actualRooms? } each a whole number of rooms (0 or more), or null to clear. Only the fields sent change.
 app.put("/api/occupancy/:date", requireAuth, async (req, res) => {
   if (!isIsoDate(req.params.date)) return res.status(400).json({ error: "date must be YYYY-MM-DD" });
   if ((await restaurantKind(req.restaurantId)) !== "hotel") return res.status(400).json({ error: "occupancy is only for hotels" });
@@ -2935,19 +2938,20 @@ app.put("/api/occupancy/:date", requireAuth, async (req, res) => {
   const parse = (v) => {
     if (v === null || v === "") return { ok: true, v: null };
     const n = Number(v);
-    return Number.isFinite(n) && n >= 0 && n <= 100 ? { ok: true, v: Math.round(n * 10) / 10 } : { ok: false };
+    return Number.isInteger(n) && n >= 0 && n <= 5000 ? { ok: true, v: n } : { ok: false };
   };
+  const bad = { error: "occupancy is a whole number of rooms (0 or more)" };
   const cur = (await pool.query("SELECT * FROM hotel_occupancy WHERE restaurant_id = $1 AND day = $2", [req.restaurantId, req.params.date])).rows[0];
-  let fc = cur ? cur.forecast_pct : null, ac = cur ? cur.actual_pct : null;
-  if (body.forecastPct !== undefined) { const p = parse(body.forecastPct); if (!p.ok) return res.status(400).json({ error: "occupancy must be between 0 and 100" }); fc = p.v; }
-  if (body.actualPct !== undefined) { const p = parse(body.actualPct); if (!p.ok) return res.status(400).json({ error: "occupancy must be between 0 and 100" }); ac = p.v; }
+  let fc = cur && cur.forecast_rooms !== undefined ? cur.forecast_rooms : null, ac = cur && cur.actual_rooms !== undefined ? cur.actual_rooms : null;
+  if (body.forecastRooms !== undefined) { const p = parse(body.forecastRooms); if (!p.ok) return res.status(400).json(bad); fc = p.v; }
+  if (body.actualRooms !== undefined) { const p = parse(body.actualRooms); if (!p.ok) return res.status(400).json(bad); ac = p.v; }
   if (fc === null && ac === null) {
     await pool.query("DELETE FROM hotel_occupancy WHERE restaurant_id = $1 AND day = $2", [req.restaurantId, req.params.date]);
-    return res.json({ date: req.params.date, forecastPct: null, actualPct: null });
+    return res.json({ date: req.params.date, forecastRooms: null, actualRooms: null });
   }
   const { rows } = await pool.query(
-    `INSERT INTO hotel_occupancy (restaurant_id, day, forecast_pct, actual_pct, updated_at) VALUES ($1,$2,$3,$4,$5)
-     ON CONFLICT (restaurant_id, day) DO UPDATE SET forecast_pct = EXCLUDED.forecast_pct, actual_pct = EXCLUDED.actual_pct, updated_at = EXCLUDED.updated_at RETURNING *`,
+    `INSERT INTO hotel_occupancy (restaurant_id, day, forecast_rooms, actual_rooms, updated_at) VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (restaurant_id, day) DO UPDATE SET forecast_rooms = EXCLUDED.forecast_rooms, actual_rooms = EXCLUDED.actual_rooms, updated_at = EXCLUDED.updated_at RETURNING *`,
     [req.restaurantId, req.params.date, fc, ac, Date.now()]
   );
   res.json(occupancyJson(rows[0]));
@@ -4332,8 +4336,8 @@ app.get("/api/day-snapshot", requireAuth, async (req, res) => {
     const kind = await restaurantKind(rid);
     let occupancy = null; // hotels: how full the rooms are expected to be / were
     if (kind === "hotel") {
-      const { rows: oc } = await pool.query("SELECT forecast_pct, actual_pct FROM hotel_occupancy WHERE restaurant_id = $1 AND day = $2", [rid, day]);
-      occupancy = { forecastPct: oc[0] ? num(oc[0].forecast_pct) : null, actualPct: oc[0] ? num(oc[0].actual_pct) : null };
+      const { rows: oc } = await pool.query("SELECT forecast_rooms, actual_rooms FROM hotel_occupancy WHERE restaurant_id = $1 AND day = $2", [rid, day]);
+      occupancy = { forecastRooms: oc[0] ? num(oc[0].forecast_rooms) : null, actualRooms: oc[0] ? num(oc[0].actual_rooms) : null };
     }
     const out = { date: day, kind, occupancy, services, sales, location: loc.status, place: loc.place || "", weather: null, events: null, eventsStatus: null };
     if (loc.status !== "ok") return res.json(out);
