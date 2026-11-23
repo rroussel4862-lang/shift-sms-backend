@@ -5,15 +5,30 @@ on:
   push:
     branches: [main]
 
-# One run at a time: the tests wipe the test database, so two runs must never overlap.
+# A newer push to the same branch replaces an older, still-running test.
 concurrency:
-  group: tests-database
-  cancel-in-progress: false
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # A throwaway database that lives next to the tests and disappears afterwards.
+    # Much faster than a remote one, and nothing real is ever touched (no secret needed).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,8 +38,9 @@ jobs:
       - run: npm ci
       - run: npm test
         env:
-          # The ONLY real value: the dedicated Neon TEST database, stored as a GitHub secret.
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          # The throwaway database above (not Neon).
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test
+          DATABASE_SSL: "false"
           # Everything below is a harmless placeholder (Twilio and the AI are mocked in tests).
           ALLOW_TEST_DB_WIPE: "true"
           TWILIO_ACCOUNT_SID: ACtest
