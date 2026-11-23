@@ -506,16 +506,26 @@
 
   /* footer totals and the sales block: lighter tints, flat colour, a bar on the label */
   #sectionSchedule .totals-row td { background: #F6F7F9; color: #161B22; }
-  #sectionSchedule table.schedule-grid tr.sales-ai td { background: #F6F1FB; }
-  #sectionSchedule table.schedule-grid tr.sales-fc td { background: #EEF4FB; }
-  #sectionSchedule table.schedule-grid tr.sales-fc-total td { background: #E2EDF9; }
-  #sectionSchedule table.schedule-grid tr.sales-ac td { background: #EDF7F0; }
-  #sectionSchedule table.schedule-grid tr.sales-ac-total td { background: #DFF0E5; }
-  #sectionSchedule table.schedule-grid tr.sales-ly td { background: #FDF6E8; }
-  #sectionSchedule table.schedule-grid tr.sales-ai td.row-label, #sectionSchedule table.schedule-grid tr.sales-fc td.row-label, #sectionSchedule table.schedule-grid tr.sales-ac td.row-label, #sectionSchedule table.schedule-grid tr.sales-ly td.row-label { border-left-width: 4px !important; font-weight: 700; letter-spacing: .01em; }
-  #sectionSchedule table.schedule-grid tr.sales-fc input, #sectionSchedule table.schedule-grid tr.sales-ly input, #sectionSchedule table.schedule-grid tr.sales-ac input { border-radius: 10px; border: 1px solid transparent; font-weight: 700; transition: border-color .15s ease, box-shadow .15s ease, background .15s ease; }
-  #sectionSchedule table.schedule-grid tr.sales-fc input:hover, #sectionSchedule table.schedule-grid tr.sales-ly input:hover { border-color: #C4CAD4; }
-  #sectionSchedule table.schedule-grid tr.sales-fc input:focus, #sectionSchedule table.schedule-grid tr.sales-ly input:focus { outline: none; border-color: #4F86C6; box-shadow: 0 0 0 3px rgba(79,134,198,.22); background: #fff; }
+  /* sales block: one quiet grey band. Colour is limited to a thin bar on each label; numbers are dark and even-weighted */
+  #sectionSchedule table.schedule-grid tr.sales-ai td, #sectionSchedule table.schedule-grid tr.sales-fc td, #sectionSchedule table.schedule-grid tr.sales-ac td,
+  #sectionSchedule table.schedule-grid tr.sales-ly td { background: #F7F8FA; color: #161B22; }
+  #sectionSchedule table.schedule-grid tr.sales-fc-total td, #sectionSchedule table.schedule-grid tr.sales-ac-total td { background: #EEF0F4; color: #161B22; border-top: 1px solid #DDE1E8; }
+  #sectionSchedule table.schedule-grid tr.sales-ai td { font-size: 15px; font-weight: 600; font-style: normal; color: #3D4A5C; }
+  #sectionSchedule table.schedule-grid tr.sales-fc-total td:not(.row-label), #sectionSchedule table.schedule-grid tr.sales-ac-total td:not(.row-label),
+  #sectionSchedule table.schedule-grid tr.sales-fc td.day-total, #sectionSchedule table.schedule-grid tr.sales-ac td.day-total, #sectionSchedule table.schedule-grid tr.sales-ly td.day-total, #sectionSchedule table.schedule-grid tr.sales-ai td.day-total { font-size: 16px; font-weight: 700; color: #161B22; }
+  #sectionSchedule table.schedule-grid tr.sales-ai td.row-label, #sectionSchedule table.schedule-grid tr.sales-fc td.row-label, #sectionSchedule table.schedule-grid tr.sales-ac td.row-label, #sectionSchedule table.schedule-grid tr.sales-ly td.row-label {
+    font-size: 13.5px; font-weight: 600; letter-spacing: 0; color: #3D4A5C; border-left-width: 3px !important; }
+  #sectionSchedule table.schedule-grid tr.sales-fc-total td.row-label, #sectionSchedule table.schedule-grid tr.sales-ac-total td.row-label { color: #161B22; font-weight: 700; }
+  #sectionSchedule table.schedule-grid tr.sales-ai td.row-label { border-left-color: #8A7FB0 !important; }
+  #sectionSchedule table.schedule-grid tr.sales-fc td.row-label { border-left-color: #5B7FA6 !important; }
+  #sectionSchedule table.schedule-grid tr.sales-ac td.row-label { border-left-color: #4F8A68 !important; }
+  #sectionSchedule table.schedule-grid tr.sales-ly td.row-label { border-left-color: #A8A296 !important; }
+  #sectionSchedule table.schedule-grid tr.sales-fc input, #sectionSchedule table.schedule-grid tr.sales-ly input, #sectionSchedule table.schedule-grid tr.sales-ac input {
+    background: #fff; color: #161B22; font-size: 15px; font-weight: 600; padding: 7px 8px; border-radius: 8px; border: 1px solid #E3E6EB; transition: border-color .15s ease, box-shadow .15s ease; }
+  #sectionSchedule table.schedule-grid tr.sales-ac input[readonly] { background: transparent; border-style: dashed; }
+  #sectionSchedule table.schedule-grid tr.sales-fc input::placeholder, #sectionSchedule table.schedule-grid tr.sales-ly input::placeholder, #sectionSchedule table.schedule-grid tr.sales-ac input::placeholder { color: #A3ABB8; font-weight: 500; }
+  #sectionSchedule table.schedule-grid tr.sales-fc input:hover, #sectionSchedule table.schedule-grid tr.sales-ly input:hover { border-color: #B9C0CC; }
+  #sectionSchedule table.schedule-grid tr.sales-fc input:focus, #sectionSchedule table.schedule-grid tr.sales-ly input:focus { outline: none; border-color: #3D4A5C; box-shadow: 0 0 0 3px rgba(61,74,92,.15); }
   #sectionSchedule table.schedule-grid tr.index-row td { background: #fff; }
   #sectionSchedule .index-ok { color: #2F7D55; } #sectionSchedule .index-warn { color: #B7791F; } #sectionSchedule .index-bad { color: #C0392B; }
   #sectionSchedule .grand-total-bar { border-radius: 16px; }
