@@ -450,6 +450,77 @@
   table.schedule-grid tr.index-row td { font-size: 17px; font-weight: 800; }
   table.schedule-grid tr.sales-ai button.ai-gen { font-size: 12.5px; font-weight: 700; color: #3F1D66; border-color: #8E63B8; background: #fff; }
 
+
+  /* ---------- Schedule grid, fresh look: calm white surface, role colour only as an accent, today stands out, hover reveals actions ---------- */
+  #sectionSchedule .grid-wrap { border: 1px solid #E6E9EF; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06); }
+  #sectionSchedule table.schedule-grid { background: #fff; }
+  #sectionSchedule table.schedule-grid th, #sectionSchedule table.schedule-grid td { border-color: #EEF0F4 !important; }
+  #sectionSchedule #scheduleHeaderRow th { background: rgba(255,255,255,.92); backdrop-filter: blur(8px); color: #5E6775; font-weight: 600; letter-spacing: .01em; text-transform: none; box-shadow: 0 1px 0 #E6E9EF; }
+  #sectionSchedule #scheduleHeaderRow th .day-date { font-weight: 500; color: #98A1B0; }
+  #sectionSchedule #scheduleHeaderRow th.today { color: #fff; background: linear-gradient(180deg, #2B3544, #161B22); }
+  #sectionSchedule #scheduleHeaderRow th.today .day-date { color: #D5DAE3; }
+  #sectionSchedule td.day-cell.today { background-image: linear-gradient(180deg, rgba(226,163,59,.10), rgba(226,163,59,.04)); }
+  #floatHead th.today { color: #fff; background: #161B22; }
+
+  /* role headers: a soft tint with a coloured dot instead of a solid slab */
+  #sectionSchedule tr.role-row td { background: color-mix(in srgb, var(--role-color) 9%, #fff); color: color-mix(in srgb, var(--role-color) 55%, #161B22); border-left: 0 !important; font-family: inherit; text-transform: none; letter-spacing: .01em; font-size: 14px; font-weight: 650; padding: 9px 16px; position: relative; }
+  #sectionSchedule tr.role-row td::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--role-color); margin-right: 10px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--role-color) 20%, transparent); vertical-align: 1px; }
+  #sectionSchedule tr.role-row .cnt { display: inline-block; min-width: 22px; padding: 1px 8px; border-radius: 999px; background: #fff; color: #5E6775; font-size: 12px; font-weight: 600; margin-left: 10px; }
+  #sectionSchedule tr.mgr-toggle td { transition: background .15s ease; }
+  #sectionSchedule tr.mgr-toggle:hover td { background: color-mix(in srgb, var(--role-color) 16%, #fff); }
+
+  /* people and cells: white, with a quiet row highlight */
+  #sectionSchedule tr.rl td.staff-cell { background: #fff; border-left: 0; box-shadow: inset 4px 0 0 var(--role-color); padding-left: 16px; }
+  #sectionSchedule tr.rl td.day-cell, #sectionSchedule tr.rl td.day-total { background: #fff; transition: background .15s ease; }
+  #sectionSchedule tr.rl td.day-total { background: #FAFBFC; color: #3D4A5C; font-weight: 600; }
+  #sectionSchedule tr.rl td.day-cell.today { background-image: linear-gradient(180deg, rgba(226,163,59,.10), rgba(226,163,59,.04)); }
+  #sectionSchedule tr.rl:hover td.staff-cell, #sectionSchedule tr.rl:hover td.day-cell, #sectionSchedule tr.rl:hover td.day-total { background-color: color-mix(in srgb, var(--role-color) 6%, #fff); }
+  #sectionSchedule tr.rl td { border-bottom-color: #EEF0F4; border-right-color: #EEF0F4; }
+  #sectionSchedule tr.rl td.day-cell.drag-over { background: color-mix(in srgb, var(--role-color) 16%, #fff); outline: 2px dashed var(--role-color); outline-offset: -4px; }
+  #sectionSchedule .staff-cell .name { font-weight: 650; }
+  #sectionSchedule .staff-cell .rate { color: #98A1B0; }
+
+  /* shifts: soft tinted pills with a colour bar; actions appear on hover */
+  #sectionSchedule .shift-chip { background: color-mix(in srgb, var(--role-color) 13%, #fff); border: 1px solid color-mix(in srgb, var(--role-color) 22%, #fff); border-left: 4px solid var(--role-color); border-radius: 12px; box-shadow: none; transition: transform .16s cubic-bezier(.2,.8,.3,1), box-shadow .16s ease, background .16s ease; }
+  #sectionSchedule .shift-chip:hover { transform: translateY(-2px); background: color-mix(in srgb, var(--role-color) 20%, #fff); box-shadow: 0 8px 18px color-mix(in srgb, var(--role-color) 28%, transparent), 0 1px 3px rgba(16,24,40,.10); }
+  #sectionSchedule .shift-chip:active { cursor: grabbing; transform: scale(.98); }
+  #sectionSchedule .shift-chip .times { color: #161B22; font-weight: 700; }
+  #sectionSchedule .shift-chip .role-tag { color: color-mix(in srgb, var(--role-color) 70%, #161B22); font-weight: 600; }
+  #sectionSchedule .shift-chip.draft { border-style: dashed; border-left-style: solid; }
+  #sectionSchedule .shift-chip.ghost { background: transparent; border: 1px dashed #C4CAD4; }
+  #sectionSchedule .shift-chip .chip-btn { border-radius: 8px; transition: background .12s ease, color .12s ease; }
+  #sectionSchedule .shift-chip .chip-btn:hover { background: rgba(255,255,255,.85); color: #161B22; }
+  #sectionSchedule .shift-chip .chip-actions { transition: opacity .15s ease; }
+  @media (hover: hover) {
+    #sectionSchedule .shift-chip:not(:hover) .chip-actions { opacity: 0; }
+    #sectionSchedule .shift-chip:focus-within .chip-actions { opacity: 1; }
+    #sectionSchedule td.day-cell .add-shift-btn { opacity: 0; transition: opacity .15s ease, background .15s ease, color .15s ease, border-color .15s ease; }
+    #sectionSchedule td.day-cell:hover .add-shift-btn, #sectionSchedule td.day-cell .add-shift-btn:focus-visible { opacity: 1; }
+  }
+  #sectionSchedule .add-shift-btn { border-radius: 12px; border-color: #D5DAE3; color: #5E6775; background: transparent; }
+  #sectionSchedule .add-shift-btn:hover { background: #fff; border-style: solid; border-color: var(--role-color, #161B22); color: #161B22; }
+  #sectionSchedule .paste-btn { border-radius: 12px; background: #161B22; color: #fff; }
+  #sectionSchedule .paste-btn:hover { background: #2B3544; }
+  #sectionSchedule .unavail-box { background: #FDF0EE; border: 1px solid #F3C9C3; }
+  #sectionSchedule .avail-box { background: #FFF7E6; border: 1px solid #F2DDA8; }
+
+  /* footer totals and the sales block: lighter tints, flat colour, a bar on the label */
+  #sectionSchedule .totals-row td { background: #F6F7F9; color: #161B22; }
+  #sectionSchedule table.schedule-grid tr.sales-ai td { background: #F6F1FB; }
+  #sectionSchedule table.schedule-grid tr.sales-fc td { background: #EEF4FB; }
+  #sectionSchedule table.schedule-grid tr.sales-fc-total td { background: #E2EDF9; }
+  #sectionSchedule table.schedule-grid tr.sales-ac td { background: #EDF7F0; }
+  #sectionSchedule table.schedule-grid tr.sales-ac-total td { background: #DFF0E5; }
+  #sectionSchedule table.schedule-grid tr.sales-ly td { background: #FDF6E8; }
+  #sectionSchedule table.schedule-grid tr.sales-ai td.row-label, #sectionSchedule table.schedule-grid tr.sales-fc td.row-label, #sectionSchedule table.schedule-grid tr.sales-ac td.row-label, #sectionSchedule table.schedule-grid tr.sales-ly td.row-label { border-left-width: 4px !important; font-weight: 700; letter-spacing: .01em; }
+  #sectionSchedule table.schedule-grid tr.sales-fc input, #sectionSchedule table.schedule-grid tr.sales-ly input, #sectionSchedule table.schedule-grid tr.sales-ac input { border-radius: 10px; border: 1px solid transparent; font-weight: 700; transition: border-color .15s ease, box-shadow .15s ease, background .15s ease; }
+  #sectionSchedule table.schedule-grid tr.sales-fc input:hover, #sectionSchedule table.schedule-grid tr.sales-ly input:hover { border-color: #C4CAD4; }
+  #sectionSchedule table.schedule-grid tr.sales-fc input:focus, #sectionSchedule table.schedule-grid tr.sales-ly input:focus { outline: none; border-color: #4F86C6; box-shadow: 0 0 0 3px rgba(79,134,198,.22); background: #fff; }
+  #sectionSchedule table.schedule-grid tr.index-row td { background: #fff; }
+  #sectionSchedule .index-ok { color: #2F7D55; } #sectionSchedule .index-warn { color: #B7791F; } #sectionSchedule .index-bad { color: #C0392B; }
+  #sectionSchedule .grand-total-bar { border-radius: 16px; }
+  #sectionSchedule .house-btn { transition: background .15s ease, transform .15s ease; }
+  @media (prefers-reduced-motion: reduce) { #sectionSchedule * { transition: none !important; } #sectionSchedule .shift-chip:hover { transform: none; } }
   </style>
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -703,7 +774,7 @@ I18N.add({
     "sched.aiNeedPrompt": "Describe what you need first", "sched.aiNoShifts": "The AI didn't propose any shifts — try adding more detail.",
     "sched.aiProposal": n => `${n} shift${n === 1 ? "" : "s"} proposed — not saved yet`, "sched.aiApply": "Apply to grid", "sched.aiDiscard": "Discard",
     "chg.msg": (t, n) => `${t} change${t === 1 ? "" : "s"} since this week was posted — ${n} ${n === 1 ? "person" : "people"} affected. Staff haven’t been told.`, "chg.review": "Review", "chg.hide": "Hide", "chg.send": "Notify staff", "chg.dismiss": "Don’t notify", "chg.nophone": "no phone number", "chg.removed": (s) => `shift cancelled (${s})`, "chg.added": (s, r) => `new shift ${s}${r ? " – " + r : ""}`, "chg.role": (r) => `now ${r}`, "chg.moved": (n, o) => `now ${n} (was ${o})`, "chg.confirm": (n) => `Text ${n} ${n === 1 ? "person" : "people"} about their changes?`, "chg.sent": (n) => `Texted ${n} ${n === 1 ? "person" : "people"}.`, "chg.dismissed": "OK — staff won’t be notified about these changes.", "sched.markOff": "Mark unavailable", "sched.offFrom": "From (empty = all day)", "sched.offTo": "Until", "sched.offHint": "Leave both times empty for the whole day.", "sched.offNote": "Reason (optional)", "sched.offBoth": "Fill in both times, or leave both empty for the whole day.", "sched.offSaved": "Marked unavailable.", "sched.offClash": "Marked unavailable — but they already have a shift that day.", "sched.offRemoved": "Unavailability removed.", "sched.offRemove": "Remove this unavailability", "seen.msg": (s, t) => `${s} of ${t} have opened their schedule for this week.`, "seen.at": (w) => `seen ${w}`, "seen.not": "not opened yet", "seen.before": "opened it before the latest update — not since", "dept.reception": "Reception", "dept.housekeeping": "Housekeeping", "dept.maintenance": "Maintenance", "role.Front Desk Agent": "Front Desk Agent", "role.Night Auditor": "Night Auditor", "role.Concierge": "Concierge", "role.Bellhop": "Bellhop", "role.Room Attendant": "Room Attendant", "role.Housekeeping Supervisor": "Housekeeping Supervisor", "role.Laundry Attendant": "Laundry Attendant", "role.Public Area Attendant": "Public Area Attendant", "role.Maintenance Technician": "Maintenance Technician", "role.Engineer": "Engineer", "role.Groundskeeper": "Groundskeeper",
-    "occ.forecast": "Forecast occupancy", "occ.actual": "Actual occupancy", "occ.avg": "avg", "occ.bad": "Occupancy must be between 0 and 100", "occ.ph": "%",
+    "occ.forecast": "Forecast occupancy (rooms)", "occ.actual": "Actual occupancy (rooms)", "occ.avg": "avg", "occ.bad": "Occupancy is a whole number of rooms", "occ.ph": "rooms",
     "sched.overlapAsk": "Add it anyway?", "staff.alsoAt": "Also works at:",
     "pub.draft": "Draft — staff can't see this week yet. Work on it, then publish.", "pub.live": "Published — staff can see this week.", "pub.always": "This week is live — staff see changes as you make them.", "pub.publish": "Post schedule", "pub.unpublish": "Back to draft", "pub.confirm": (w, h) => `Post the ${h} schedule for the week of ${w}? ${h} staff will see it in their portal and get a text.`, "pub.confirmUn": (w, h) => `Hide the ${h} schedule for the week of ${w} from staff again?`, "pub.done": "Schedule posted — staff can see it in their portal and are being texted.", "pub.undone": "Back to draft — staff can no longer see this week.", "copy.btn": "Copy last week here", "copy.none": "Last week has no shifts for the staff shown.", "copy.confirm": (n, w) => `Copy ${n} shift${n === 1 ? "" : "s"} from the week of ${w} into this week?`, "copy.skipped": n => `${n} shift${n === 1 ? "" : "s"} skipped (already on the grid or conflicting).`, "copy.confirmPosted": (n, w) => `Copy ${n} shift${n === 1 ? "" : "s"} exactly as they were posted for the week of ${w} (including any shift cancelled since) into this week?`, "sched.aiApplied": n => `${n} shift${n === 1 ? "" : "s"} added to the grid.`, "sched.aiUndo": "Undo", "sched.aiUndone": "Undone — the shifts were removed.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~$${sales} expected sales` : `~$${sales} expected sales · ${pct}% labor`, "sched.aiWeekLabor": pct => `${pct}% labor vs expected sales`, "sched.aiSkipped": "Left out:", "sched.aiHours": (h, c) => `${h}h total · about $${c} labor`,
@@ -754,7 +825,7 @@ I18N.add({
     "sched.aiNeedPrompt": "Décrivez d'abord ce qu'il vous faut", "sched.aiNoShifts": "L'IA n'a proposé aucun quart — ajoutez plus de détails.",
     "sched.aiProposal": n => `${n} quart${n === 1 ? "" : "s"} proposé${n === 1 ? "" : "s"} — pas encore enregistré${n === 1 ? "" : "s"}`, "sched.aiApply": "Appliquer à la grille", "sched.aiDiscard": "Annuler",
     "chg.msg": (t, n) => `${t} changement${t === 1 ? "" : "s"} depuis la publication de cette semaine — ${n} personne${n === 1 ? "" : "s"} concernée${n === 1 ? "" : "s"}. Le personnel n’a pas été avisé.`, "chg.review": "Examiner", "chg.hide": "Masquer", "chg.send": "Aviser le personnel", "chg.dismiss": "Ne pas aviser", "chg.nophone": "pas de numéro de téléphone", "chg.removed": (s) => `quart annulé (${s})`, "chg.added": (s, r) => `nouveau quart ${s}${r ? " – " + r : ""}`, "chg.role": (r) => `maintenant ${r}`, "chg.moved": (n, o) => `maintenant ${n} (avant ${o})`, "chg.confirm": (n) => `Envoyer un texto à ${n} personne${n === 1 ? "" : "s"} au sujet de leurs changements ?`, "chg.sent": (n) => `${n} texto${n === 1 ? "" : "s"} envoyé${n === 1 ? "" : "s"}.`, "chg.dismissed": "OK — le personnel ne sera pas avisé de ces changements.", "sched.markOff": "Marquer indisponible", "sched.offFrom": "De (vide = toute la journée)", "sched.offTo": "Jusqu’à", "sched.offHint": "Laissez les deux heures vides pour toute la journée.", "sched.offNote": "Raison (facultatif)", "sched.offBoth": "Remplissez les deux heures, ou laissez les deux vides pour toute la journée.", "sched.offSaved": "Marqué indisponible.", "sched.offClash": "Marqué indisponible — mais un quart est déjà prévu ce jour-là.", "sched.offRemoved": "Indisponibilité retirée.", "sched.offRemove": "Retirer cette indisponibilité", "seen.msg": (s, t) => `${s} personne${s === 1 ? "" : "s"} sur ${t} ${s === 1 ? "a" : "ont"} ouvert leur horaire cette semaine.`, "seen.at": (w) => `vu ${w}`, "seen.not": "pas encore ouvert", "seen.before": "l’a ouvert avant la dernière mise à jour — pas depuis", "dept.reception": "Réception", "dept.housekeeping": "Entretien ménager", "dept.maintenance": "Entretien technique", "role.Front Desk Agent": "Préposé(e) à la réception", "role.Night Auditor": "Auditeur(trice) de nuit", "role.Concierge": "Concierge", "role.Bellhop": "Bagagiste", "role.Room Attendant": "Préposé(e) aux chambres", "role.Housekeeping Supervisor": "Superviseur(e) de l’entretien ménager", "role.Laundry Attendant": "Préposé(e) à la buanderie", "role.Public Area Attendant": "Préposé(e) aux aires publiques", "role.Maintenance Technician": "Technicien(ne) d’entretien", "role.Engineer": "Ingénieur(e) d’entretien", "role.Groundskeeper": "Préposé(e) aux terrains",
-    "occ.forecast": "Taux d’occupation prévu", "occ.actual": "Taux d’occupation réel", "occ.avg": "moy.", "occ.bad": "Le taux d’occupation doit être entre 0 et 100", "occ.ph": "%",
+    "occ.forecast": "Occupation prévue (chambres)", "occ.actual": "Occupation réelle (chambres)", "occ.avg": "moy.", "occ.bad": "L’occupation est un nombre entier de chambres", "occ.ph": "chambres",
     "sched.overlapAsk": "L’ajouter quand même ?", "staff.alsoAt": "Travaille aussi à :",
     "pub.draft": "Brouillon — le personnel ne voit pas encore cette semaine. Travaillez-la, puis publiez.", "pub.live": "Publié — le personnel peut voir cette semaine.", "pub.always": "Cette semaine est en direct — le personnel voit vos changements au fur et à mesure.", "pub.publish": "Afficher l'horaire", "pub.unpublish": "Retour en brouillon", "pub.confirm": (w, h) => `Afficher l'horaire (${h}) de la semaine du ${w} ? Le personnel de ce secteur le verra dans son portail et recevra un texto.`, "pub.confirmUn": (w, h) => `Cacher de nouveau l'horaire (${h}) de la semaine du ${w} au personnel ?`, "pub.done": "Horaire affiché — le personnel peut le voir dans son portail et reçoit un texto.", "pub.undone": "Retour en brouillon — le personnel ne voit plus cette semaine.", "copy.btn": "Copier la semaine dernière ici", "copy.none": "La semaine dernière n'a aucun quart pour le personnel affiché.", "copy.confirm": (n, w) => `Copier ${n} quart${n === 1 ? "" : "s"} de la semaine du ${w} dans cette semaine ?`, "copy.skipped": n => `${n} quart${n === 1 ? "" : "s"} ignoré${n === 1 ? "" : "s"} (déjà dans la grille ou en conflit).`, "copy.confirmPosted": (n, w) => `Copier ${n} quart${n === 1 ? "" : "s"} exactement comme affiché${n === 1 ? "" : "s"} pour la semaine du ${w} (y compris les quarts annulés depuis) dans cette semaine ?`, "sched.aiApplied": n => `${n} quart${n === 1 ? "" : "s"} ajouté${n === 1 ? "" : "s"} à la grille.`, "sched.aiUndo": "Annuler l'ajout", "sched.aiUndone": "Annulé — les quarts ont été retirés.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~${sales} $ de ventes prévues` : `~${sales} $ de ventes prévues · ${pct}% main-d'œuvre`, "sched.aiWeekLabor": pct => `${pct}% de main-d'œuvre par rapport aux ventes prévues`, "sched.aiSkipped": "Exclus :", "sched.aiHours": (h, c) => `${h} h au total · environ ${c} $ de main-d'œuvre`,
@@ -805,7 +876,7 @@ I18N.add({
     "sched.aiNeedPrompt": "Describe primero lo que necesitas", "sched.aiNoShifts": "La IA no propuso ningún turno — agrega más detalles.",
     "sched.aiProposal": n => `${n} turno${n === 1 ? "" : "s"} propuesto${n === 1 ? "" : "s"} — aún sin guardar`, "sched.aiApply": "Aplicar a la cuadrícula", "sched.aiDiscard": "Descartar",
     "chg.msg": (t, n) => `${t} cambio${t === 1 ? "" : "s"} desde que se publicó esta semana — ${n} persona${n === 1 ? "" : "s"} afectada${n === 1 ? "" : "s"}. El personal no ha sido avisado.`, "chg.review": "Revisar", "chg.hide": "Ocultar", "chg.send": "Avisar al personal", "chg.dismiss": "No avisar", "chg.nophone": "sin número de teléfono", "chg.removed": (s) => `turno cancelado (${s})`, "chg.added": (s, r) => `turno nuevo ${s}${r ? " – " + r : ""}`, "chg.role": (r) => `ahora ${r}`, "chg.moved": (n, o) => `ahora ${n} (antes ${o})`, "chg.confirm": (n) => `¿Enviar un texto a ${n} persona${n === 1 ? "" : "s"} sobre sus cambios?`, "chg.sent": (n) => `${n} texto${n === 1 ? "" : "s"} enviado${n === 1 ? "" : "s"}.`, "chg.dismissed": "OK — no se avisará al personal de estos cambios.", "sched.markOff": "Marcar no disponible", "sched.offFrom": "Desde (vacío = todo el día)", "sched.offTo": "Hasta", "sched.offHint": "Deja ambas horas vacías para todo el día.", "sched.offNote": "Motivo (opcional)", "sched.offBoth": "Completa ambas horas, o deja ambas vacías para todo el día.", "sched.offSaved": "Marcado como no disponible.", "sched.offClash": "Marcado como no disponible — pero ya tiene un turno ese día.", "sched.offRemoved": "No disponibilidad eliminada.", "sched.offRemove": "Quitar esta no disponibilidad", "seen.msg": (s, t) => `${s} de ${t} han abierto su horario de esta semana.`, "seen.at": (w) => `visto ${w}`, "seen.not": "aún no lo ha abierto", "seen.before": "lo abrió antes de la última actualización — no desde entonces", "dept.reception": "Recepción", "dept.housekeeping": "Limpieza de habitaciones", "dept.maintenance": "Mantenimiento", "role.Front Desk Agent": "Recepcionista", "role.Night Auditor": "Auditor/a nocturno/a", "role.Concierge": "Conserje", "role.Bellhop": "Botones", "role.Room Attendant": "Camarero/a de piso", "role.Housekeeping Supervisor": "Supervisor/a de limpieza", "role.Laundry Attendant": "Encargado/a de lavandería", "role.Public Area Attendant": "Encargado/a de áreas comunes", "role.Maintenance Technician": "Técnico/a de mantenimiento", "role.Engineer": "Ingeniero/a de mantenimiento", "role.Groundskeeper": "Jardinero/a",
-    "occ.forecast": "Ocupación prevista", "occ.actual": "Ocupación real", "occ.avg": "prom.", "occ.bad": "La ocupación debe estar entre 0 y 100", "occ.ph": "%",
+    "occ.forecast": "Ocupación prevista (habitaciones)", "occ.actual": "Ocupación real (habitaciones)", "occ.avg": "prom.", "occ.bad": "La ocupación es un número entero de habitaciones", "occ.ph": "hab.",
     "sched.overlapAsk": "¿Agregarlo de todos modos?", "staff.alsoAt": "También trabaja en:",
     "pub.draft": "Borrador — el personal aún no ve esta semana. Trabájala y luego publícala.", "pub.live": "Publicado — el personal puede ver esta semana.", "pub.always": "Esta semana está en vivo — el personal ve tus cambios al instante.", "pub.publish": "Publicar horario", "pub.unpublish": "Volver a borrador", "pub.confirm": (w, h) => `¿Publicar el horario (${h}) de la semana del ${w}? El personal de esa área lo verá en su portal y recibirá un mensaje de texto.`, "pub.confirmUn": (w, h) => `¿Ocultar de nuevo el horario (${h}) de la semana del ${w} al personal?`, "pub.done": "Horario publicado — el personal puede verlo en su portal y recibe un mensaje de texto.", "pub.undone": "Vuelto a borrador — el personal ya no ve esta semana.", "copy.btn": "Copiar la semana pasada aquí", "copy.none": "La semana pasada no tiene turnos para el personal mostrado.", "copy.confirm": (n, w) => `¿Copiar ${n} turno${n === 1 ? "" : "s"} de la semana del ${w} a esta semana?`, "copy.skipped": n => `${n} turno${n === 1 ? "" : "s"} omitido${n === 1 ? "" : "s"} (ya están en la cuadrícula o hay conflicto).`, "copy.confirmPosted": (n, w) => `¿Copiar ${n} turno${n === 1 ? "" : "s"} exactamente como se publicaron para la semana del ${w} (incluidos los turnos cancelados después) a esta semana?`, "sched.aiApplied": n => `${n} turno${n === 1 ? "" : "s"} agregado${n === 1 ? "" : "s"} a la cuadrícula.`, "sched.aiUndo": "Deshacer", "sched.aiUndone": "Deshecho — se quitaron los turnos.",
     "sched.aiDayLabor": (sales, pct) => pct === null ? `~$${sales} de ventas esperadas` : `~$${sales} de ventas esperadas · ${pct}% mano de obra`, "sched.aiWeekLabor": pct => `${pct}% de mano de obra vs. ventas esperadas`, "sched.aiSkipped": "Omitidos:", "sched.aiHours": (h, c) => `${h} h en total · unos $${c} de mano de obra`,
@@ -824,7 +895,7 @@ const roleLabel = r => { const k = "role." + r; const v = I18N.t(k); return v ==
 let DEPTS = [{ key: "foh", name: "Front of House", roles: [] }, { key: "boh", name: "Back of House", roles: [] }];
 let ALLOWED_DEPTS = null; // a restricted manager only sees some departments (null = all)
 let ESTAB_KIND = "restaurant";
-let occupancy = {}; // date -> { forecastPct, actualPct } (hotels only)
+let occupancy = {}; // date -> { forecastRooms, actualRooms } (hotels only)
 const isHotel = () => ESTAB_KIND === "hotel";
 const visibleDepts = () => DEPTS.filter(d => !ALLOWED_DEPTS || ALLOWED_DEPTS.includes(d.key));
 const deptName = key => { const d = DEPTS.find(x => x.key === key); const k = "dept." + key; const v = I18N.t(k); return v !== k ? v : (d ? d.name : key); };
@@ -2240,15 +2311,15 @@ function renderOccupancyRows(weekDates) {
       const val = v !== undefined && v !== null ? v : "";
       return `<td><input type="text" inputmode="decimal" value="${val}" placeholder="${escapeHtml(tr("occ.ph"))}" onblur="saveOccupancy('${field}','${dateStr}',this)" /></td>`;
     }).join("");
-    document.getElementById(id).innerHTML = `<td class="row-label">${escapeHtml(label)}</td>${cells}<td class="day-total">${n ? tr("occ.avg") + " " + (Math.round(sum / n * 10) / 10) + "%" : "—"}</td>`;
+    document.getElementById(id).innerHTML = `<td class="row-label">${escapeHtml(label)}</td>${cells}<td class="day-total">${n ? sum : "—"}</td>`;
   };
-  mk("scheduleProjRow", tr("occ.forecast"), "forecastPct");
-  mk("scheduleActualRow", tr("occ.actual"), "actualPct");
+  mk("scheduleProjRow", tr("occ.forecast"), "forecastRooms");
+  mk("scheduleActualRow", tr("occ.actual"), "actualRooms");
 }
 async function saveOccupancy(field, dateStr, input) {
-  const raw = input.value.trim().replace("%", "").replace(",", ".");
+  const raw = input.value.trim();
   const before = (occupancy[dateStr] || {})[field];
-  if (raw !== "" && !(Number(raw) >= 0 && Number(raw) <= 100)) { showBanner(tr("occ.bad"), "warn"); input.value = before === undefined || before === null ? "" : before; return; }
+  if (raw !== "" && !(/^\d+$/.test(raw) && Number(raw) <= 5000)) { showBanner(tr("occ.bad"), "warn"); input.value = before === undefined || before === null ? "" : before; return; }
   const value = raw === "" ? null : Number(raw);
   if ((before === undefined ? null : before) === value) return;
   const r = await api(`/api/occupancy/${dateStr}`, { method: "PUT", body: JSON.stringify({ [field]: value }) });
@@ -2270,7 +2341,7 @@ function renderScheduleGrid() {
 
   const headerRow = document.getElementById("scheduleHeaderRow");
   headerRow.innerHTML = `<th style="text-align:left">${tr("sched.staffCol")}</th>` +
-    weekDates.map((d, i) => `<th>${dayNames[i]}<span class="day-date">${d.getMonth() + 1}/${d.getDate()}</span></th>`).join("") +
+    weekDates.map((d, i) => `<th class="${toISODate(d) === toISODate(new Date()) ? "today" : ""}">${dayNames[i]}<span class="day-date">${d.getMonth() + 1}/${d.getDate()}</span></th>`).join("") +
     `<th>${tr("sched.total")}</th>`;
 
   // ---- sales rows: AI forecast (read-only), forecast lunch/dinner (typed) + total, actual lunch/dinner (typed) + total, last year ----
@@ -2366,7 +2437,7 @@ function renderScheduleGrid() {
             weekHours += hrs;
             weekCost += hrs * (p.hourlyRate || 0);
           });
-          return `<td class="day-cell" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${p.id}','${dateStr}','${g.role}')">${renderDayCell(p, dateStr, g.role)}</td>`;
+          return `<td class="day-cell${dateStr === toISODate(new Date()) ? " today" : ""}" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'${p.id}','${dateStr}','${g.role}')">${renderDayCell(p, dateStr, g.role)}</td>`;
         }).join("");
         return `
         <tr class="rl" style="--role-color:${roleColor(g.role)}">
