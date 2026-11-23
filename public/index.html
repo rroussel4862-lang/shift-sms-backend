@@ -1060,7 +1060,7 @@ const T = {
       weatherPast: "Weather wasn't saved for this day.", eventsNotRecorded: "Nearby events weren't saved for this day.",
       staffByRole: "How many staff, by role", title: "Today's snapshot", managerOnDuty: "Manager on duty", noManager: "No manager scheduled today",
       aiForecast: "AI forecast", noAiForecast: "Generate it in Back Office › Schedule", actualSales: "Actual sales", noActual: "Not entered yet", vsForecast: "vs your forecast", actualShort: "actual",
-      occForecast: "Forecast occupancy", occActual: "Actual occupancy", noOcc: "Enter it in Back Office › Schedule", noOccActual: "Not entered yet", forecastSales: "Forecast sales", noForecast: "Enter today's forecast in Back Office › Schedule", lastYear: "Last year, same day", lastYearAvg: "average day, same week last year", noLastYear: "Add it in Back Office › Schedule",
+      occForecast: "Forecast occupancy", occActual: "Actual occupancy", rooms: "rooms occupied", noOcc: "Enter it in Back Office › Schedule", noOccActual: "Not entered yet", forecastSales: "Forecast sales", noForecast: "Enter today's forecast in Back Office › Schedule", lastYear: "Last year, same day", lastYearAvg: "average day, same week last year", noLastYear: "Add it in Back Office › Schedule",
       vsLastYear: "vs last year", laborScheduled: "Labor scheduled", laborPct: "Forecast labor %", needForecast: "Needs a sales forecast",
       lunchShort: "Lunch", dinnerShort: "Dinner", whoScheduled: "Who's scheduled", weatherEvents: "Weather & events", eventsNearby: "Events nearby that may affect customer attendance",
       loading: "Loading…", needAddress: "Add your restaurant's address to see the weather and local events.", needAddressLink: "Add it in the Hiring tab", geoFailed: "We couldn't locate that address — check it in the Hiring tab.",
@@ -1219,7 +1219,7 @@ const T = {
       weatherPast: "La météo n'a pas été enregistrée pour ce jour.", eventsNotRecorded: "Les événements à proximité n'ont pas été enregistrés pour ce jour.",
       staffByRole: "Combien de personnes, par poste", title: "Aperçu du jour", managerOnDuty: "Gérant en service", noManager: "Aucun gérant à l'horaire aujourd'hui",
       aiForecast: "Prévision IA", noAiForecast: "À générer dans l'arrière-boutique › Horaire", actualSales: "Ventes réelles", noActual: "Pas encore saisies", vsForecast: "vs votre prévision", actualShort: "réel",
-      occForecast: "Occupation prévue", occActual: "Occupation réelle", noOcc: "À entrer dans l'arrière-boutique › Horaire", noOccActual: "Pas encore saisie", forecastSales: "Ventes prévues", noForecast: "Entrez la prévision du jour dans l'arrière-boutique › Horaire", lastYear: "Même jour l'an dernier", lastYearAvg: "journée moyenne, même semaine l'an dernier", noLastYear: "À ajouter dans l'arrière-boutique › Horaire",
+      occForecast: "Occupation prévue", occActual: "Occupation réelle", rooms: "chambres occupées", noOcc: "À entrer dans l'arrière-boutique › Horaire", noOccActual: "Pas encore saisie", forecastSales: "Ventes prévues", noForecast: "Entrez la prévision du jour dans l'arrière-boutique › Horaire", lastYear: "Même jour l'an dernier", lastYearAvg: "journée moyenne, même semaine l'an dernier", noLastYear: "À ajouter dans l'arrière-boutique › Horaire",
       vsLastYear: "vs l'an dernier", laborScheduled: "Main-d'œuvre prévue", laborPct: "% main-d'œuvre prévu", needForecast: "Prévision de ventes requise",
       lunchShort: "Dîner", dinnerShort: "Souper", whoScheduled: "Qui travaille", weatherEvents: "Météo et événements", eventsNearby: "Événements à proximité pouvant influencer la clientèle",
       loading: "Chargement…", needAddress: "Ajoutez l'adresse du restaurant pour voir la météo et les événements locaux.", needAddressLink: "À ajouter dans l'onglet Embauche", geoFailed: "Adresse introuvable — vérifiez-la dans l'onglet Embauche.",
@@ -1378,7 +1378,7 @@ const T = {
       weatherPast: "El clima no se guardó para este día.", eventsNotRecorded: "Los eventos cercanos no se guardaron para este día.",
       staffByRole: "Cuántas personas, por puesto", title: "Resumen del día", managerOnDuty: "Gerente de turno", noManager: "Ningún gerente programado hoy",
       aiForecast: "Pronóstico IA", noAiForecast: "Genéralo en Administración › Horario", actualSales: "Ventas reales", noActual: "Aún sin ingresar", vsForecast: "vs tu proyección", actualShort: "real",
-      occForecast: "Ocupación prevista", occActual: "Ocupación real", noOcc: "Ingrésala en Administración › Horario", noOccActual: "Aún sin ingresar", forecastSales: "Ventas proyectadas", noForecast: "Ingresa la proyección de hoy en Administración › Horario", lastYear: "Mismo día el año pasado", lastYearAvg: "día promedio, misma semana del año pasado", noLastYear: "Agrégalo en Administración › Horario",
+      occForecast: "Ocupación prevista", occActual: "Ocupación real", rooms: "habitaciones ocupadas", noOcc: "Ingrésala en Administración › Horario", noOccActual: "Aún sin ingresar", forecastSales: "Ventas proyectadas", noForecast: "Ingresa la proyección de hoy en Administración › Horario", lastYear: "Mismo día el año pasado", lastYearAvg: "día promedio, misma semana del año pasado", noLastYear: "Agrégalo en Administración › Horario",
       vsLastYear: "vs año pasado", laborScheduled: "Mano de obra programada", laborPct: "% de mano de obra proyectado", needForecast: "Requiere proyección de ventas",
       lunchShort: "Almuerzo", dinnerShort: "Cena", whoScheduled: "Quién trabaja", weatherEvents: "Clima y eventos", eventsNearby: "Eventos cercanos que podrían afectar la asistencia de clientes",
       loading: "Cargando…", needAddress: "Agrega la dirección del restaurante para ver el clima y los eventos locales.", needAddressLink: "Agrégala en la pestaña Contratación", geoFailed: "No pudimos ubicar esa dirección — revísala en la pestaña Contratación.",
@@ -2317,8 +2317,8 @@ function renderOverview() {
   const occ = (daySnap && daySnap.occupancy) || {};
   const hoursSched = dayShifts.reduce((a, sh) => a + shiftHours(sh.startTime, sh.endTime), 0);
   const tiles = isHotelMi() ? [
-    tile(S("occForecast"), has(occ.forecastPct) ? occ.forecastPct + "%" : "—", has(occ.forecastPct) ? "" : S("noOcc")),
-    tile(S("occActual"), has(occ.actualPct) ? occ.actualPct + "%" : "—", has(occ.actualPct) ? "" : S("noOccActual")),
+    tile(S("occForecast"), has(occ.forecastRooms) ? occ.forecastRooms : "—", has(occ.forecastRooms) ? S("rooms") : S("noOcc")),
+    tile(S("occActual"), has(occ.actualRooms) ? occ.actualRooms : "—", has(occ.actualRooms) ? S("rooms") : S("noOccActual")),
     tile(S("laborScheduled"), dayShifts.length ? m0(laborCost) : "—", dayShifts.length ? hoursSched.toFixed(1) + " h" : ""),
   ].join("") : [
     tile(S("forecastSales"), has(forecast) ? m0(forecast) : "—", has(forecast) ? (split(sales.projectedByService) || lyVs) : S("noForecast")),
