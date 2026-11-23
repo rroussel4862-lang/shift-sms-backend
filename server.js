@@ -70,7 +70,7 @@ async function loadDemoIds() {
 }
 
 const smsClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-const pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
+const pool = new Pool({ connectionString: DATABASE_URL, ssl: process.env.DATABASE_SSL === "false" ? false : { rejectUnauthorized: false } }); // DATABASE_SSL=false only for a throwaway local database (the automated tests on GitHub)
 
 async function initDb() {
   await pool.query(`
