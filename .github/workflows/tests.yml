@@ -2,8 +2,14 @@ name: Tests
 
 on:
   pull_request:
+    # Pull requests that ONLY change these files skip the tests (nothing there can affect them).
+    # Anything else, including every .html page (a few tests read them), still runs the tests.
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.txt"
+      - "public/*.css"
   push:
-    branches: [main]
+    branches: [main] # always runs after a merge, as the safety net
 
 # A newer push to the same branch replaces an older, still-running test.
 concurrency:
