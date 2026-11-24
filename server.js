@@ -674,6 +674,10 @@ function bilingual(fr, en) {
 
 async function sendSms(to, body, restaurantId = null) {
   if (restaurantId && demoIds.has(restaurantId)) return { to, ok: true, demo: true }; // demo restaurant: pretend, never text anyone
+  if (process.env.SMS_DISABLED === "true") { // the staging copy: pretend, so a test copy can never text a real person
+    logActivity({ restaurantId, eventType: "sms_skipped", level: "info", detail: `Staging: would have texted ${to}` });
+    return { to, ok: true, skipped: true };
+  }
   const startedAt = Date.now();
   let fromNumber = TWILIO_PHONE_NUMBER;
   if (restaurantId) {
@@ -5804,7 +5808,7 @@ app.get("/api/platform/health", requirePlatformAuth, async (req, res) => {
 
 app.get("/api/health", async (req, res) => {
   const restaurantCount = await pool.query("SELECT COUNT(*) FROM restaurants");
-  res.json({ ok: true, database: "connected", restaurants: Number(restaurantCount.rows[0].count) });
+  res.json({ ok: true, database: "connected", restaurants: Number(restaurantCount.rows[0].count), staging: process.env.STAGING === "true" });
 });
 
 // Last stop for any error thrown (or rejected) inside a route: log it with a reference code and answer cleanly instead of hanging.
@@ -6247,4 +6251,4 @@ app.get("/api/owner/overview", requireOwnerAuth, async (req, res) => {
   });
 });
 
-module.exports = { verifyStripeSignature, stripeForm, clearBillingCache, app, pool, initDb, seedDemoNow, ensureFreshDemo, demoIds, makeErrorCode, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates, cleanAvailability };
+module.exports = { sendSms, verifyStripeSignature, stripeForm, clearBillingCache, app, pool, initDb, seedDemoNow, ensureFreshDemo, demoIds, makeErrorCode, archiveOldActivity, parseMetNoForecast, cleanEvents, checkScheduleCandidates, cleanAvailability };
